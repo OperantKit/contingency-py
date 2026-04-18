@@ -1,0 +1,77 @@
+{
+  "description": "DRL 3: reinforce if IRT >= 3s.",
+  "name": "drl-3",
+  "schedule": {
+    "params": {
+      "interval": 3.0
+    },
+    "type": "DRL"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 0.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 0.0
+        }
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 9.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 9.0
+        }
+      },
+      "now": 9.0
+    }
+  ]
+}

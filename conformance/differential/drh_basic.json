@@ -1,0 +1,73 @@
+{
+  "description": "DRH 3 responses within 2s sliding window.",
+  "name": "drh-3-per-2",
+  "schedule": {
+    "params": {
+      "response_count": 3,
+      "time_window": 2.0
+    },
+    "type": "DRH"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 0.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 0.5
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.5
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 1.0
+        }
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.5
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 1.5
+        }
+      },
+      "now": 1.5
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.0
+    }
+  ]
+}

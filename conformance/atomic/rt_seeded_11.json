@@ -1,0 +1,650 @@
+{
+  "description": "RT mean=3s, Random(11). Pure ticks.",
+  "name": "rt-seeded-11",
+  "schedule": {
+    "params": {
+      "mean_interval": 3.0,
+      "seed": 11
+    },
+    "type": "RT"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 2.0
+        }
+      },
+      "now": 2.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 4.5
+        }
+      },
+      "now": 4.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 6.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 8.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 9.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 10.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 11.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 11.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 12.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 12.5
+        }
+      },
+      "now": 12.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 13.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 13.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 14.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 14.5
+        }
+      },
+      "now": 14.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 15.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 15.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 16.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 16.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 17.0
+        }
+      },
+      "now": 17.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 17.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 18.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 18.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 19.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 19.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 20.0
+        }
+      },
+      "now": 20.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 20.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 21.0
+        }
+      },
+      "now": 21.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 21.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 22.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 22.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 23.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 23.5
+        }
+      },
+      "now": 23.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 24.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 24.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 25.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 25.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 26.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 26.5
+        }
+      },
+      "now": 26.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 27.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 27.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 28.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 28.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 29.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 29.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 30.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 30.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 31.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 31.5
+        }
+      },
+      "now": 31.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 32.0
+        }
+      },
+      "now": 32.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 32.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 33.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 33.5
+        }
+      },
+      "now": 33.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 34.0
+        }
+      },
+      "now": 34.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 34.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 35.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 35.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 36.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 36.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 37.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 37.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 38.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 38.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 39.0
+        }
+      },
+      "now": 39.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 39.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 40.0
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "description": "FT 5: response-independent, reinforces every 5s from the first step anchor.",
+  "name": "ft5-basic",
+  "schedule": {
+    "params": {
+      "interval": 5.0
+    },
+    "type": "FT"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 10.0
+        }
+      },
+      "now": 10.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 12.5
+    }
+  ]
+}

@@ -1,0 +1,849 @@
+{
+  "description": "VI 10, n_intervals=12, seed=7. Deterministic trajectory.",
+  "name": "vi10-seeded-7",
+  "schedule": {
+    "params": {
+      "mean_interval": 10.0,
+      "n_intervals": 12,
+      "seed": 7
+    },
+    "type": "VI"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 0.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 8.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 9.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 10.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 11.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 11.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 12.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 12.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 13.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 13.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 14.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 14.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 15.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 15.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 16.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 16.0
+        }
+      },
+      "now": 16.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 17.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 17.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 18.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 18.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 19.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 19.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 20.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 20.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 21.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 21.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 22.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 22.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 23.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 23.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 24.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 24.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 25.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 25.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 26.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 26.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 27.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 27.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 28.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 28.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 29.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 29.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 30.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 30.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 31.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 31.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 32.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 32.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 33.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 33.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 34.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 34.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 35.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 35.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 36.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 36.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 37.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 37.0
+        }
+      },
+      "now": 37.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 38.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 38.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 39.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 39.0
+        }
+      },
+      "now": 39.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 40.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 40.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 41.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 41.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 42.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 42.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 43.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 43.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 44.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 44.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 45.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 45.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 46.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 46.0
+        }
+      },
+      "now": 46.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 47.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 47.0
+        }
+      },
+      "now": 47.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 48.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 48.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 49.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 49.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 50.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 50.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 51.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 51.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 52.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 52.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 53.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 53.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 54.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 54.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 55.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 55.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 56.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 56.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 57.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 57.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 58.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 58.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 59.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 59.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 60.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 60.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 61.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 61.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 62.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 62.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 63.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 63.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 64.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 64.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 65.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 65.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 66.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 66.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 67.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 67.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 68.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 68.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 69.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 69.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 70.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 70.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 71.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 71.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 72.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 72.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 73.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 73.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 74.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 74.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 75.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 75.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 76.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 76.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 77.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 77.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 78.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 78.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 79.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 79.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 80.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 80.0
+    }
+  ]
+}

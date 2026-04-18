@@ -1,0 +1,61 @@
+{
+  "description": "DRO 5s resetting: response resets timer; 5s without response -> reinforcer.",
+  "name": "dro-resetting-5",
+  "schedule": {
+    "params": {
+      "dro_type": "resetting",
+      "interval": 5.0
+    },
+    "type": "DRO"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 9.0
+        }
+      },
+      "now": 9.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 14.0
+        }
+      },
+      "now": 14.0
+    }
+  ]
+}

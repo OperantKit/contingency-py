@@ -1,0 +1,95 @@
+{
+  "description": "Alternative(FR(5), FT(10)): whichever fires first wins; both are reset on every win. FR(5) wins if 5 responses arrive before 10s; FT(10) wins on ticks after 10s anchor.",
+  "name": "alternative-fr5-ft10",
+  "schedule": {
+    "params": {
+      "first": {
+        "params": {
+          "n": 5
+        },
+        "type": "FR"
+      },
+      "second": {
+        "params": {
+          "interval": 10.0
+        },
+        "type": "FT"
+      }
+    },
+    "type": "Alternative"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "meta": {
+          "alternative_winner": "first"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 15.0
+    }
+  ]
+}

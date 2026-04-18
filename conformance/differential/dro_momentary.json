@@ -1,0 +1,66 @@
+{
+  "description": "DRO 5s momentary: boundary check every 5s; reinforce iff no response in [anchor, now).",
+  "name": "dro-momentary-5",
+  "schedule": {
+    "params": {
+      "dro_type": "momentary",
+      "interval": 5.0
+    },
+    "type": "DRO"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 10.0
+        }
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 12.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 12.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 15.0
+    }
+  ]
+}

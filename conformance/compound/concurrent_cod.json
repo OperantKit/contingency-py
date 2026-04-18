@@ -1,0 +1,131 @@
+{
+  "description": "Concurrent FR(3)/FR(3) with COD=1.0: after switching, reinforcement on the new operandum is suppressed for 1s.",
+  "name": "concurrent-fr3-fr3-cod1",
+  "schedule": {
+    "params": {
+      "cod": 1.0,
+      "components": {
+        "left": {
+          "params": {
+            "n": 3
+          },
+          "type": "FR"
+        },
+        "right": {
+          "params": {
+            "n": 3
+          },
+          "type": "FR"
+        }
+      },
+      "cor": 0
+    },
+    "type": "Concurrent"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "left",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 3.0
+        }
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 4.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 4.3
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.3
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 4.6
+      },
+      "expect": {
+        "meta": {
+          "cod_suppressed": true,
+          "operandum": "right"
+        },
+        "reinforced": false
+      },
+      "now": 4.6
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 10.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 10.2
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 10.2
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 10.4
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 10.4
+        }
+      },
+      "now": 10.4
+    }
+  ]
+}

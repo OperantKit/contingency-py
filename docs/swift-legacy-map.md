@@ -1,0 +1,45 @@
+# Swift legacy source map
+
+Reference table mapping each `contingency-py` schedule to the original
+Swift source in the archived `legacy/OperantKit` package. Paths below
+are relative to `operantkit/legacy/OperantKit/`.
+
+| Schedule | Swift file | Lines | Notes |
+|---|---|---|---|
+| FR | `Sources/Common/Schedules/FR.swift` | 21-24 | Predicate `numOfResponses >= value`. |
+| CRF | `Sources/Common/Schedules/CRF.swift` | 18-20 | Delegates to `fixedRatio(1)`. |
+| VR | `Sources/Common/Schedules/VR.swift` | 16-26 | Delegates to `FR` with a runtime-sampled value. |
+| RR | `Sources/Common/Schedules/RR.swift` | 16-26 | Delegates to `FR` (legacy treated RR structurally as FR). |
+| FI | `Sources/Common/Schedules/FI.swift` | 14-17 | Predicate `numOfResponses > previous && fixedTime(value)`. |
+| VI | `Sources/Common/Schedules/VI.swift` | 18-30 | Delegates to `FI`. |
+| RI | `Sources/Common/Schedules/RI.swift` | 18-30 | Delegates to `FI`; exponential sampling was external. |
+| FT | `Sources/Common/Schedules/FT.swift` | 15-17 | Predicate `milliseconds >= value`. |
+| VT | `Sources/Common/Schedules/VT.swift` | 18-30 | Delegates to `FT`. |
+| RT | `Sources/Common/Schedules/RT.swift` | 18-30 | Delegates to `FT`. |
+| EXT | `Sources/Common/Schedules/EXT.swift` | 16-18 | Always returns `false`. |
+| Fleshler-Hoffman | `Sources/Common/Helpers/FleshlerHoffman.swift` | 11-95 | `generatedInterval` (15-52) and `generatedRatio` (55-95); Hantula variant 100-129. |
+| Concurrent | — | — | No legacy source; new in `contingency-py`. |
+| Alternative | — | — | No legacy source. |
+| Multiple / Chained / Tandem | — | — | No legacy source. |
+| LimitedHold | — | — | No legacy source. |
+| DRO / DRL / DRH | — | — | No legacy source. |
+| ProgressiveRatio | — | — | No legacy source. |
+
+## Semantic-equivalence notes
+
+- The Swift package used a reactive (RxSwift) pipeline with a
+  `ResponseEntity` carrying `(numOfResponses, milliseconds)`. Each
+  schedule was a pure predicate over that entity; state was owned by
+  the surrounding stream combinators.
+- `contingency-py` inverts the state ownership: each schedule is a
+  stateful object driven by explicit `step(now, event)` calls. The
+  predicates are preserved (see `FR >= value`, `FI > previous &&
+  elapsed >= interval`, `FT elapsed >= value`) but the surrounding
+  anchor / counter / sequence state is now internal.
+- Random-family schedules (RR, RI, RT) in the Swift source delegated
+  to their Fixed counterparts with externally supplied variable values.
+  The Python port makes the random sampling explicit and internal
+  (`Random.random()` for RR, `Random.expovariate` for RI and RT).
+- The Fleshler-Hoffman Swift implementation worked in integer
+  milliseconds. The Python port is unit-agnostic (floats on a
+  caller-declared clock) and uses `math.fsum` for numerical stability.
