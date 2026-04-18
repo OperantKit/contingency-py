@@ -10,8 +10,17 @@ from contingency.builder import ScheduleBuilder
 from contingency.entities import Observation, Outcome, Reinforcer, ResponseEvent
 from contingency.errors import (
     ContingencyError,
+    HardwareError,
+    NotConnectedError,
     ScheduleConfigError,
     ScheduleStateError,
+)
+from contingency.hw import (
+    Apparatus,
+    ApparatusInfo,
+    ApparatusStatus,
+    HilBridgeApparatus,
+    VirtualApparatus,
 )
 from contingency.interfaces import Schedule
 
@@ -23,8 +32,15 @@ __all__ = [
     "Schedule",
     "ScheduleBuilder",
     "ContingencyError",
+    "HardwareError",
+    "NotConnectedError",
     "ScheduleConfigError",
     "ScheduleStateError",
+    "Apparatus",
+    "ApparatusInfo",
+    "ApparatusStatus",
+    "HilBridgeApparatus",
+    "VirtualApparatus",
     "from_dsl",
     "__version__",
 ]
