@@ -5,6 +5,8 @@ Bridges contingency-dsl AST nodes into executable Schedule runtime objects.
 
 from __future__ import annotations
 
+from contingency.bridge import from_dsl
+from contingency.builder import ScheduleBuilder
 from contingency.entities import Observation, Outcome, Reinforcer, ResponseEvent
 from contingency.errors import (
     ContingencyError,
@@ -19,9 +21,11 @@ __all__ = [
     "Reinforcer",
     "ResponseEvent",
     "Schedule",
+    "ScheduleBuilder",
     "ContingencyError",
     "ScheduleConfigError",
     "ScheduleStateError",
+    "from_dsl",
     "__version__",
 ]
 
