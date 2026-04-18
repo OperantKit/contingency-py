@@ -1,0 +1,99 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "contingency-py"
+dynamic = ["version"]
+description = "Python reinforcement schedule engine for operant contingencies. Bridges contingency-dsl AST to runtime Schedule objects."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+  { name = "OperantKit contributors" },
+]
+keywords = [
+  "behavior-analysis",
+  "operant-conditioning",
+  "reinforcement-schedule",
+  "contingency-dsl",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = [
+  "contingency-dsl-py",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8",
+  "pytest-cov",
+  "hypothesis>=6",
+]
+dev = [
+  "contingency-py[test]",
+  "mypy>=1.10",
+  "ruff>=0.5",
+]
+hw-serial = [
+  "pyserial>=3.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/OperantKit"
+Repository = "https://github.com/OperantKit/contingency-py"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/contingency/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/contingency"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+  "--strict-markers",
+  "--strict-config",
+  "-ra",
+]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "hw_serial: requires pyserial and actual hardware (skipped by default)",
+  "hw_hil: requires HIL bridge endpoint (skipped by default)",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["contingency"]
+omit = ["src/contingency/_version.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "\\.\\.\\.",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "RET"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
