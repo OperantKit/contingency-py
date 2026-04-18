@@ -118,7 +118,7 @@ class ScheduleBuilder:
     @staticmethod
     def limited_hold(inner: Schedule, hold: float) -> LimitedHold:
         """Limited-Hold decorator around an interval schedule."""
-        return LimitedHold(inner, hold)
+        return LimitedHold(inner, hold)  # type: ignore[arg-type]
 
     # ------------------------------------------------------------------
     # Time-based family

@@ -237,7 +237,7 @@ def from_dsl(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Schedule:
         hold = _scaled_time(
             ast_node.hold_duration, ast_node.time_unit, time_unit_seconds
         )
-        return LimitedHold(inner, hold)
+        return LimitedHold(inner, hold)  # type: ignore[arg-type]
 
     if isinstance(ast_node, SecondOrder):
         raise ScheduleConfigError(

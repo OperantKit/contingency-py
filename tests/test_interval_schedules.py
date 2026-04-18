@@ -14,7 +14,6 @@ from contingency.entities import ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.schedules.interval import FI, RI, VI, LimitedHold
 
-
 # ---------------------------------------------------------------------------
 # FI
 # ---------------------------------------------------------------------------

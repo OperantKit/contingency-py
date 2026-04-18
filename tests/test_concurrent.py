@@ -23,7 +23,6 @@ from contingency.schedules import Concurrent
 from contingency.schedules.ratio import FR
 from contingency.schedules.time_based import EXT, FT
 
-
 # ---------------------------------------------------------------------------
 # Configuration validation
 # ---------------------------------------------------------------------------
@@ -407,6 +406,30 @@ class TestConcurrentTimeAdvancement:
         sch.step(0.0)
         with pytest.raises(ScheduleConfigError):
             sch.step(0.5, ResponseEvent(0.5, operandum="nowhere"))
+
+    def test_tick_reinforcement_surfaces_even_when_event_present(self) -> None:
+        """FT on left fires at t=1.0; a concurrent response on right must
+        not silently consume that reinforcement."""
+        sch = Concurrent({"left": FT(1.0), "right": FR(3)})
+        sch.step(0.0)  # anchor left's FT clock at 0.0
+        out = sch.step(1.0, ResponseEvent(1.0, operandum="right"))
+        assert out.reinforced
+        assert out.reinforcer is not None
+        assert out.reinforcer.time == 1.0
+
+    def test_tick_reinforcement_not_gated_by_event_cod(self) -> None:
+        """A tick reinforcement from FT on one operandum must not be
+        COD-gated by the event operandum's changeover state."""
+        sch = Concurrent(
+            {"left": FT(1.0), "right": FR(3)},
+            cod=5.0,
+        )
+        sch.step(0.0, ResponseEvent(0.0, operandum="right"))
+        # Right is now _last_operandum with no switch yet; FT on left
+        # arms a reinforcer at t=1.0 independent of the right component.
+        out = sch.step(1.0, ResponseEvent(1.0, operandum="right"))
+        assert out.reinforced
+        assert "cod_suppressed" not in out.meta
 
 
 # ---------------------------------------------------------------------------

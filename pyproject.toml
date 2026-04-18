@@ -99,3 +99,7 @@ python_version = "3.11"
 strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = ["serial", "serial.*", "contingency_dsl", "contingency_dsl.*"]
+ignore_missing_imports = true

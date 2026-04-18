@@ -40,11 +40,11 @@ from contingency.hw.protocols import ApparatusInfo, ApparatusStatus
 __all__ = ["SerialApparatus"]
 
 try:
-    import serial  # type: ignore[import-not-found]
+    import serial
 
     _HAS_PYSERIAL = True  # pragma: no cover - exercised when pyserial is installed
 except ImportError:  # pragma: no cover - exercised when pyserial is not installed
-    serial = None  # type: ignore[assignment]
+    serial = None
     _HAS_PYSERIAL = False
 
 
@@ -132,7 +132,7 @@ class SerialApparatus:
         if self._serial is not None:
             return
         try:
-            self._serial = serial.Serial(  # type: ignore[union-attr]
+            self._serial = serial.Serial(
                 port=self._port_name,
                 baudrate=self._baudrate,
                 timeout=self._read_timeout,

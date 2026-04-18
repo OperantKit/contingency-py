@@ -1,0 +1,46 @@
+version: "3"
+
+tasks:
+  bootstrap:
+    desc: Install Python 3.11 via mise, create venv, editable install with dev deps
+    cmds:
+      - mise install
+      - mise exec -- python -m venv .venv
+      - .venv/bin/python -m pip install -U pip
+      - .venv/bin/python -m pip install -e "../contingency-dsl-py"
+      - .venv/bin/python -m pip install -e ".[dev]"
+
+  test:
+    desc: Run pytest with coverage
+    cmds:
+      - .venv/bin/pytest -q --cov=contingency --cov-report=term-missing
+
+  test-fast:
+    desc: Run pytest without coverage
+    cmds:
+      - .venv/bin/pytest -q
+
+  lint:
+    desc: Ruff check
+    cmds:
+      - .venv/bin/ruff check src/contingency tests
+
+  format:
+    desc: Ruff format
+    cmds:
+      - .venv/bin/ruff format src/contingency tests
+
+  typecheck:
+    desc: mypy strict
+    cmds:
+      - .venv/bin/mypy src/contingency
+
+  check:
+    desc: Run lint + typecheck + tests
+    deps: [lint, typecheck, test]
+
+  clean:
+    desc: Remove build/cache artefacts
+    cmds:
+      - rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov dist build
+      - find . -type d -name __pycache__ -exec rm -rf {} +

@@ -160,7 +160,7 @@ class TestRichardsonRoberts:
     def test_monotonically_increasing(self) -> None:
         fn = richardson_roberts()
         values = [fn(n) for n in range(30)]
-        assert all(a < b for a, b in zip(values, values[1:]))
+        assert all(a < b for a, b in zip(values, values[1:], strict=False))
 
     def test_extrapolation_beyond_index_29_continues_geometrically(self) -> None:
         fn = richardson_roberts()
@@ -299,12 +299,10 @@ class TestProgressiveRatioRichardsonRoberts:
         pr = ProgressiveRatio(richardson_roberts())
         expected = [1, 2, 4, 6, 9]
         observed: list[int] = []
-        response_count = 0
         # Enough responses to earn 5 reinforcers: 1+2+4+6+9 = 22
         for i in range(1, 25):
             observed_req = pr.current_requirement
             o = _respond(pr, float(i))
-            response_count += 1
             if o.reinforced:
                 observed.append(observed_req)
             if len(observed) == 5:

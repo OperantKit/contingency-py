@@ -183,16 +183,30 @@ class Concurrent:
 
     def _advance_components(
         self, now: float, event_operandum: str | None, event: ResponseEvent | None
-    ) -> Outcome:
+    ) -> tuple[Outcome, bool]:
         """Call step() on every component; only ``event_operandum`` receives ``event``.
 
-        Returns the outcome produced by the component that received the
-        event; otherwise the last-reinforced outcome observed on any
-        component during the tick (time-based components may fire on a
-        bare tick). If multiple components fire simultaneously on a
-        bare tick, the first one (by insertion order) wins and the
-        others are silently ignored — the caller should step often
-        enough that this does not occur.
+        Returns a pair ``(outcome, from_event)`` where ``from_event`` is
+        ``True`` iff the returned outcome originated from the
+        event-matched component. Priority order:
+
+        1. The event-matched component's outcome if it reinforced
+           (``from_event=True``).
+        2. Otherwise, the first reinforced tick outcome observed on any
+           other component, in insertion order (``from_event=False``).
+        3. Otherwise, the event-matched component's (un-reinforced)
+           outcome, to preserve its ``meta`` (``from_event=True``).
+        4. Otherwise, an empty :class:`Outcome` (``from_event=False``).
+
+        Rationale: a time-based component (FT/VT/RT) that fires on a
+        step must not be silently dropped just because another operandum
+        also saw a response on the same step. Preferring the event-side
+        outcome when both reinforce matches the single-outcome API; when
+        the event side does not reinforce the tick-side reinforcement is
+        surfaced rather than consumed. If multiple non-event components
+        fire on the same tick, the first one (by insertion order) wins
+        and the others are silently dropped — the caller should step
+        often enough that this does not occur.
         """
         outcome_for_event: Outcome | None = None
         tick_outcome: Outcome | None = None
@@ -203,9 +217,13 @@ class Concurrent:
                 out = component.step(now, None)
                 if tick_outcome is None and out.reinforced:
                     tick_outcome = out
+        if outcome_for_event is not None and outcome_for_event.reinforced:
+            return outcome_for_event, True
+        if tick_outcome is not None:
+            return tick_outcome, False
         if outcome_for_event is not None:
-            return outcome_for_event
-        return tick_outcome if tick_outcome is not None else Outcome()
+            return outcome_for_event, True
+        return Outcome(), False
 
     def _register_event(self, operandum: str, now: float) -> None:
         """Update changeover state for a response at ``operandum`` / ``now``.
@@ -268,7 +286,8 @@ class Concurrent:
             # Pure tick: advance every component's clock. A time-based
             # component may fire here; its outcome is returned as-is
             # because no changeover is involved.
-            return self._advance_components(now, None, None)
+            outcome, _ = self._advance_components(now, None, None)
+            return outcome
 
         operandum = event.operandum
         if operandum not in self._components:
@@ -282,7 +301,7 @@ class Concurrent:
         # a suppressed reinforcer still advances the component's state
         # (the cost of the response is paid by the component regardless
         # of whether the subject receives the food).
-        outcome = self._advance_components(now, operandum, event)
+        outcome, from_event = self._advance_components(now, operandum, event)
 
         # Update changeover bookkeeping. Registration happens *before*
         # gating so that the response which completes a changeover is
@@ -291,9 +310,11 @@ class Concurrent:
         # COD starts at that instant (Catania, 1966).
         self._register_event(operandum, now)
 
-        cod_active = self._cod_active(operandum, now)
-
-        if outcome.reinforced and cod_active:
+        # COD gates only reinforcement earned by the event-matched
+        # component. A tick reinforcement from a response-independent
+        # component (FT/VT/RT) on another operandum is unrelated to the
+        # subject's changeover behaviour and must not be suppressed.
+        if outcome.reinforced and from_event and self._cod_active(operandum, now):
             # Absorb the reinforcement: component advanced but the
             # subject does not receive the reinforcer.
             return Outcome(

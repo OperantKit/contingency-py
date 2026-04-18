@@ -15,7 +15,6 @@ from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
 from contingency.schedules.time_based import EXT, FT, RT, VT
 
-
 # ---------------------------------------------------------------------------
 # FT — Fixed Time
 # ---------------------------------------------------------------------------
@@ -259,7 +258,7 @@ class TestVTBehavior:
         dt = 0.01
         times = _run_vt_for_reinforcers(vt, total_time, dt=dt)
         # Empirical mean IRI should be close to configured mean
-        iris = [t2 - t1 for t1, t2 in zip(times, times[1:])]
+        iris = [t2 - t1 for t1, t2 in zip(times, times[1:], strict=False)]
         assert len(iris) > 50
         empirical_mean = statistics.fmean(iris)
         # Loose bound — FH intervals are deterministic per cycle, so with
@@ -360,7 +359,7 @@ class TestRTBehavior:
         dt = 0.01
         total_time = 5000.0
         times = _run_rt_for_reinforcers(rt, total_time, dt=dt)
-        iris = [t2 - t1 for t1, t2 in zip(times, times[1:])]
+        iris = [t2 - t1 for t1, t2 in zip(times, times[1:], strict=False)]
         assert len(iris) > 1000
         empirical_mean = statistics.fmean(iris)
         # With n > 1000, sample mean of an exponential should be within a few percent
@@ -374,7 +373,7 @@ class TestRTBehavior:
         dt = 0.005
         total_time = 5000.0
         times = _run_rt_for_reinforcers(rt, total_time, dt=dt)
-        iris = [t2 - t1 for t1, t2 in zip(times, times[1:])]
+        iris = [t2 - t1 for t1, t2 in zip(times, times[1:], strict=False)]
         assert len(iris) > 1000
         empirical_var = statistics.variance(iris)
         # Exponential variance equals mean**2; allow loose tolerance.

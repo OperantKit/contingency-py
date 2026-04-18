@@ -40,7 +40,8 @@ evaluate reinforcing efficacy. *Journal of Neuroscience Methods*,
 
 from __future__ import annotations
 
-from typing import Callable, TypeAlias
+from collections.abc import Callable
+from typing import TypeAlias
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError

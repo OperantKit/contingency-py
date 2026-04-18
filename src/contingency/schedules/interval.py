@@ -55,10 +55,29 @@ References
 from __future__ import annotations
 
 import random
+from typing import Protocol, runtime_checkable
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.helpers.fleshler_hoffman import generate_intervals
+
+
+@runtime_checkable
+class _ArmableSchedule(Protocol):
+    """Internal protocol for interval schedules wrappable by LimitedHold.
+
+    Concrete interval schedules (FI, VI, RI) expose these protected
+    hooks so that :class:`LimitedHold` can query / reset their armed
+    state without going through the public :class:`Schedule` API.
+    """
+
+    _arm_time: float
+
+    def _withdraw_and_rearm(self, now: float) -> None: ...
+
+    def step(self, now: float, event: ResponseEvent | None = None) -> Outcome: ...
+
+    def reset(self) -> None: ...
 
 __all__ = ["FI", "VI", "RI", "LimitedHold"]
 
@@ -324,7 +343,7 @@ class LimitedHold:
       https://doi.org/10.1901/jeab.1974.21-389
     """
 
-    def __init__(self, inner: object, hold: float) -> None:
+    def __init__(self, inner: _ArmableSchedule, hold: float) -> None:
         if not (hold > 0):
             raise ScheduleConfigError(
                 f"hold must be > 0, got {hold!r}"
@@ -336,15 +355,15 @@ class LimitedHold:
                 "LimitedHold requires an interval-family schedule "
                 "exposing _arm_time and _withdraw_and_rearm"
             )
-        self._inner = inner
+        self._inner: _ArmableSchedule = inner
         self._hold: float = float(hold)
         self._last_now: float | None = None
 
     def _expire_if_needed(self, now: float) -> None:
         """Withdraw the current opportunity if the hold window has closed."""
-        arm_time: float = self._inner._arm_time  # type: ignore[attr-defined]
+        arm_time: float = self._inner._arm_time
         if now > arm_time + self._hold + _TIME_TOL:
-            self._inner._withdraw_and_rearm(now)  # type: ignore[attr-defined]
+            self._inner._withdraw_and_rearm(now)
 
     def step(
         self, now: float, event: ResponseEvent | None = None
@@ -361,7 +380,7 @@ class LimitedHold:
         if event is None:
             return Outcome()
 
-        arm_time: float = self._inner._arm_time  # type: ignore[attr-defined]
+        arm_time = self._inner._arm_time
         if (
             now + _TIME_TOL >= arm_time
             and now <= arm_time + self._hold + _TIME_TOL
@@ -369,10 +388,10 @@ class LimitedHold:
             # Delegate to the inner schedule so it updates its own
             # state (arm_time resample, sequence cursor, etc.) and
             # emits the canonical Outcome.
-            return self._inner.step(now, event)  # type: ignore[attr-defined]
+            return self._inner.step(now, event)
 
         return Outcome()
 
     def reset(self) -> None:
-        self._inner.reset()  # type: ignore[attr-defined]
+        self._inner.reset()
         self._last_now = None
