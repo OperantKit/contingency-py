@@ -530,11 +530,119 @@ def test_bridge_annotated_schedule_strips_annotations() -> None:
 
 
 @pytest.mark.unit
-def test_bridge_aversive_raises_not_implemented() -> None:
+def test_bridge_aversive_sidman() -> None:
     from contingency_dsl.ast import AversiveSchedule
 
-    node = AversiveSchedule(kind="Sidman", params={})
-    with pytest.raises(ScheduleConfigError, match="AversiveSchedule"):
+    from contingency.schedules import Sidman
+
+    node = AversiveSchedule(
+        kind="Sidman",
+        params={
+            "SSI": {"value": 20.0, "time_unit": "s"},
+            "RSI": {"value": 5.0, "time_unit": "s"},
+        },
+    )
+    sched = from_dsl(node)
+    assert isinstance(sched, Sidman)
+    assert sched.shock_shock_interval == 20.0
+    assert sched.response_shock_interval == 5.0
+
+
+@pytest.mark.unit
+def test_bridge_aversive_sidman_milliseconds() -> None:
+    from contingency_dsl.ast import AversiveSchedule
+
+    from contingency.schedules import Sidman
+
+    node = AversiveSchedule(
+        kind="Sidman",
+        params={
+            "SSI": {"value": 200.0, "time_unit": "ms"},
+            "RSI": {"value": 50.0, "time_unit": "ms"},
+        },
+    )
+    sched = from_dsl(node)
+    assert isinstance(sched, Sidman)
+    assert sched.shock_shock_interval == pytest.approx(0.2)
+    assert sched.response_shock_interval == pytest.approx(0.05)
+
+
+@pytest.mark.unit
+def test_bridge_aversive_discrimav() -> None:
+    from contingency_dsl.ast import AversiveSchedule
+
+    from contingency.schedules import DiscriminatedAvoidance
+
+    node = AversiveSchedule(
+        kind="DiscrimAv",
+        params={
+            "CSUSInterval": {"value": 10.0, "time_unit": "s"},
+            "ITI": {"value": 3.0, "time_unit": "min"},
+            "mode": "response_terminated",
+        },
+    )
+    sched = from_dsl(node)
+    assert isinstance(sched, DiscriminatedAvoidance)
+    assert sched.warning_duration == 10.0
+    assert sched.iti == 180.0
+
+
+@pytest.mark.unit
+def test_bridge_aversive_escape() -> None:
+    from contingency_dsl.ast import AversiveSchedule
+
+    from contingency.schedules import Escape
+
+    node = AversiveSchedule(
+        kind="Escape",
+        params={
+            "SafeDuration": {"value": 5.0, "time_unit": "s"},
+        },
+    )
+    sched = from_dsl(node)
+    assert isinstance(sched, Escape)
+    assert sched.iti == 5.0
+    # No MaxShock -> large default.
+    assert sched.trial_duration >= 1e8
+
+
+@pytest.mark.unit
+def test_bridge_aversive_escape_with_max_shock() -> None:
+    from contingency_dsl.ast import AversiveSchedule
+
+    from contingency.schedules import Escape
+
+    node = AversiveSchedule(
+        kind="Escape",
+        params={
+            "SafeDuration": {"value": 5.0, "time_unit": "s"},
+            "MaxShock": {"value": 60.0, "time_unit": "s"},
+        },
+    )
+    sched = from_dsl(node)
+    assert isinstance(sched, Escape)
+    assert sched.iti == 5.0
+    assert sched.trial_duration == 60.0
+
+
+@pytest.mark.unit
+def test_bridge_aversive_unknown_kind_raises() -> None:
+    from contingency_dsl.ast import AversiveSchedule
+
+    node = AversiveSchedule(kind="Bogus", params={})
+    with pytest.raises(ScheduleConfigError, match="unknown aversive kind"):
+        from_dsl(node)
+
+
+@pytest.mark.unit
+def test_bridge_aversive_missing_param_raises() -> None:
+    from contingency_dsl.ast import AversiveSchedule
+
+    node = AversiveSchedule(
+        kind="Sidman",
+        params={"SSI": {"value": 20.0, "time_unit": "s"}},
+    )
+    with pytest.raises(ScheduleConfigError, match="RSI"):
         from_dsl(node)
 
 
@@ -998,3 +1106,82 @@ def test_bridge_conc_directional_cod_parsed() -> None:
         ("c0", "c1"): pytest.approx(2.0),
         ("c1", "c0"): pytest.approx(1.0),
     }
+
+
+# --- TrialBased wrapping (MTS / GoNoGo) -----------------------------------
+
+
+@pytest.mark.unit
+def test_bridge_trial_based_mts_minimal() -> None:
+    from contingency.schedules import MatchingToSample
+
+    s = from_dsl(parse_expr("MTS(comparisons=3, consequence=CRF, ITI=5s)"))
+    assert isinstance(s, MatchingToSample)
+    assert s.n_comparisons == 3
+    assert s.iti == pytest.approx(5.0)
+
+
+@pytest.mark.unit
+def test_bridge_trial_based_mts_with_ft_incorrect() -> None:
+    from contingency.schedules import MatchingToSample
+
+    s = from_dsl(
+        parse_expr("MTS(comparisons=4, consequence=CRF, incorrect=FT10s, ITI=5s)")
+    )
+    assert isinstance(s, MatchingToSample)
+    assert s.n_comparisons == 4
+
+
+@pytest.mark.unit
+def test_bridge_trial_based_mts_iti_ms_scaled() -> None:
+    from contingency.schedules import MatchingToSample
+
+    s = from_dsl(
+        parse_expr("MTS(comparisons=3, consequence=CRF, ITI=500ms)")
+    )
+    assert isinstance(s, MatchingToSample)
+    assert s.iti == pytest.approx(0.5)
+
+
+@pytest.mark.unit
+def test_bridge_trial_based_go_nogo_minimal() -> None:
+    from contingency.schedules import GoNoGo
+
+    s = from_dsl(
+        parse_expr(
+            "GoNoGo(responseWindow=5s, consequence=CRF, ITI=10s)"
+        )
+    )
+    assert isinstance(s, GoNoGo)
+    assert s.response_window == pytest.approx(5.0)
+    assert s.iti == pytest.approx(10.0)
+
+
+@pytest.mark.unit
+def test_bridge_trial_based_go_nogo_false_alarm_ft() -> None:
+    from contingency.schedules import GoNoGo
+
+    s = from_dsl(
+        parse_expr(
+            "GoNoGo(responseWindow=5s, consequence=CRF, "
+            "falseAlarm=FT10s, ITI=15s)"
+        )
+    )
+    assert isinstance(s, GoNoGo)
+
+
+@pytest.mark.unit
+def test_bridge_trial_based_unknown_trial_type_raises() -> None:
+    from contingency_dsl.ast import Special, TrialBased
+
+    node = TrialBased(
+        trial_type="UnknownType",
+        params={
+            "comparisons": 2,
+            "consequence": Special(kind="CRF"),
+            "ITI": 5.0,
+            "ITI_unit": "s",
+        },
+    )
+    with pytest.raises(ScheduleConfigError):
+        from_dsl(node)

@@ -8,6 +8,11 @@ from __future__ import annotations
 
 from contingency.schedules.adjusting import AdjustingSchedule
 from contingency.schedules.alternative import Alternative
+from contingency.schedules.aversive import (
+    DiscriminatedAvoidance,
+    Escape,
+    Sidman,
+)
 from contingency.schedules.concurrent import Concurrent
 from contingency.schedules.conjunctive import Conjunctive
 from contingency.schedules.differential import DRH, DRL, DRO
@@ -29,6 +34,7 @@ from contingency.schedules.second_order import SecondOrder
 from contingency.schedules.sequence import Chained, Multiple, Tandem
 from contingency.schedules.time_based import EXT, FT, RT, VT
 from contingency.schedules.timeout import Timeout
+from contingency.schedules.trial_based import GoNoGo, MatchingToSample
 
 __all__ = [
     "FR",
@@ -65,4 +71,9 @@ __all__ = [
     "SecondOrder",
     "Overlay",
     "Interpolate",
+    "Sidman",
+    "DiscriminatedAvoidance",
+    "Escape",
+    "MatchingToSample",
+    "GoNoGo",
 ]

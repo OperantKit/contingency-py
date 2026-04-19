@@ -88,9 +88,14 @@ forwarded unchanged.
 ``from_dsl(inner)`` with ``amount`` and ``unit`` forwarded from the
 DSL's ``ResponseCost`` parameters.
 
-``SecondOrder``, ``IdentifierRef``, and the aversive / adjusting /
-interlocking / trial-based wrappers raise :class:`ScheduleConfigError`
-— they are not yet implemented.
+``AversiveSchedule`` nodes (``kind`` in ``{"Sidman", "DiscrimAv",
+"Escape"}``) translate to :class:`Sidman`, :class:`DiscriminatedAvoidance`,
+and :class:`Escape` runtime schedules. DSL parameter names (``SSI``,
+``RSI``, ``CSUSInterval``, ``ITI``, ``SafeDuration``, ``MaxShock``) are
+mapped to runtime constructor kwargs inside :func:`_from_aversive`.
+
+``IdentifierRef`` and the trial-based wrapper raise
+:class:`ScheduleConfigError` — they are not yet implemented.
 
 ``Program`` nodes translate via ``program.schedule``; program-level
 annotations and param declarations are ignored for this pass.
@@ -135,9 +140,13 @@ from contingency.schedules import (
     Chained,
     Concurrent,
     Conjunctive,
+    DiscriminatedAvoidance,
+    Escape,
+    GoNoGo,
     InterlockingSchedule,
     Interpolate,
     LimitedHold,
+    MatchingToSample,
     Mixed,
     Multiple,
     Overlay,
@@ -145,6 +154,7 @@ from contingency.schedules import (
     ProgressiveRatio,
     ResponseCost,
     SecondOrder,
+    Sidman,
     Tandem,
     Timeout,
     arithmetic,
@@ -308,17 +318,11 @@ def from_dsl(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Schedule:
             unit=ast_node.response_cost.unit,
         )
 
-    if isinstance(
-        ast_node,
-        (
-            AversiveSchedule,
-            TrialBased,
-        ),
-    ):
-        raise ScheduleConfigError(
-            f"AST node type {type(ast_node).__name__} is not yet supported "
-            "by the bridge"
-        )
+    if isinstance(ast_node, AversiveSchedule):
+        return _from_aversive(ast_node, time_unit_seconds)
+
+    if isinstance(ast_node, TrialBased):
+        return _from_trial_based(ast_node, time_unit_seconds)
 
     raise ScheduleConfigError(
         f"unrecognised AST node: {type(ast_node).__name__}"
@@ -775,4 +779,221 @@ def _from_interlocking(
     return InterlockingSchedule(
         initial_ratio=int(node.interlock_R0),
         decay_time=decay,
+    )
+
+
+def _aversive_time_param(
+    params: dict[str, Any], key: str, time_unit_seconds: float
+) -> float:
+    """Extract and scale a ``{"value", "time_unit"}`` aversive param."""
+    if key not in params:
+        raise ScheduleConfigError(
+            f"AversiveSchedule requires parameter {key!r}"
+        )
+    payload = params[key]
+    if not isinstance(payload, dict):
+        raise ScheduleConfigError(
+            f"AversiveSchedule parameter {key!r} must be a dict, got "
+            f"{type(payload).__name__}"
+        )
+    return _scaled_time(
+        float(payload["value"]),
+        payload.get("time_unit"),
+        time_unit_seconds,
+    )
+
+
+def _aversive_magnitude(params: dict[str, Any]) -> float:
+    """Extract ``magnitude`` from aversive params, defaulting to 1.0."""
+    payload = params.get("magnitude")
+    if payload is None:
+        return 1.0
+    if isinstance(payload, dict):
+        return float(payload["value"])
+    if isinstance(payload, (int, float)) and not isinstance(payload, bool):
+        return float(payload)
+    raise ScheduleConfigError(
+        f"AversiveSchedule 'magnitude' has unsupported form: "
+        f"{type(payload).__name__}"
+    )
+
+
+def _from_aversive(node: Any, time_unit_seconds: float) -> Schedule:
+    """Translate an ``AversiveSchedule`` AST node to a runtime schedule.
+
+    Parameter-name mapping from DSL to runtime:
+
+    * Sidman:    ``SSI`` -> ``shock_shock_interval``,
+                 ``RSI`` -> ``response_shock_interval``.
+    * DiscrimAv: ``CSUSInterval`` -> ``warning_duration``,
+                 ``ITI`` -> ``iti``. ``mode`` and ``ShockDuration`` /
+                 ``MaxShock`` are accepted but not currently modelled
+                 by the runtime (the runtime always terminates the
+                 warning on response and delivers a punctate shock on
+                 timeout).
+    * Escape:    ``SafeDuration`` -> ``iti``. ``MaxShock`` (if given)
+                 maps to ``trial_duration``; otherwise defaults to a
+                 large value (effectively no ceiling).
+    """
+    params = node.params or {}
+    kind = node.kind
+
+    if kind == "Sidman":
+        return Sidman(
+            shock_shock_interval=_aversive_time_param(
+                params, "SSI", time_unit_seconds
+            ),
+            response_shock_interval=_aversive_time_param(
+                params, "RSI", time_unit_seconds
+            ),
+            shock_magnitude=_aversive_magnitude(params),
+        )
+
+    if kind == "DiscrimAv":
+        return DiscriminatedAvoidance(
+            warning_duration=_aversive_time_param(
+                params, "CSUSInterval", time_unit_seconds
+            ),
+            iti=_aversive_time_param(params, "ITI", time_unit_seconds),
+            shock_magnitude=_aversive_magnitude(params),
+        )
+
+    if kind == "Escape":
+        iti_seconds = _aversive_time_param(
+            params, "SafeDuration", time_unit_seconds
+        )
+        # ``MaxShock`` optionally bounds the failed-trial duration; if
+        # absent, fall back to a very large value (treated as "no
+        # ceiling" for practical purposes).
+        if "MaxShock" in params:
+            trial_duration = _aversive_time_param(
+                params, "MaxShock", time_unit_seconds
+            )
+        else:
+            trial_duration = 1e9
+        return Escape(
+            trial_duration=trial_duration,
+            iti=iti_seconds,
+            shock_magnitude=_aversive_magnitude(params),
+        )
+
+    raise ScheduleConfigError(f"unknown aversive kind: {kind!r}")
+
+
+# --- Trial-based schedules -------------------------------------------------
+
+
+def _trial_based_time(
+    params: dict[str, Any],
+    value_key: str,
+    unit_key: str,
+    time_unit_seconds: float,
+    *,
+    default: float | None = None,
+) -> float | None:
+    """Resolve ``(value, unit)`` pair from a ``TrialBased.params`` dict."""
+    if value_key not in params:
+        return default
+    value = params[value_key]
+    unit = params.get(unit_key)
+    return _scaled_time(float(value), unit, time_unit_seconds)
+
+
+def _from_trial_based(node: Any, time_unit_seconds: float) -> Schedule:
+    """Translate a ``TrialBased`` AST node to a runtime schedule."""
+    trial_type = node.trial_type
+    params = dict(node.params)
+
+    if trial_type == "MTS":
+        return _build_mts(params, time_unit_seconds)
+    if trial_type == "GoNoGo":
+        return _build_go_nogo(params, time_unit_seconds)
+    raise ScheduleConfigError(f"unknown TrialBased trial_type: {trial_type!r}")
+
+
+def _bridge_nested_schedule(
+    raw: Any, time_unit_seconds: float
+) -> Schedule | None:
+    """Bridge a nested consequence/incorrect slot, preserving ``None``."""
+    if raw is None:
+        return None
+    return from_dsl(raw, time_unit_seconds=time_unit_seconds)
+
+
+def _build_mts(
+    params: dict[str, Any], time_unit_seconds: float
+) -> MatchingToSample:
+    comparisons = params.get("comparisons")
+    if comparisons is None:
+        raise ScheduleConfigError(
+            "MTS requires a 'comparisons' parameter"
+        )
+    iti_seconds = _trial_based_time(
+        params, "ITI", "ITI_unit", time_unit_seconds, default=0.0
+    )
+    # DMTS delay: sample_duration is treated as the pre-choice interval.
+    sample_duration = _trial_based_time(
+        params, "delay", "delay_unit", time_unit_seconds, default=0.0
+    )
+    # Optional LH on MTS scopes the choice window.
+    choice_timeout = _trial_based_time(
+        params, "limitedHold", "limitedHoldUnit", time_unit_seconds
+    )
+    if choice_timeout is None:
+        choice_timeout = 5.0
+    consequence = _bridge_nested_schedule(
+        params.get("consequence"), time_unit_seconds
+    )
+    incorrect = _bridge_nested_schedule(
+        params.get("incorrect"), time_unit_seconds
+    )
+    assert iti_seconds is not None
+    return MatchingToSample(
+        n_comparisons=int(comparisons),
+        sample_duration=sample_duration or 0.0,
+        choice_timeout=choice_timeout,
+        consequence=consequence,
+        incorrect=incorrect,
+        iti=iti_seconds,
+    )
+
+
+def _build_go_nogo(
+    params: dict[str, Any], time_unit_seconds: float
+) -> GoNoGo:
+    response_window = _trial_based_time(
+        params,
+        "responseWindow",
+        "responseWindowUnit",
+        time_unit_seconds,
+    )
+    if response_window is None:
+        raise ScheduleConfigError(
+            "GoNoGo requires a 'responseWindow' parameter"
+        )
+    iti_seconds = _trial_based_time(
+        params, "ITI", "ITI_unit", time_unit_seconds, default=0.0
+    )
+    assert iti_seconds is not None
+    consequence = _bridge_nested_schedule(
+        params.get("consequence"), time_unit_seconds
+    )
+    incorrect = _bridge_nested_schedule(
+        params.get("incorrect"), time_unit_seconds
+    )
+    false_alarm = _bridge_nested_schedule(
+        params.get("falseAlarm"), time_unit_seconds
+    )
+    # ``consequence`` = reinforcement for correct Go;
+    # ``incorrect``   = reinforcement for correct NoGo withhold (miss/
+    #                   withhold consequence slot); when EXT this means
+    #                   "no reinforcement for withholding" which maps to
+    #                   correct_nogo_schedule=EXT (always non-reinforcing).
+    # ``falseAlarm``  = NoGo response punishment.
+    return GoNoGo(
+        response_window=response_window,
+        iti=iti_seconds,
+        correct_go_schedule=consequence,
+        correct_nogo_schedule=incorrect,
+        false_alarm=false_alarm,
     )
