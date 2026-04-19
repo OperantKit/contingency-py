@@ -1,6 +1,10 @@
 # OS / editor
 .DS_Store
 .env
+*.bak
+
+# Release notes — use git tag / git log until first PyPI release
+CHANGELOG.md
 
 # Python build / caches
 __pycache__/
