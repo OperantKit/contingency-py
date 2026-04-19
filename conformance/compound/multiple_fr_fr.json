@@ -1,0 +1,117 @@
+{
+  "description": "Multiple FR(2) / FR(3): each component has its own S^D and produces primary reinforcement when its ratio is met. On reinforcement the active index advances (wraps after the terminal component).",
+  "name": "multiple-fr2-fr3",
+  "schedule": {
+    "params": {
+      "components": [
+        {
+          "params": {
+            "n": 2
+          },
+          "type": "FR"
+        },
+        {
+          "params": {
+            "n": 3
+          },
+          "type": "FR"
+        }
+      ],
+      "stimuli": [
+        "s0",
+        "s1"
+      ]
+    },
+    "type": "Multiple"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s0"
+        },
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s0"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 2.0
+        }
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s1"
+        },
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s1"
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s1"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s0"
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    }
+  ]
+}

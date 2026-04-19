@@ -34,7 +34,9 @@ from contingency.schedules import (
     LimitedHold,
     Multiple,
     ProgressiveRatio,
+    ResponseCost,
     Tandem,
+    Timeout,
 )
 
 # contingency-dsl-py is a required dependency of this package; if it is
@@ -253,39 +255,95 @@ def test_bridge_tandem() -> None:
     assert isinstance(s, Tandem)
 
 
-# --- Unsupported combinators -----------------------------------------------
+# --- Conjunctive / Mixed compounds -----------------------------------------
 
 
 @pytest.mark.unit
-def test_bridge_unsupported_combinator_mix_raises() -> None:
-    with pytest.raises(ScheduleConfigError, match="Mix"):
-        from_dsl(parse_expr("Mix(FR5, FR10)"))
+def test_bridge_mixed_two_components() -> None:
+    from contingency.schedules import Mixed
+
+    s = from_dsl(parse_expr("Mix(FR5, FR10)"))
+    assert isinstance(s, Mixed)
+    assert s.n_components == 2
 
 
 @pytest.mark.unit
-def test_bridge_unsupported_combinator_interpolate_raises() -> None:
-    with pytest.raises(ScheduleConfigError, match="Interpolate"):
-        from_dsl(parse_expr("Interp(FR5, FR10)"))
+def test_bridge_mixed_three_components_flat() -> None:
+    from contingency.schedules import Mixed
+
+    s = from_dsl(parse_expr("Mix(FR3, FR5, FR7)"))
+    assert isinstance(s, Mixed)
+    assert s.n_components == 3
 
 
 @pytest.mark.unit
-def test_bridge_unsupported_combinator_conj_raises() -> None:
-    # Construct directly — DSL may not accept Conj as a top-level
-    # surface keyword in every build.
+def test_bridge_conjunctive_two_components() -> None:
+    # DSL parser may not accept Conj as a top-level surface keyword in
+    # every build; construct the Compound AST node directly.
     from contingency_dsl.ast import Atomic, Compound, ScheduleType
     from contingency_dsl.enums import Combinator, Distribution, Domain
+
+    from contingency.schedules import Conjunctive
 
     left = Atomic(
         schedule_type=ScheduleType(Distribution.FIXED, Domain.RATIO),
         value=3.0,
     )
     right = Atomic(
+        schedule_type=ScheduleType(Distribution.FIXED, Domain.INTERVAL),
+        value=10.0,
+        time_unit="s",
+    )
+    node = Compound(combinator=Combinator.CONJ, components=(left, right))
+    s = from_dsl(node)
+    assert isinstance(s, Conjunctive)
+
+
+@pytest.mark.unit
+def test_bridge_conjunctive_three_components_nests_left() -> None:
+    from contingency_dsl.ast import Atomic, Compound, ScheduleType
+    from contingency_dsl.enums import Combinator, Distribution, Domain
+
+    from contingency.schedules import Conjunctive
+
+    atoms = tuple(
+        Atomic(
+            schedule_type=ScheduleType(Distribution.FIXED, Domain.RATIO),
+            value=float(v),
+        )
+        for v in (3, 5, 7)
+    )
+    node = Compound(combinator=Combinator.CONJ, components=atoms)
+    s = from_dsl(node)
+    assert isinstance(s, Conjunctive)
+    assert isinstance(s.first, Conjunctive)
+    assert isinstance(s.second, FR)
+    assert s.second.n == 7
+
+
+@pytest.mark.unit
+def test_bridge_conjunctive_rejects_single_component() -> None:
+    from contingency_dsl.ast import Atomic, Compound, ScheduleType
+    from contingency_dsl.enums import Combinator, Distribution, Domain
+
+    only = Atomic(
         schedule_type=ScheduleType(Distribution.FIXED, Domain.RATIO),
         value=5.0,
     )
-    node = Compound(combinator=Combinator.CONJ, components=(left, right))
-    with pytest.raises(ScheduleConfigError, match="Conj"):
+    node = Compound(combinator=Combinator.CONJ, components=(only,))
+    with pytest.raises(ScheduleConfigError, match="Conj requires >= 2"):
         from_dsl(node)
+
+
+# --- Unsupported combinators -----------------------------------------------
+
+
+@pytest.mark.unit
+def test_bridge_interp_builds_interpolate() -> None:
+    from contingency.schedules import Interpolate
+
+    s = from_dsl(parse_expr("Interp(FR5, FR10)"))
+    assert isinstance(s, Interpolate)
 
 
 # --- Modifiers --------------------------------------------------------------
@@ -370,9 +428,11 @@ def test_bridge_limited_hold_wraps_fi() -> None:
 
 
 @pytest.mark.unit
-def test_bridge_second_order_raises() -> None:
-    with pytest.raises(ScheduleConfigError, match="SecondOrder"):
-        from_dsl(parse_expr("FR5(FI30s)"))
+def test_bridge_second_order_builds() -> None:
+    from contingency.schedules import SecondOrder
+
+    schedule = from_dsl(parse_expr("FR5(FI30s)"))
+    assert isinstance(schedule, SecondOrder)
 
 
 @pytest.mark.unit
@@ -387,18 +447,51 @@ def test_bridge_identifier_ref_raises() -> None:
 
 
 @pytest.mark.unit
-def test_bridge_pctl_raises_not_implemented() -> None:
-    from contingency_dsl.ast import Modifier
+def test_bridge_pctl_irt_maps_to_percentile() -> None:
+    from contingency.schedules import Percentile
 
-    # Construct a Pctl Modifier directly — the parser validates target
-    # names, so we short-circuit by building the AST directly.
-    node = Modifier(
+    s = from_dsl(parse_expr("Pctl(IRT, 50, window=20, dir=above)"))
+    assert isinstance(s, Percentile)
+    assert s.target == "IRT"
+    assert s.rank == 50
+    assert s.window == 20
+    assert s.direction == "above"
+
+
+@pytest.mark.unit
+def test_bridge_pctl_non_irt_target_still_constructs() -> None:
+    from contingency.schedules import Percentile
+
+    # The DSL parser validates target names; the bridge accepts the
+    # full target set at construction and defers the executability
+    # check to step() time.
+    node = contingency_dsl.ast.Modifier(
         modifier="Pctl",
         pctl_target="rate",
         pctl_rank=50,
         pctl_window=20,
+        pctl_dir="below",
     )
-    with pytest.raises(ScheduleConfigError, match="percentile"):
+    s = from_dsl(node)
+    assert isinstance(s, Percentile)
+    assert s.target == "rate"
+
+
+@pytest.mark.unit
+def test_bridge_pctl_missing_target_raises() -> None:
+    from contingency_dsl.ast import Modifier
+
+    node = Modifier(modifier="Pctl", pctl_rank=50, pctl_window=20)
+    with pytest.raises(ScheduleConfigError, match="target"):
+        from_dsl(node)
+
+
+@pytest.mark.unit
+def test_bridge_pctl_missing_rank_raises() -> None:
+    from contingency_dsl.ast import Modifier
+
+    node = Modifier(modifier="Pctl", pctl_target="IRT", pctl_window=20)
+    with pytest.raises(ScheduleConfigError, match="rank"):
         from_dsl(node)
 
 
@@ -495,11 +588,13 @@ def test_bridge_alt_rejects_single_component() -> None:
 
 
 @pytest.mark.unit
-def test_bridge_conc_directional_cod_raises() -> None:
+def test_bridge_conc_directional_cod_builds_dict() -> None:
     from contingency_dsl.ast import (
         Atomic,
         Compound,
+        CompoundParam,
         DirectionalCOD,
+        DirectionalEntry,
         ScheduleType,
     )
     from contingency_dsl.enums import Combinator, Distribution, Domain
@@ -517,10 +612,21 @@ def test_bridge_conc_directional_cod_raises() -> None:
     node = Compound(
         combinator=Combinator.CONC,
         components=(a, b),
-        params={"COD": DirectionalCOD()},
+        params={
+            "COD": DirectionalCOD(
+                base=CompoundParam(value=1.0, time_unit="s"),
+                directional=(
+                    DirectionalEntry(
+                        from_ref=1, to_ref=2, value=2.0, time_unit="s"
+                    ),
+                ),
+            )
+        },
     )
-    with pytest.raises(ScheduleConfigError, match="directional COD"):
-        from_dsl(node)
+    s = from_dsl(node)
+    assert isinstance(s, Concurrent)
+    assert s.cod == pytest.approx(1.0)
+    assert s.cod_directional == {("c0", "c1"): pytest.approx(2.0)}
 
 
 @pytest.mark.unit
@@ -573,7 +679,8 @@ def test_bridge_conc_unsupported_frco_type_raises() -> None:
 
 
 @pytest.mark.unit
-def test_bridge_conc_punish_raises() -> None:
+def test_bridge_conc_punish_directional_raises_not_implemented() -> None:
+    """Directional punishment remains deferred; component form is wired."""
     from contingency_dsl.ast import (
         Atomic,
         Compound,
@@ -592,10 +699,20 @@ def test_bridge_conc_punish_raises() -> None:
         value=60.0,
         time_unit="s",
     )
+    p_sched = Atomic(
+        schedule_type=ScheduleType(Distribution.FIXED, Domain.RATIO),
+        value=1.0,
+    )
     node = Compound(
         combinator=Combinator.CONC,
         components=(a, b),
-        params={"PUNISH": PunishParam(payload=())},
+        params={
+            "PUNISH": PunishParam(
+                payload=(
+                    ("directional", [{"from": 1, "to": 2, "schedule": p_sched}]),
+                )
+            )
+        },
     )
     with pytest.raises(ScheduleConfigError, match="PUNISH"):
         from_dsl(node)
@@ -733,3 +850,151 @@ def test_end_to_end_drl_enforces_irt() -> None:
     assert s.step(1.5, ResponseEvent(time=1.5)).reinforced is False
     # Third response 2.5s after the second: above threshold.
     assert s.step(4.0, ResponseEvent(time=4.0)).reinforced is True
+
+
+# --- Timeout wrapping ------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_bridge_timeout_wraps_fr() -> None:
+    s = from_dsl(parse_expr("FR5 TO(duration=10s, reset_on_response=false)"))
+    assert isinstance(s, Timeout)
+    assert s.duration == pytest.approx(10.0)
+    assert s.reset_on_response is False
+
+
+@pytest.mark.unit
+def test_bridge_timeout_duration_scales_with_time_unit_seconds() -> None:
+    # ms duration unit from the DSL with the caller's clock in seconds.
+    s = from_dsl(parse_expr("FR5 TO(duration=500ms, reset_on_response=false)"))
+    assert isinstance(s, Timeout)
+    assert s.duration == pytest.approx(0.5)
+
+
+@pytest.mark.unit
+def test_bridge_timeout_reset_on_response_true_forwarded() -> None:
+    s = from_dsl(parse_expr("FR5 TO(duration=3s, reset_on_response=true)"))
+    assert isinstance(s, Timeout)
+    assert s.reset_on_response is True
+
+
+@pytest.mark.unit
+def test_bridge_timeout_caller_clock_remap() -> None:
+    # A caller whose runtime clock is in ms requests a 10s DSL duration.
+    s = from_dsl(
+        parse_expr("FR5 TO(duration=10s, reset_on_response=false)"),
+        time_unit_seconds=1000.0,
+    )
+    assert isinstance(s, Timeout)
+    assert s.duration == pytest.approx(10_000.0)
+
+
+# --- ResponseCost wrapping -------------------------------------------------
+
+
+@pytest.mark.unit
+def test_bridge_response_cost_wraps_fr() -> None:
+    s = from_dsl(parse_expr("FR5 ResponseCost(amount=2)"))
+    assert isinstance(s, ResponseCost)
+    assert s.amount == pytest.approx(2.0)
+    # DSL default unit is "token".
+    assert s.unit == "token"
+    # No initial_balance specified at the DSL surface: unlimited.
+    assert s.balance is None
+
+
+@pytest.mark.unit
+def test_bridge_response_cost_custom_unit() -> None:
+    s = from_dsl(parse_expr('FR5 ResponseCost(amount=1, unit="credit")'))
+    assert isinstance(s, ResponseCost)
+    assert s.unit == "credit"
+    assert s.amount == pytest.approx(1.0)
+
+
+# --- End-to-end wrapper behaviour -----------------------------------------
+
+
+@pytest.mark.integration
+def test_end_to_end_timeout_suspends_reinforcement() -> None:
+    s = from_dsl(parse_expr("FR1 TO(duration=5s, reset_on_response=false)"))
+    # First response reinforces; TO begins until t=6.0.
+    assert s.step(1.0, ResponseEvent(time=1.0)).reinforced is True
+    # Response at t=3.0 during TO: ignored.
+    assert s.step(3.0, ResponseEvent(time=3.0)).reinforced is False
+    # Response at t=6.5 after TO clears: reinforces.
+    assert s.step(6.5, ResponseEvent(time=6.5)).reinforced is True
+
+
+@pytest.mark.integration
+def test_end_to_end_response_cost_passes_through_reinforcement() -> None:
+    s = from_dsl(parse_expr("FR1 ResponseCost(amount=1)"))
+    # Unlimited balance: every response still reinforces.
+    for t in (1.0, 2.0, 3.0):
+        out = s.step(t, ResponseEvent(time=t))
+        assert out.reinforced is True
+
+
+# ---------------------------------------------------------------------------
+# Overlay / Interpolate combinator bridging
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_bridge_overlay_builds_overlay() -> None:
+    from contingency.schedules import Overlay
+
+    s = from_dsl(parse_expr("Overlay(FR5, FR10)"))
+    assert isinstance(s, Overlay)
+    assert isinstance(s.base, FR)
+    assert s.base.n == 5
+    assert isinstance(s.punisher, FR)
+    assert s.punisher.n == 10
+
+
+@pytest.mark.unit
+def test_bridge_overlay_wrong_component_count_raises() -> None:
+    from contingency_dsl.ast import Atomic, Compound, ScheduleType
+    from contingency_dsl.enums import Combinator, Distribution, Domain
+
+    a = Atomic(
+        schedule_type=ScheduleType(Distribution.FIXED, Domain.RATIO), value=5.0
+    )
+    node = Compound(combinator=Combinator.OVERLAY, components=(a,))
+    with pytest.raises(ScheduleConfigError, match="Overlay"):
+        from_dsl(node)
+
+
+@pytest.mark.unit
+def test_bridge_interpolate_uses_onset_param() -> None:
+    from contingency.schedules import Interpolate
+
+    s = from_dsl(parse_expr("Interpolate(FR5, FR10, count=5, onset=60s)"))
+    assert isinstance(s, Interpolate)
+    assert s.first_probe_at == pytest.approx(60.0)
+    assert s.interval == pytest.approx(60.0)
+
+
+@pytest.mark.unit
+def test_bridge_conc_punish_component_wires_dict() -> None:
+    from contingency.schedules import Concurrent
+
+    s = from_dsl(parse_expr("Conc(VI30s, VI60s, COD=2s, PUNISH(1)=VI30s)"))
+    assert isinstance(s, Concurrent)
+    punish_dict = s.punish
+    assert punish_dict is not None
+    assert set(punish_dict.keys()) == {"c0"}
+    assert isinstance(punish_dict["c0"], VI)
+
+
+@pytest.mark.unit
+def test_bridge_conc_directional_cod_parsed() -> None:
+    from contingency.schedules import Concurrent
+
+    s = from_dsl(
+        parse_expr("Conc(VR5, VR5, COD(1->2)=2s, COD(2->1)=1s)")
+    )
+    assert isinstance(s, Concurrent)
+    assert s.cod_directional == {
+        ("c0", "c1"): pytest.approx(2.0),
+        ("c1", "c0"): pytest.approx(1.0),
+    }

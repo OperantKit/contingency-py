@@ -59,7 +59,7 @@ https://doi.org/10.1901/jeab.1961.4-267
 
 from __future__ import annotations
 
-from contingency.entities import Outcome, ResponseEvent
+from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
 
@@ -122,9 +122,13 @@ class Concurrent:
     __slots__ = (
         "_components",
         "_cod",
+        "_cod_directional",
         "_cor",
+        "_punish",
         "_last_operandum",
+        "_last_confirmed_operandum",
         "_switch_time",
+        "_active_cod",
         "_consecutive_new_count",
         "_last_now",
     )
@@ -134,6 +138,8 @@ class Concurrent:
         components: dict[str, Schedule],
         cod: float = 0.0,
         cor: int = 0,
+        cod_directional: dict[tuple[str, str], float] | None = None,
+        punish: dict[str, Schedule] | None = None,
     ) -> None:
         if not isinstance(components, dict):
             raise ScheduleConfigError(
@@ -161,8 +167,87 @@ class Concurrent:
         self._components: dict[str, Schedule] = dict(components)
         self._cod: float = float(cod)
         self._cor: int = cor
+
+        # Validate directional COD: keys must be (str, str), no self-
+        # transitions, no duplicates (duplicates are intrinsic to dict
+        # keys; we also reject the (A, A) form).
+        self._cod_directional: dict[tuple[str, str], float] | None = None
+        if cod_directional is not None:
+            if not isinstance(cod_directional, dict):
+                raise ScheduleConfigError(
+                    f"Concurrent cod_directional must be a dict, got "
+                    f"{type(cod_directional).__name__}"
+                )
+            validated: dict[tuple[str, str], float] = {}
+            for key, value in cod_directional.items():
+                if (
+                    not isinstance(key, tuple)
+                    or len(key) != 2
+                    or not all(isinstance(k, str) for k in key)
+                ):
+                    raise ScheduleConfigError(
+                        f"Concurrent cod_directional keys must be "
+                        f"(from, to) tuples of str, got {key!r}"
+                    )
+                from_op, to_op = key
+                if from_op == to_op:
+                    raise ScheduleConfigError(
+                        f"Concurrent cod_directional rejects self-"
+                        f"transition {key!r}"
+                    )
+                if isinstance(value, bool) or not isinstance(
+                    value, (int, float)
+                ):
+                    raise ScheduleConfigError(
+                        f"Concurrent cod_directional values must be "
+                        f"numeric, got {type(value).__name__} for {key!r}"
+                    )
+                if value < 0:
+                    raise ScheduleConfigError(
+                        f"Concurrent cod_directional values must be "
+                        f">= 0, got {value} for {key!r}"
+                    )
+                validated[(from_op, to_op)] = float(value)
+            if validated:
+                self._cod_directional = validated
+
+        # Validate punish dict.
+        self._punish: dict[str, Schedule] | None = None
+        if punish is not None:
+            if not isinstance(punish, dict):
+                raise ScheduleConfigError(
+                    f"Concurrent punish must be a dict, got "
+                    f"{type(punish).__name__}"
+                )
+            punish_validated: dict[str, Schedule] = {}
+            for op_key, sched in punish.items():
+                if not isinstance(op_key, str):
+                    raise ScheduleConfigError(
+                        f"Concurrent punish keys must be operandum "
+                        f"strings, got {type(op_key).__name__}"
+                    )
+                if op_key not in self._components:
+                    raise ScheduleConfigError(
+                        f"Concurrent punish references unknown operandum "
+                        f"{op_key!r}; known operanda: "
+                        f"{sorted(self._components.keys())!r}"
+                    )
+                if not isinstance(sched, Schedule):
+                    raise ScheduleConfigError(
+                        f"Concurrent punish[{op_key!r}] must implement "
+                        f"Schedule, got {type(sched).__name__}"
+                    )
+                punish_validated[op_key] = sched
+            if punish_validated:
+                self._punish = punish_validated
+
         self._last_operandum: str | None = None
+        # Previously confirmed operandum, captured at the moment a new
+        # changeover is confirmed. Used to resolve directional COD.
+        self._last_confirmed_operandum: str | None = None
         self._switch_time: float | None = None
+        # Currently armed COD duration (resolved directional or base).
+        self._active_cod: float = float(cod)
         self._consecutive_new_count: int = 0
         self._last_now: float | None = None
 
@@ -180,6 +265,35 @@ class Concurrent:
     def cor(self) -> int:
         """The configured changeover ratio."""
         return self._cor
+
+    @property
+    def cod_directional(self) -> dict[tuple[str, str], float] | None:
+        """The configured per-direction COD overrides, if any."""
+        if self._cod_directional is None:
+            return None
+        return dict(self._cod_directional)
+
+    @property
+    def punish(self) -> dict[str, Schedule] | None:
+        """The configured per-operandum punishment schedules, if any."""
+        if self._punish is None:
+            return None
+        return dict(self._punish)
+
+    def _resolve_cod(self, from_op: str | None, to_op: str) -> float:
+        """Return the COD to arm for a switch ``from_op -> to_op``.
+
+        Uses the directional override when present; otherwise falls
+        back to the base ``cod``. ``from_op=None`` (no prior operandum)
+        never arms directional COD.
+        """
+        if (
+            self._cod_directional is not None
+            and from_op is not None
+            and (from_op, to_op) in self._cod_directional
+        ):
+            return self._cod_directional[(from_op, to_op)]
+        return self._cod
 
     def _advance_components(
         self, now: float, event_operandum: str | None, event: ResponseEvent | None
@@ -225,8 +339,14 @@ class Concurrent:
             return outcome_for_event, True
         return Outcome(), False
 
-    def _register_event(self, operandum: str, now: float) -> None:
+    def _register_event(self, operandum: str, now: float) -> tuple[bool, str | None]:
         """Update changeover state for a response at ``operandum`` / ``now``.
+
+        Returns ``(changeover_confirmed, from_op)`` where
+        ``changeover_confirmed`` is True iff this response confirms a
+        changeover (for punishment wiring), and ``from_op`` is the
+        previously confirmed operandum at the moment the changeover
+        occurred.
 
         Implements the ``cor`` semantics: a changeover is confirmed
         only after ``cor`` consecutive responses on a new operandum.
@@ -237,29 +357,37 @@ class Concurrent:
             # First response ever: not a changeover.
             self._last_operandum = operandum
             self._consecutive_new_count = 0
-            return
+            return (False, None)
 
         if operandum == self._last_operandum:
             # Staying on the same operandum. Resets the streak counter.
             self._consecutive_new_count = 0
-            return
+            return (False, None)
 
         # Operandum differs from the last response's operandum.
         if self._cor == 0:
             # Immediate changeover: arm COD now and bind to new operandum.
+            from_op = self._last_operandum
             self._switch_time = now
+            self._active_cod = self._resolve_cod(from_op, operandum)
+            self._last_confirmed_operandum = from_op
             self._last_operandum = operandum
             self._consecutive_new_count = 0
-            return
+            return (True, from_op)
 
         # cor > 0: count this response as part of the switching streak.
         # _last_operandum stays as the previous confirmed operandum
         # until the streak reaches `cor`.
         self._consecutive_new_count += 1
         if self._consecutive_new_count >= self._cor:
+            from_op = self._last_operandum
             self._switch_time = now
+            self._active_cod = self._resolve_cod(from_op, operandum)
+            self._last_confirmed_operandum = from_op
             self._last_operandum = operandum
             self._consecutive_new_count = 0
+            return (True, from_op)
+        return (False, None)
 
     def _cod_active(self, operandum: str, now: float) -> bool:
         """Return True iff reinforcement on ``operandum`` is currently gated.
@@ -267,15 +395,17 @@ class Concurrent:
         COD gating applies to the operandum that the subject *has
         switched to* (i.e. the current ``_last_operandum`` after a
         confirmed changeover). Responses on other operanda are never
-        gated by this scalar-COD implementation.
+        gated by this implementation. The armed COD is the directional
+        override in effect (if any) for the most recent switch;
+        otherwise the base ``cod``.
         """
-        if self._cod <= 0.0:
+        if self._active_cod <= 0.0:
             return False
         if self._switch_time is None:
             return False
         if operandum != self._last_operandum:
             return False
-        return (now - self._switch_time) < self._cod - _TIME_TOL
+        return (now - self._switch_time) < self._active_cod - _TIME_TOL
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
         _check_time(self._last_now, now)
@@ -287,6 +417,13 @@ class Concurrent:
             # component may fire here; its outcome is returned as-is
             # because no changeover is involved.
             outcome, _ = self._advance_components(now, None, None)
+            # Ticks also advance punishment components' internal clocks
+            # so time-based punishers keep correct time. A tick cannot
+            # be the event that triggers a punisher fire (no response),
+            # so any outcome from a punisher is discarded here.
+            if self._punish is not None:
+                for p_sched in self._punish.values():
+                    p_sched.step(now, None)
             return outcome
 
         operandum = event.operandum
@@ -310,11 +447,25 @@ class Concurrent:
         # COD starts at that instant (Catania, 1966).
         self._register_event(operandum, now)
 
-        # COD gates only reinforcement earned by the event-matched
-        # component. A tick reinforcement from a response-independent
-        # component (FT/VT/RT) on another operandum is unrelated to the
-        # subject's changeover behaviour and must not be suppressed.
-        if outcome.reinforced and from_event and self._cod_active(operandum, now):
+        # Advance punishment schedules for all operanda so their clocks
+        # stay aligned with ``now``. Only the matched operandum's
+        # punisher receives the event; other punishers receive a tick.
+        punish_outcome: Outcome | None = None
+        if self._punish is not None:
+            for key, p_sched in self._punish.items():
+                if key == operandum:
+                    punish_outcome = p_sched.step(now, event)
+                else:
+                    p_sched.step(now, None)
+
+        cod_suppressed = (
+            outcome.reinforced and from_event and self._cod_active(operandum, now)
+        )
+
+        base_fired = outcome.reinforced and from_event and not cod_suppressed
+        punisher_fired = punish_outcome is not None and punish_outcome.reinforced
+
+        if cod_suppressed and not punisher_fired:
             # Absorb the reinforcement: component advanced but the
             # subject does not receive the reinforcer.
             return Outcome(
@@ -322,12 +473,64 @@ class Concurrent:
                 reinforcer=None,
                 meta={"cod_suppressed": True, "operandum": operandum},
             )
+
+        if base_fired and punisher_fired:
+            # Net-magnitude compound outcome.
+            assert outcome.reinforcer is not None
+            assert punish_outcome is not None and punish_outcome.reinforcer is not None
+            net = outcome.reinforcer.magnitude - punish_outcome.reinforcer.magnitude
+            if net > 0:
+                label = "SR+"
+            elif net < 0:
+                label = "SR-"
+            else:
+                label = "SR0"
+            return Outcome(
+                reinforced=True,
+                reinforcer=Reinforcer(
+                    time=outcome.reinforcer.time,
+                    magnitude=net,
+                    label=label,
+                ),
+                meta={
+                    "operandum": operandum,
+                    "base_fired": True,
+                    "punisher_fired": True,
+                    "net_magnitude": net,
+                },
+            )
+
+        if punisher_fired:
+            assert punish_outcome is not None and punish_outcome.reinforcer is not None
+            p = punish_outcome.reinforcer
+            meta: dict[str, object] = {
+                "operandum": operandum,
+                "punisher_fired": True,
+                "base_fired": False,
+            }
+            if cod_suppressed:
+                # The base reinforcer was earned but suppressed; the
+                # punisher still fires. Report the COD suppression too.
+                meta["cod_suppressed"] = True
+            return Outcome(
+                reinforced=True,
+                reinforcer=Reinforcer(
+                    time=p.time, magnitude=-p.magnitude, label="SR-"
+                ),
+                meta=meta,
+            )
+
         return outcome
 
     def reset(self) -> None:
         for component in self._components.values():
             component.reset()
+        if self._punish is not None:
+            for p_sched in self._punish.values():
+                p_sched.reset()
         self._last_operandum = None
+        self._last_confirmed_operandum = None
         self._switch_time = None
+        self._active_cod = self._cod
         self._consecutive_new_count = 0
         self._last_now = None

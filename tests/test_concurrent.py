@@ -568,3 +568,188 @@ class TestConcurrentSuppressionMeta:
         # Second response after COD expires — FR(2) fires.
         out = sch.step(12.1, ResponseEvent(12.1, operandum="right"))
         assert out.reinforced
+
+
+# ---------------------------------------------------------------------------
+# DirectionalCOD
+# ---------------------------------------------------------------------------
+
+
+class TestConcurrentDirectionalCOD:
+    def test_rejects_non_dict_cod_directional(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            Concurrent(
+                {"a": FR(1), "b": FR(1)},
+                cod_directional=[("a", "b", 2.0)],  # type: ignore[arg-type]
+            )
+
+    def test_rejects_non_tuple_key(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            Concurrent(
+                {"a": FR(1), "b": FR(1)},
+                cod_directional={"a->b": 2.0},  # type: ignore[dict-item]
+            )
+
+    def test_rejects_self_transition(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            Concurrent(
+                {"a": FR(1), "b": FR(1)},
+                cod_directional={("a", "a"): 2.0},
+            )
+
+    def test_rejects_negative_directional_value(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            Concurrent(
+                {"a": FR(1), "b": FR(1)},
+                cod_directional={("a", "b"): -1.0},
+            )
+
+    def test_directional_cod_governs_each_direction(self) -> None:
+        """A->B COD = 2s, B->A COD = 1s."""
+        sch = Concurrent(
+            {"a": FR(1), "b": FR(1)},
+            cod=0.0,
+            cod_directional={("a", "b"): 2.0, ("b", "a"): 1.0},
+        )
+        # Anchor on 'a'.
+        assert sch.step(0.0, ResponseEvent(0.0, operandum="a")).reinforced
+        # Switch a->b at t=1.5: within 2s COD -> suppressed.
+        out = sch.step(1.5, ResponseEvent(1.5, operandum="b"))
+        assert not out.reinforced
+        assert out.meta.get("cod_suppressed") is True
+        # Wait past the 2s COD (a->b): t=2.5 = 1.0s after switch at 1.5,
+        # still suppressed. t=3.6 => 2.1s after -> allowed.
+        out = sch.step(3.6, ResponseEvent(3.6, operandum="b"))
+        assert out.reinforced
+        # Switch b->a at t=4.0: 1s COD applies.
+        out = sch.step(4.0, ResponseEvent(4.0, operandum="a"))
+        assert not out.reinforced
+        assert out.meta.get("cod_suppressed") is True
+        # After 1s (t=5.1) -> allowed.
+        out = sch.step(5.1, ResponseEvent(5.1, operandum="a"))
+        assert out.reinforced
+
+    def test_base_cod_fallback_when_directional_entry_missing(self) -> None:
+        """When directional entry is missing, fall back to base cod."""
+        sch = Concurrent(
+            {"a": FR(1), "b": FR(1), "c": FR(1)},
+            cod=0.5,
+            cod_directional={("a", "b"): 2.0},  # only a->b overridden
+        )
+        # Anchor on 'a', then switch a->c: uses base cod (0.5).
+        assert sch.step(0.0, ResponseEvent(0.0, operandum="a")).reinforced
+        out = sch.step(0.1, ResponseEvent(0.1, operandum="c"))
+        # 0.1s < 0.5s -> suppressed by base cod.
+        assert not out.reinforced
+        assert out.meta.get("cod_suppressed") is True
+        # Past base cod at t=0.7.
+        out = sch.step(0.7, ResponseEvent(0.7, operandum="c"))
+        assert out.reinforced
+
+    def test_empty_dict_equivalent_to_no_directional(self) -> None:
+        sch = Concurrent(
+            {"a": FR(1), "b": FR(1)},
+            cod=0.0,
+            cod_directional={},
+        )
+        assert sch.cod_directional is None
+
+    def test_property_returns_copy(self) -> None:
+        sch = Concurrent(
+            {"a": FR(1), "b": FR(1)},
+            cod_directional={("a", "b"): 2.0},
+        )
+        snap = sch.cod_directional
+        assert snap is not None
+        snap[("x", "y")] = 9.0
+        # Original must be unaffected.
+        assert ("x", "y") not in (sch.cod_directional or {})
+
+
+# ---------------------------------------------------------------------------
+# PunishParam (component form)
+# ---------------------------------------------------------------------------
+
+
+class TestConcurrentPunish:
+    def test_rejects_non_dict_punish(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            Concurrent(
+                {"a": FR(1), "b": FR(1)},
+                punish=[("a", FR(1))],  # type: ignore[arg-type]
+            )
+
+    def test_rejects_punish_for_unknown_operandum(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            Concurrent(
+                {"a": FR(1), "b": FR(1)},
+                punish={"c": FR(2)},
+            )
+
+    def test_rejects_non_schedule_punish_value(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            Concurrent(
+                {"a": FR(1), "b": FR(1)},
+                punish={"a": 99},  # type: ignore[dict-item]
+            )
+
+    def test_reinforcement_and_punishment_net_magnitude(self) -> None:
+        """Reinforcement on A and punishment on A on the same response."""
+        sch = Concurrent(
+            {"a": FR(1), "b": FR(1)},
+            punish={"a": FR(1)},
+        )
+        out = sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        assert out.reinforced
+        assert out.meta.get("base_fired") is True
+        assert out.meta.get("punisher_fired") is True
+        assert out.meta.get("net_magnitude") == pytest.approx(0.0)
+        assert out.reinforcer is not None
+        assert out.reinforcer.label == "SR0"
+
+    def test_punisher_only_fires_when_base_does_not(self) -> None:
+        """FR(2) base, FR(1) punisher: first response fires only punisher."""
+        sch = Concurrent(
+            {"a": FR(2), "b": FR(1)},
+            punish={"a": FR(1)},
+        )
+        out = sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        assert out.reinforced
+        assert out.meta.get("punisher_fired") is True
+        assert out.meta.get("base_fired") is False
+        assert out.reinforcer is not None
+        assert out.reinforcer.label == "SR-"
+        assert out.reinforcer.magnitude == pytest.approx(-1.0)
+
+    def test_punish_on_other_operandum_does_not_trigger(self) -> None:
+        """Responding on A must not advance B's punisher."""
+        sch = Concurrent(
+            {"a": FR(1), "b": FR(1)},
+            punish={"b": FR(1)},
+        )
+        out = sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        assert out.reinforced
+        assert out.reinforcer is not None
+        assert out.reinforcer.label == "SR+"
+
+    def test_punish_dict_property_returns_copy(self) -> None:
+        sch = Concurrent(
+            {"a": FR(1), "b": FR(1)},
+            punish={"a": FR(1)},
+        )
+        snap = sch.punish
+        assert snap is not None
+        snap["b"] = FR(9)
+        assert "b" not in (sch.punish or {})
+
+    def test_reset_clears_punish_components(self) -> None:
+        sch = Concurrent(
+            {"a": FR(2), "b": FR(1)},
+            punish={"a": FR(2)},
+        )
+        sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        sch.reset()
+        # After reset, first response on 'a': FR(2) base needs 2, FR(2)
+        # punisher needs 2 -> neither fires.
+        out = sch.step(1.0, ResponseEvent(1.0, operandum="a"))
+        assert not out.reinforced

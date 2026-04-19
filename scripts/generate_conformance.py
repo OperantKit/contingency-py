@@ -530,6 +530,76 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "compound" / "chained_fr2_fr3.json", chained)
     )
 
+    # --- Compound: Multiple -------------------------------------------
+
+    multiple = FixtureSpec(
+        name="multiple-fr2-fr3",
+        description=(
+            "Multiple FR(2) / FR(3): each component has its own S^D and "
+            "produces primary reinforcement when its ratio is met. On "
+            "reinforcement the active index advances (wraps after the "
+            "terminal component)."
+        ),
+        schedule={
+            "type": "Multiple",
+            "params": {
+                "components": [
+                    {"type": "FR", "params": {"n": 2}},
+                    {"type": "FR", "params": {"n": 3}},
+                ],
+                "stimuli": ["s0", "s1"],
+            },
+        },
+    )
+    # Component 0 (FR 2) active: responses 1, 2 -> 2nd reinforces; advance to
+    # component 1.
+    multiple.add(now=1.0, event={"time": 1.0, "operandum": "main"})
+    multiple.add(now=2.0, event={"time": 2.0, "operandum": "main"})
+    # Component 1 (FR 3) active: responses 3, 4, 5 -> 5th reinforces; wrap
+    # back to component 0.
+    multiple.add(now=3.0, event={"time": 3.0, "operandum": "main"})
+    multiple.add(now=4.0, event={"time": 4.0, "operandum": "main"})
+    multiple.add(now=5.0, event={"time": 5.0, "operandum": "main"})
+    # Cycle back: first response of the new cycle on component 0.
+    multiple.add(now=6.0, event={"time": 6.0, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "multiple_fr_fr.json", multiple)
+    )
+
+    # --- Compound: Tandem ---------------------------------------------
+
+    tandem = FixtureSpec(
+        name="tandem-fr2-fr3",
+        description=(
+            "Tandem FR(2) -> FR(3): structurally a chain but with no "
+            "distinctive stimuli. The non-terminal FR(2) transitions "
+            "silently (no primary SR+); the terminal FR(3) delivers "
+            "primary SR+ on the 5th response overall."
+        ),
+        schedule={
+            "type": "Tandem",
+            "params": {
+                "components": [
+                    {"type": "FR", "params": {"n": 2}},
+                    {"type": "FR", "params": {"n": 3}},
+                ],
+            },
+        },
+    )
+    # Link 0 (FR 2): 2 responses -> silent transition to link 1.
+    tandem.add(now=1.0, event={"time": 1.0, "operandum": "main"})
+    tandem.add(now=2.0, event={"time": 2.0, "operandum": "main"})
+    # Link 1 (FR 3): 3 responses -> primary SR+ on the 5th overall.
+    tandem.add(now=3.0, event={"time": 3.0, "operandum": "main"})
+    tandem.add(now=4.0, event={"time": 4.0, "operandum": "main"})
+    tandem.add(now=5.0, event={"time": 5.0, "operandum": "main"})
+    # Cycle back: 2 responses -> silent transition again.
+    tandem.add(now=6.0, event={"time": 6.0, "operandum": "main"})
+    tandem.add(now=7.0, event={"time": 7.0, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "tandem_fr_fr.json", tandem)
+    )
+
     # --- Compound: Alternative ----------------------------------------
 
     alt = FixtureSpec(

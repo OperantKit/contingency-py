@@ -45,11 +45,15 @@ Compound (by ``Combinator``):
     ...; optional ``cod`` and ``cor`` extracted from ``params``.
   * ``ALT`` -> :class:`Alternative`; >2 components are nested left-
     associative: ``Alt(Alt(a, b), c)``.
+  * ``CONJ`` -> :class:`Conjunctive`; >2 components are nested left-
+    associative like :class:`Alternative`.
   * ``MULT`` -> :class:`Multiple` with default stimuli ``s0, s1, ...``.
+  * ``MIX`` -> :class:`Mixed` (no stimuli; integer ``current_component``
+    reported in ``Outcome.meta``).
   * ``CHAIN`` -> :class:`Chained` with default stimuli ``s0, s1, ...``.
   * ``TAND`` -> :class:`Tandem`.
-  * All other combinators (``CONJ``, ``MIX``, ``OVERLAY``,
-    ``INTERPOLATE``, ``INTERP``) raise :class:`ScheduleConfigError`.
+  * Remaining combinators (``OVERLAY``, ``INTERPOLATE``, ``INTERP``)
+    raise :class:`ScheduleConfigError`.
 
 Modifier:
   * ``DRL`` -> ``DRL(value * time_unit_factor)``.
@@ -75,9 +79,18 @@ Modifier:
 
 ``LimitedHold`` -> :class:`LimitedHold` wrapping ``from_dsl(inner)``.
 
-``SecondOrder``, ``IdentifierRef``, and the aversive / timeout /
-response-cost / adjusting / interlocking / trial-based wrappers raise
-:class:`ScheduleConfigError` — they are not yet implemented.
+``TimeoutWrapped`` -> :class:`Timeout` wrapping ``from_dsl(inner)`` with
+``duration`` scaled to runtime seconds via the DSL's ``duration_unit``
+and the caller's ``time_unit_seconds``; ``reset_on_response`` is
+forwarded unchanged.
+
+``ResponseCostWrapped`` -> :class:`ResponseCost` wrapping
+``from_dsl(inner)`` with ``amount`` and ``unit`` forwarded from the
+DSL's ``ResponseCost`` parameters.
+
+``SecondOrder``, ``IdentifierRef``, and the aversive / adjusting /
+interlocking / trial-based wrappers raise :class:`ScheduleConfigError`
+— they are not yet implemented.
 
 ``Program`` nodes translate via ``program.schedule``; program-level
 annotations and param declarations are ignored for this pass.
@@ -117,13 +130,23 @@ from contingency.schedules import (
     VI,
     VR,
     VT,
+    AdjustingSchedule,
     Alternative,
     Chained,
     Concurrent,
+    Conjunctive,
+    InterlockingSchedule,
+    Interpolate,
     LimitedHold,
+    Mixed,
     Multiple,
+    Overlay,
+    Percentile,
     ProgressiveRatio,
+    ResponseCost,
+    SecondOrder,
     Tandem,
+    Timeout,
     arithmetic,
     geometric,
 )
@@ -194,24 +217,27 @@ def from_dsl(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Schedule:
     """
     # Imported lazily so that ``contingency`` remains importable even
     # when ``contingency_dsl`` is not installed; the ImportError is
-    # surfaced only at bridge time.
+    # surfaced only at bridge time. Rename DSL node classes that
+    # collide with runtime schedule classes of the same name.
     from contingency_dsl.ast import (
-        AdjustingSchedule,
+        AdjustingSchedule as DSLAdjusting,
+    )
+    from contingency_dsl.ast import (
         AnnotatedSchedule,
         Atomic,
         AversiveSchedule,
         Compound,
         IdentifierRef,
-        InterlockingSchedule,
         Modifier,
         Program,
         ResponseCostWrapped,
-        SecondOrder,
         Special,
         TimeoutWrapped,
         TrialBased,
     )
+    from contingency_dsl.ast import InterlockingSchedule as DSLInterlocking
     from contingency_dsl.ast import LimitedHold as DSLLimitedHold
+    from contingency_dsl.ast import SecondOrder as DSLSecondOrder
 
     if isinstance(ast_node, Program):
         return from_dsl(ast_node.schedule, time_unit_seconds=time_unit_seconds)
@@ -239,11 +265,20 @@ def from_dsl(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Schedule:
         )
         return LimitedHold(inner, hold)  # type: ignore[arg-type]
 
-    if isinstance(ast_node, SecondOrder):
-        raise ScheduleConfigError(
-            "SecondOrder schedules are not yet supported by the bridge; "
-            f"got overall={ast_node.overall!r} unit={ast_node.unit!r}"
+    if isinstance(ast_node, DSLSecondOrder):
+        overall_rt = from_dsl(
+            ast_node.overall, time_unit_seconds=time_unit_seconds
         )
+        unit_rt = from_dsl(
+            ast_node.unit, time_unit_seconds=time_unit_seconds
+        )
+        return SecondOrder(overall_rt, unit_rt)
+
+    if isinstance(ast_node, DSLAdjusting):
+        return _from_adjusting(ast_node, time_unit_seconds)
+
+    if isinstance(ast_node, DSLInterlocking):
+        return _from_interlocking(ast_node, time_unit_seconds)
 
     if isinstance(ast_node, IdentifierRef):
         raise ScheduleConfigError(
@@ -252,14 +287,31 @@ def from_dsl(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Schedule:
             "substitute let-bindings before bridging"
         )
 
+    if isinstance(ast_node, TimeoutWrapped):
+        inner = from_dsl(ast_node.inner, time_unit_seconds=time_unit_seconds)
+        duration = _scaled_time(
+            ast_node.timeout.duration,
+            ast_node.timeout.duration_unit,
+            time_unit_seconds,
+        )
+        return Timeout(
+            inner,
+            duration,
+            reset_on_response=ast_node.timeout.reset_on_response,
+        )
+
+    if isinstance(ast_node, ResponseCostWrapped):
+        inner = from_dsl(ast_node.inner, time_unit_seconds=time_unit_seconds)
+        return ResponseCost(
+            inner,
+            ast_node.response_cost.amount,
+            unit=ast_node.response_cost.unit,
+        )
+
     if isinstance(
         ast_node,
         (
-            AdjustingSchedule,
             AversiveSchedule,
-            InterlockingSchedule,
-            ResponseCostWrapped,
-            TimeoutWrapped,
             TrialBased,
         ),
     ):
@@ -359,9 +411,102 @@ def _from_compound(node: Any, time_unit_seconds: float) -> Schedule:
     if combinator is Combinator.TAND:
         return Tandem(components)
 
+    if combinator is Combinator.CONJ:
+        if len(components) < 2:
+            raise ScheduleConfigError(
+                f"Conj requires >= 2 components, got {len(components)}"
+            )
+        # Left-associative nesting for >2 components, mirroring Alt.
+        conj_acc = Conjunctive(components[0], components[1])
+        for extra in components[2:]:
+            conj_acc = Conjunctive(conj_acc, extra)
+        return conj_acc
+
+    if combinator is Combinator.MIX:
+        return Mixed(components)
+
+    if combinator is Combinator.OVERLAY:
+        if len(components) != 2:
+            raise ScheduleConfigError(
+                f"Overlay requires exactly 2 components (base, punisher), "
+                f"got {len(components)}"
+            )
+        return Overlay(components[0], components[1])
+
+    if combinator in (Combinator.INTERPOLATE, Combinator.INTERP):
+        return _build_interpolate(components, node.params or {}, time_unit_seconds)
+
     raise ScheduleConfigError(
         f"combinator {combinator.value!r} is not yet supported by the "
-        "bridge (CONJ, MIX, OVERLAY, INTERPOLATE, INTERP deferred)"
+        "bridge"
+    )
+
+
+def _build_interpolate(
+    components: list[Schedule],
+    params: dict[str, Any],
+    time_unit_seconds: float,
+) -> Interpolate:
+    """Construct :class:`Interpolate` from DSL params.
+
+    The DSL exposes two keyword parameters relevant to Interpolate:
+
+    * ``count`` — the number of probe windows planned for the session;
+    * ``onset`` — the time from session start at which the first probe
+      window opens.
+
+    The runtime :class:`Interpolate` requires ``interval`` (period
+    between probe starts) and ``probe_duration`` (length of each probe
+    window), which are not first-class DSL concepts. When the DSL does
+    not provide them, we fall back on reasonable defaults:
+
+    * ``first_probe_at`` defaults to ``onset`` when present and
+      ``interval`` otherwise;
+    * ``interval`` defaults to ``onset`` when ``onset`` is provided,
+      else the unit second;
+    * ``probe_duration`` defaults to ``interval / 2``.
+
+    These defaults let the bridge translate canonical DSL Interpolate
+    forms to an executable runtime schedule; applications requiring
+    precise window geometry should construct :class:`Interpolate`
+    directly.
+    """
+    from contingency_dsl.ast import CompoundParam
+
+    if len(components) != 2:
+        raise ScheduleConfigError(
+            f"Interpolate requires exactly 2 components, got "
+            f"{len(components)}"
+        )
+    base, probe = components
+
+    onset_seconds: float | None = None
+    if "onset" in params:
+        onset_val = params["onset"]
+        if not isinstance(onset_val, CompoundParam):
+            raise ScheduleConfigError(
+                f"unsupported onset parameter value: "
+                f"{type(onset_val).__name__}"
+            )
+        onset_seconds = _scaled_time(
+            onset_val.value, onset_val.time_unit, time_unit_seconds
+        )
+
+    # "count" is currently informational; the runtime does not cap the
+    # number of probe windows per session — it simply repeats at
+    # ``interval`` forever.
+    interval_seconds = onset_seconds if onset_seconds is not None else 1.0
+    if interval_seconds <= 0:
+        interval_seconds = 1.0
+    probe_duration = interval_seconds / 2.0
+    first_probe_at = onset_seconds
+
+    return Interpolate(
+        base,
+        probe,
+        interval=interval_seconds,
+        probe_duration=probe_duration,
+        first_probe_at=first_probe_at,
     )
 
 
@@ -371,22 +516,46 @@ def _build_concurrent(
     time_unit_seconds: float,
 ) -> Concurrent:
     # Import lazily to avoid a hard dep at module import time.
-    from contingency_dsl.ast import CompoundParam, DirectionalCOD, PunishParam
+    from contingency_dsl.ast import (
+        CompoundParam,
+        DirectionalCOD,
+        DirectionalEntry,
+        PunishParam,
+    )
 
     comp_dict: dict[str, Schedule] = {
         f"c{i}": c for i, c in enumerate(components)
     }
 
+    def _resolve_op(ref: int | str) -> str:
+        """Resolve a 1-indexed int or identifier to the ``c<k>`` key."""
+        if isinstance(ref, int):
+            return f"c{ref - 1}"
+        return str(ref)
+
     cod = 0.0
     cor = 0
+    cod_directional: dict[tuple[str, str], float] | None = None
+    punish: dict[str, Schedule] | None = None
+
     if "COD" in params:
         cod_value = params["COD"]
         if isinstance(cod_value, DirectionalCOD):
-            raise ScheduleConfigError(
-                "directional COD (per-direction overrides) is not yet "
-                "supported by the bridge"
-            )
-        if isinstance(cod_value, CompoundParam):
+            if cod_value.base is not None:
+                cod = _scaled_time(
+                    cod_value.base.value,
+                    cod_value.base.time_unit,
+                    time_unit_seconds,
+                )
+            cod_directional = {}
+            for entry in cod_value.directional:
+                assert isinstance(entry, DirectionalEntry)
+                from_op = _resolve_op(entry.from_ref)
+                to_op = _resolve_op(entry.to_ref)
+                cod_directional[(from_op, to_op)] = _scaled_time(
+                    entry.value, entry.time_unit, time_unit_seconds
+                )
+        elif isinstance(cod_value, CompoundParam):
             cod = _scaled_time(
                 cod_value.value, cod_value.time_unit, time_unit_seconds
             )
@@ -402,11 +571,47 @@ def _build_concurrent(
             raise ScheduleConfigError(
                 f"unsupported FRCO parameter value: {type(frco_value).__name__}"
             )
-    if "PUNISH" in params and isinstance(params["PUNISH"], PunishParam):
-        raise ScheduleConfigError(
-            "PUNISH parameter on Concurrent is not yet supported by the bridge"
-        )
-    return Concurrent(comp_dict, cod=cod, cor=cor)
+
+    if "PUNISH" in params:
+        punish_value = params["PUNISH"]
+        # The parser may emit either a PunishParam (with a tuple payload
+        # of key-value pairs) or a raw dict. Normalise to a dict.
+        if isinstance(punish_value, PunishParam):
+            punish_dict = dict(punish_value.payload)
+        elif isinstance(punish_value, dict):
+            punish_dict = punish_value
+        else:
+            raise ScheduleConfigError(
+                f"unsupported PUNISH parameter value: "
+                f"{type(punish_value).__name__}"
+            )
+        # Implemented: "component" form (punishment schedule per
+        # operandum). Directional / changeover forms are deferred.
+        unsupported = [k for k in punish_dict if k not in ("component",)]
+        if unsupported:
+            raise ScheduleConfigError(
+                f"PUNISH form(s) {unsupported!r} are not yet supported "
+                "by the bridge (only the component form is wired); "
+                "directional and changeover punishment are deferred"
+            )
+        component_entries = punish_dict.get("component", [])
+        if component_entries:
+            punish = {}
+            for entry in component_entries:
+                ref = entry["component"]
+                op = _resolve_op(ref)
+                sched_spec = entry["schedule"]
+                punish[op] = from_dsl(
+                    sched_spec, time_unit_seconds=time_unit_seconds
+                )
+
+    return Concurrent(
+        comp_dict,
+        cod=cod,
+        cor=cor,
+        cod_directional=cod_directional,
+        punish=punish,
+    )
 
 
 def _from_modifier(node: Any, time_unit_seconds: float) -> Schedule:
@@ -460,9 +665,7 @@ def _from_modifier(node: Any, time_unit_seconds: float) -> Schedule:
         )
 
     if mod == "Pctl":
-        raise ScheduleConfigError(
-            "percentile (Pctl) schedules are not yet supported by the bridge"
-        )
+        return _from_pctl(node)
 
     raise ScheduleConfigError(f"unknown Modifier kind: {mod!r}")
 
@@ -484,4 +687,92 @@ def _from_pr(node: Any) -> ProgressiveRatio:
         return ProgressiveRatio(geometric(start=start, ratio=ratio))
     raise ScheduleConfigError(
         f"unknown PR pr_step: {step!r}"
+    )
+
+
+def _from_pctl(node: Any) -> Percentile:
+    """Translate a ``Pctl`` :class:`Modifier` to a :class:`Percentile`.
+
+    The DSL parser enforces rank ∈ ``[0, 100]`` and a closed set of
+    target dimensions. The bridge mirrors these checks defensively —
+    callers may construct :class:`Modifier` nodes directly, bypassing
+    the parser.
+    """
+    if node.pctl_target is None:
+        raise ScheduleConfigError("Pctl requires a target dimension")
+    if node.pctl_rank is None:
+        raise ScheduleConfigError("Pctl requires a rank")
+    # The DSL parser defaults window to 20 and dir to "below" when either
+    # is omitted; be tolerant if a hand-built Modifier leaves them as None.
+    window = 20 if node.pctl_window is None else int(node.pctl_window)
+    direction = "below" if node.pctl_dir is None else str(node.pctl_dir)
+    return Percentile(
+        target=str(node.pctl_target),
+        rank=int(node.pctl_rank),
+        window=window,
+        direction=direction,
+    )
+
+
+def _adj_numeric(
+    payload: dict[str, Any] | None,
+    time_unit_seconds: float,
+    *,
+    temporal: bool,
+) -> float | None:
+    """Resolve an ``{"value", "time_unit"}`` DSL payload to a runtime scalar.
+
+    ``temporal=True`` applies the time-unit and runtime-clock factors;
+    otherwise the raw numeric value is returned verbatim.
+    """
+    if payload is None:
+        return None
+    value = payload["value"]
+    time_unit = payload.get("time_unit")
+    if temporal:
+        return _scaled_time(float(value), time_unit, time_unit_seconds)
+    # Dimensionless targets ("ratio", "amount") — the AST layer rejects
+    # a non-None time_unit, but we assert here for defence in depth.
+    if time_unit is not None:
+        raise ScheduleConfigError(
+            f"AdjustingSchedule dimensionless payload carries time_unit="
+            f"{time_unit!r}; expected None"
+        )
+    return float(value)
+
+
+def _from_adjusting(node: Any, time_unit_seconds: float) -> AdjustingSchedule:
+    target = node.adj_target
+    temporal = target in ("interval", "delay")
+    start = _adj_numeric(node.adj_start, time_unit_seconds, temporal=temporal)
+    step = _adj_numeric(node.adj_step, time_unit_seconds, temporal=temporal)
+    minimum = _adj_numeric(node.adj_min, time_unit_seconds, temporal=temporal)
+    maximum = _adj_numeric(node.adj_max, time_unit_seconds, temporal=temporal)
+    # The DSL grammar enforces start and step; guard defensively against
+    # hand-built AST nodes that omit them.
+    if start is None:
+        raise ScheduleConfigError("AdjustingSchedule requires adj_start")
+    if step is None:
+        raise ScheduleConfigError("AdjustingSchedule requires adj_step")
+    return AdjustingSchedule(
+        target=target,
+        start=start,
+        step=step,
+        minimum=minimum,
+        maximum=maximum,
+    )
+
+
+def _from_interlocking(
+    node: Any, time_unit_seconds: float
+) -> InterlockingSchedule:
+    t_payload = node.interlock_T
+    decay = _scaled_time(
+        float(t_payload["value"]),
+        t_payload.get("time_unit"),
+        time_unit_seconds,
+    )
+    return InterlockingSchedule(
+        initial_ratio=int(node.interlock_R0),
+        decay_time=decay,
     )

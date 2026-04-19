@@ -1,5 +1,7 @@
 # contingency-py
 
+:jp: [日本語版 README](README.ja.md)
+
 Python reinforcement schedule engine for operant contingencies.
 
 Bridges [`contingency-dsl`](../contingency-dsl/) AST nodes into executable `Schedule` runtime objects. Pure library with no session/context/renewal concerns — those live in [`experiment-core`](../../experiment/experiment-core/).

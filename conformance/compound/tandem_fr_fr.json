@@ -1,0 +1,123 @@
+{
+  "description": "Tandem FR(2) -> FR(3): structurally a chain but with no distinctive stimuli. The non-terminal FR(2) transitions silently (no primary SR+); the terminal FR(3) delivers primary SR+ on the 5th response overall.",
+  "name": "tandem-fr2-fr3",
+  "schedule": {
+    "params": {
+      "components": [
+        {
+          "params": {
+            "n": 2
+          },
+          "type": "FR"
+        },
+        {
+          "params": {
+            "n": 3
+          },
+          "type": "FR"
+        }
+      ]
+    },
+    "type": "Tandem"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": 0
+        },
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "chain_transition": true,
+          "current_component": 1
+        },
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": 1
+        },
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": 1
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": 0
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": 0
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "meta": {
+          "chain_transition": true,
+          "current_component": 1
+        },
+        "reinforced": false
+      },
+      "now": 7.0
+    }
+  ]
+}
