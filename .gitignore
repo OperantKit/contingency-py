@@ -31,13 +31,14 @@ htmlcov/
 *.db
 
 # Package-local scratch / planning / draft / review traces
-# See operantkit/.claude/rules/common/local-scratch-and-privacy.md
+# Package-local scratch / planning / draft / review traces
 .local/
 tmp/
 PLAN.md
 
-# uv is prohibited by operantkit/CLAUDE.md; ignore lockfiles if created by tooling
+# uv package manager is banned; any accidental uv.lock must not be tracked.
 uv.lock
 
 # hatch-vcs generated version file
 src/contingency/_version.py
+.venv-fresh/
