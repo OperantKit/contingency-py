@@ -28,7 +28,7 @@ classifiers = [
   "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-  "contingency-dsl-py",
+  "contingency-dsl-py @ git+https://github.com/OperantKit/contingency-dsl-py.git",
 ]
 
 [project.optional-dependencies]
@@ -49,6 +49,9 @@ hw-serial = [
 [project.urls]
 Homepage = "https://github.com/OperantKit"
 Repository = "https://github.com/OperantKit/contingency-py"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.version]
 source = "vcs"
