@@ -6,11 +6,11 @@ schedules compose over it.
 
 ## Python source of truth
 
-- [src/contingency/interfaces.py](../src/contingency/interfaces.py) — the
+- [src/contingency/interfaces.py](../../src/contingency/interfaces.py) — the
   `Schedule` Protocol.
-- [src/contingency/entities.py](../src/contingency/entities.py) — value
+- [src/contingency/entities.py](../../src/contingency/entities.py) — value
   objects exchanged across the Protocol.
-- [src/contingency/errors.py](../src/contingency/errors.py) — error
+- [src/contingency/errors.py](../../src/contingency/errors.py) — error
   taxonomy.
 
 ## Schedule interface

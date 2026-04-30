@@ -6,11 +6,11 @@
 
 ## Python の真実の源泉
 
-- [src/contingency/interfaces.py](../src/contingency/interfaces.py) — 
+- [src/contingency/interfaces.py](../../src/contingency/interfaces.py) — 
   `Schedule` Protocol。
-- [src/contingency/entities.py](../src/contingency/entities.py) — 
+- [src/contingency/entities.py](../../src/contingency/entities.py) — 
   Protocol 越しに受け渡される値オブジェクト。
-- [src/contingency/errors.py](../src/contingency/errors.py) — エラー
+- [src/contingency/errors.py](../../src/contingency/errors.py) — エラー
   分類体系。
 
 ## Schedule インターフェース

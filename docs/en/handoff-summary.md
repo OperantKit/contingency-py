@@ -193,7 +193,7 @@ Suggested crate features:
    public API shape.
 2. [`algorithms/`](algorithms/) — one file per schedule, 80% of the
    implementation decisions.
-3. [`../conformance/README.md`](../conformance/README.md) — how to
+3. [`../conformance/README.md`](../../conformance/README.md) — how to
    consume the fixtures from Rust tests.
 4. [`swift-legacy-map.md`](swift-legacy-map.md) — only needed for the
    11 atomic schedules; the new compound schedules have no Swift
@@ -203,7 +203,7 @@ Suggested crate features:
 
 The Python package has 613 tests (100% green) and 99% line coverage.
 Reading a test is often faster than reading the source — each
-schedule has a dedicated file under [`../tests/`](../tests/):
+schedule has a dedicated file under [`../tests/`](../../tests/):
 
 - `test_ratio_schedules.py`
 - `test_interval_schedules.py`
