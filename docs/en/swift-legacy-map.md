@@ -1,8 +1,8 @@
 # Swift legacy source map
 
 Reference table mapping each `contingency-py` schedule to the original
-Swift source in the archived `legacy/OperantKit` package. Paths below
-are relative to `operantkit/legacy/OperantKit/`.
+Swift source in the archived upstream `OperantKit` Swift package.
+Paths below are relative to that Swift package's repository root.
 
 | Schedule | Swift file | Lines | Notes |
 |---|---|---|---|

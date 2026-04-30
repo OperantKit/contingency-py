@@ -1,8 +1,8 @@
 # Swift レガシー・ソース対応表
 
-各 `contingency-py` スケジュールを、アーカイブされた `legacy/OperantKit`
-パッケージ内のオリジナル Swift ソースに対応づけるリファレンス表。
-以下のパスは `operantkit/legacy/OperantKit/` からの相対パス。
+各 `contingency-py` スケジュールを、アーカイブされた上流 `OperantKit`
+Swift パッケージ内のオリジナル Swift ソースに対応づけるリファレンス表。
+以下のパスは当該 Swift パッケージのリポジトリルートからの相対パス。
 
 | スケジュール | Swift ファイル | 行 | 備考 |
 |---|---|---|---|
