@@ -192,7 +192,7 @@ contingency-rs/
 1. [`protocol.md`](protocol.md) — 公開 API 形状の唯一の真実の源泉。
 2. [`algorithms/`](algorithms/) — スケジュール 1 つにつき 1 ファイル。
    実装決定の 80% がここにある。
-3. [`../conformance/README.md`](../conformance/README.md) — Rust
+3. [`../conformance/README.md`](../../conformance/README.md) — Rust
    テストから fixture を消費する方法。
 4. [`swift-legacy-map.md`](swift-legacy-map.md) — 11 原子的スケジュール
    のみ必要。新しい複合スケジュールに対応する Swift ソースは存在しない。
@@ -201,7 +201,7 @@ contingency-rs/
 
 Python パッケージは 613 テスト（100% 緑）、ライン・カバレッジ 99%。
 ソースを読むよりもテストを読む方が速いことが多い。各スケジュールには
-[`../tests/`](../tests/) 配下に専用ファイルがある:
+[`../tests/`](../../tests/) 配下に専用ファイルがある:
 
 - `test_ratio_schedules.py`
 - `test_interval_schedules.py`
