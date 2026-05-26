@@ -131,10 +131,10 @@ def test_ext_returns_ext() -> None:
 @pytest.mark.unit
 def test_concurrent_returns_concurrent_with_cod_and_cor() -> None:
     comps = {"a": ScheduleBuilder.fr(3), "b": ScheduleBuilder.fi(30.0)}
-    c = ScheduleBuilder.concurrent(comps, cod=1.5, cor=2)
+    c = ScheduleBuilder.concurrent(comps, cod=1.5, frco=2)
     assert isinstance(c, Concurrent)
     assert c.cod == 1.5
-    assert c.cor == 2
+    assert c.frco == 2
     assert set(c.components.keys()) == {"a", "b"}
 
 

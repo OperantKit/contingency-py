@@ -20,15 +20,15 @@ session), COD is not active. This module implements the standard
 "since-last-changeover" semantics of Catania (1966): each fresh
 switch re-anchors the COD clock.
 
-Changeover Ratio (COR)
+Fixed-Ratio Changeover (FRCO)
 ----------------------
-With ``cor > 0``, a switch is not counted as a changeover until the
-subject has emitted ``cor`` *consecutive* responses on the new
-operandum. The COD timer arms only on the ``cor``-th such response
-(and at that response's timestamp). Responses 1..cor-1 on the new
+With ``frco > 0``, a switch is not counted as a changeover until the
+subject has emitted ``frco`` *consecutive* responses on the new
+operandum. The COD timer arms only on the ``frco``-th such response
+(and at that response's timestamp). Responses 1..frco-1 on the new
 operandum are not yet "a changeover" and are therefore not gated;
 reinforcement on those early responses is allowed. This mirrors the
-``cor`` semantics of ``contingency-dsl``.
+``frco`` semantics of ``contingency-dsl``.
 
 Choice analytics NOT in scope
 -----------------------------
@@ -97,8 +97,8 @@ class Concurrent:
         Changeover Delay in the caller's time units. After a changeover,
         reinforcement on the new operandum is suppressed for ``cod``
         time units. Default ``0.0`` disables COD. Must be ``>= 0``.
-    cor:
-        Changeover Ratio: number of consecutive responses on a new
+    frco:
+        fixed-ratio changeover: number of consecutive responses on a new
         operandum required for the switch to count as a changeover.
         Default ``0`` treats every switch as immediate. Must be ``>= 0``.
 
@@ -123,7 +123,7 @@ class Concurrent:
         "_components",
         "_cod",
         "_cod_directional",
-        "_cor",
+        "_frco",
         "_punish",
         "_last_operandum",
         "_last_confirmed_operandum",
@@ -137,7 +137,7 @@ class Concurrent:
         self,
         components: dict[str, Schedule],
         cod: float = 0.0,
-        cor: int = 0,
+        frco: int = 0,
         cod_directional: dict[tuple[str, str], float] | None = None,
         punish: dict[str, Schedule] | None = None,
     ) -> None:
@@ -156,17 +156,17 @@ class Concurrent:
             )
         if cod < 0:
             raise ScheduleConfigError(f"Concurrent requires cod >= 0, got {cod}")
-        if not isinstance(cor, int) or isinstance(cor, bool):
+        if not isinstance(frco, int) or isinstance(frco, bool):
             raise ScheduleConfigError(
-                f"Concurrent requires an int cor, got {type(cor).__name__}"
+                f"Concurrent requires an int frco, got {type(frco).__name__}"
             )
-        if cor < 0:
-            raise ScheduleConfigError(f"Concurrent requires cor >= 0, got {cor}")
+        if frco < 0:
+            raise ScheduleConfigError(f"Concurrent requires frco >= 0, got {frco}")
 
         # dict(...) to take a shallow copy; preserves insertion order.
         self._components: dict[str, Schedule] = dict(components)
         self._cod: float = float(cod)
-        self._cor: int = cor
+        self._frco: int = frco
 
         # Validate directional COD: keys must be (str, str), no self-
         # transitions, no duplicates (duplicates are intrinsic to dict
@@ -262,9 +262,9 @@ class Concurrent:
         return self._cod
 
     @property
-    def cor(self) -> int:
-        """The configured changeover ratio."""
-        return self._cor
+    def frco(self) -> int:
+        """The configured fixed-ratio changeover."""
+        return self._frco
 
     @property
     def cod_directional(self) -> dict[tuple[str, str], float] | None:
@@ -348,8 +348,8 @@ class Concurrent:
         previously confirmed operandum at the moment the changeover
         occurred.
 
-        Implements the ``cor`` semantics: a changeover is confirmed
-        only after ``cor`` consecutive responses on a new operandum.
+        Implements the ``frco`` semantics: a changeover is confirmed
+        only after ``frco`` consecutive responses on a new operandum.
         Once confirmed, ``_switch_time`` is anchored at ``now`` so the
         COD lockout starts from the confirming response.
         """
@@ -365,7 +365,7 @@ class Concurrent:
             return (False, None)
 
         # Operandum differs from the last response's operandum.
-        if self._cor == 0:
+        if self._frco == 0:
             # Immediate changeover: arm COD now and bind to new operandum.
             from_op = self._last_operandum
             self._switch_time = now
@@ -375,11 +375,11 @@ class Concurrent:
             self._consecutive_new_count = 0
             return (True, from_op)
 
-        # cor > 0: count this response as part of the switching streak.
+        # frco > 0: count this response as part of the switching streak.
         # _last_operandum stays as the previous confirmed operandum
-        # until the streak reaches `cor`.
+        # until the streak reaches `frco`.
         self._consecutive_new_count += 1
-        if self._consecutive_new_count >= self._cor:
+        if self._consecutive_new_count >= self._frco:
             from_op = self._last_operandum
             self._switch_time = now
             self._active_cod = self._resolve_cod(from_op, operandum)

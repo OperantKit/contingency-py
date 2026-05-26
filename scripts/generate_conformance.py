@@ -134,7 +134,7 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
         return Concurrent(
             comp_map,
             cod=float(params.get("cod", 0.0)),
-            cor=int(params.get("cor", 0)),
+            frco=int(params.get("frco", 0)),
         )
     if stype == "Alternative":
         first = build_schedule_from_spec(params["first"])
@@ -475,7 +475,7 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
                     "right": {"type": "FR", "params": {"n": 3}},
                 },
                 "cod": 1.0,
-                "cor": 0,
+                "frco": 0,
             },
         },
     )

@@ -42,7 +42,7 @@ Specials:
 
 Compound (by ``Combinator``):
   * ``CONC`` -> :class:`Concurrent` with numeric keys ``c0``, ``c1``,
-    ...; optional ``cod`` and ``cor`` extracted from ``params``.
+    ...; optional ``cod`` and ``frco`` extracted from ``params``.
   * ``ALT`` -> :class:`Alternative`; >2 components are nested left-
     associative: ``Alt(Alt(a, b), c)``.
   * ``CONJ`` -> :class:`Conjunctive`; >2 components are nested left-
@@ -538,7 +538,7 @@ def _build_concurrent(
         return str(ref)
 
     cod = 0.0
-    cor = 0
+    frco = 0
     cod_directional: dict[tuple[str, str], float] | None = None
     punish: dict[str, Schedule] | None = None
 
@@ -570,7 +570,7 @@ def _build_concurrent(
     if "FRCO" in params:
         frco_value = params["FRCO"]
         if isinstance(frco_value, CompoundParam):
-            cor = int(frco_value.value)
+            frco = int(frco_value.value)
         else:
             raise ScheduleConfigError(
                 f"unsupported FRCO parameter value: {type(frco_value).__name__}"
@@ -612,7 +612,7 @@ def _build_concurrent(
     return Concurrent(
         comp_dict,
         cod=cod,
-        cor=cor,
+        frco=frco,
         cod_directional=cod_directional,
         punish=punish,
     )

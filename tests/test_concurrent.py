@@ -1,4 +1,4 @@
-"""Tests for the Concurrent schedule with COD / COR gating.
+"""Tests for the Concurrent schedule with COD / FRCO gating.
 
 References
 ----------
@@ -57,25 +57,25 @@ class TestConcurrentConfig:
     @pytest.mark.parametrize("bad", [-1, -5, -100])
     def test_negative_cor_rejected(self, bad: int) -> None:
         with pytest.raises(ScheduleConfigError):
-            Concurrent({"a": FR(1), "b": FR(1)}, cor=bad)
+            Concurrent({"a": FR(1), "b": FR(1)}, frco=bad)
 
     def test_non_int_cor_rejected(self) -> None:
         with pytest.raises(ScheduleConfigError):
-            Concurrent({"a": FR(1), "b": FR(1)}, cor=1.5)  # type: ignore[arg-type]
+            Concurrent({"a": FR(1), "b": FR(1)}, frco=1.5)  # type: ignore[arg-type]
 
     def test_bool_cor_rejected(self) -> None:
         with pytest.raises(ScheduleConfigError):
-            Concurrent({"a": FR(1), "b": FR(1)}, cor=True)  # type: ignore[arg-type]
+            Concurrent({"a": FR(1), "b": FR(1)}, frco=True)  # type: ignore[arg-type]
 
     def test_defaults_accepted(self) -> None:
         sch = Concurrent({"a": FR(1), "b": FR(1)})
         assert sch.cod == 0.0
-        assert sch.cor == 0
+        assert sch.frco == 0
 
     def test_positive_cod_and_cor_accepted(self) -> None:
-        sch = Concurrent({"a": FR(1), "b": FR(1)}, cod=2.0, cor=3)
+        sch = Concurrent({"a": FR(1), "b": FR(1)}, cod=2.0, frco=3)
         assert sch.cod == 2.0
-        assert sch.cor == 3
+        assert sch.frco == 3
 
     def test_components_property_returns_copy(self) -> None:
         a, b = FR(1), FR(1)
@@ -246,34 +246,34 @@ class TestConcurrentCOD:
 
 
 # ---------------------------------------------------------------------------
-# COR behavior
+# FRCO behavior
 # ---------------------------------------------------------------------------
 
 
 class TestConcurrentCOR:
     def test_cor_two_first_response_does_not_arm_cod(self) -> None:
-        """With cor=2, the first response on new operandum does not arm COD."""
+        """With frco=2, the first response on new operandum does not arm COD."""
         sch = Concurrent(
             {"left": FR(1), "right": FR(1)},
             cod=1.0,
-            cor=2,
+            frco=2,
         )
         # Left reinforces normally.
         out = sch.step(0.0, ResponseEvent(0.0, operandum="left"))
         assert out.reinforced
 
-        # First response on right (cor=2): does not yet count as a
+        # First response on right (frco=2): does not yet count as a
         # changeover, so COD is not armed. Reinforcement flows through.
         out = sch.step(0.5, ResponseEvent(0.5, operandum="right"))
         assert out.reinforced
         assert "cod_suppressed" not in out.meta
 
     def test_cor_two_nth_response_arms_cod(self) -> None:
-        """With cor=2, the 2nd consecutive response on new operandum arms COD."""
+        """With frco=2, the 2nd consecutive response on new operandum arms COD."""
         sch = Concurrent(
             {"left": FR(1), "right": FR(1)},
             cod=1.0,
-            cor=2,
+            frco=2,
         )
         sch.step(0.0, ResponseEvent(0.0, operandum="left"))
         # 1st right: not a changeover yet.
@@ -288,7 +288,7 @@ class TestConcurrentCOR:
         sch = Concurrent(
             {"left": FR(1), "right": FR(1)},
             cod=1.0,
-            cor=3,
+            frco=3,
         )
         sch.step(0.0, ResponseEvent(0.0, operandum="left"))
         # 1st and 2nd right — no changeover yet.
@@ -301,11 +301,11 @@ class TestConcurrentCOR:
         assert out.meta.get("cod_suppressed") is True
 
     def test_cor_streak_broken_by_returning_to_old_operandum(self) -> None:
-        """Going back to the previous operandum resets the COR streak."""
+        """Going back to the previous operandum resets the FRCO streak."""
         sch = Concurrent(
             {"left": FR(1), "right": FR(1)},
             cod=1.0,
-            cor=3,
+            frco=3,
         )
         sch.step(0.0, ResponseEvent(0.0, operandum="left"))
         sch.step(0.1, ResponseEvent(0.1, operandum="right"))
@@ -332,11 +332,11 @@ class TestConcurrentCOR:
         sch = Concurrent(
             {"A": FR(1), "B": FR(1), "C": FR(1)},
             cod=10.0,
-            cor=3,
+            frco=3,
         )
         # Establish current operandum = A (no prior switch).
         sch.step(0.0, ResponseEvent(0.0, operandum="A"))
-        # Complete a changeover A → B (cor=3).
+        # Complete a changeover A → B (frco=3).
         sch.step(0.1, ResponseEvent(0.1, operandum="B"))
         sch.step(0.2, ResponseEvent(0.2, operandum="B"))
         # 3rd B response arms COD on B at t=0.3 and is suppressed.
@@ -350,14 +350,14 @@ class TestConcurrentCOR:
         assert "cod_suppressed" not in out.meta
 
     def test_cor_zero_immediate_switch(self) -> None:
-        """cor=0 means every switch is an immediate changeover."""
+        """frco=0 means every switch is an immediate changeover."""
         sch = Concurrent(
             {"left": FR(1), "right": FR(1)},
             cod=1.0,
-            cor=0,
+            frco=0,
         )
         sch.step(0.0, ResponseEvent(0.0, operandum="left"))
-        # 1st switch response is itself the changeover (no COR buffer).
+        # 1st switch response is itself the changeover (no FRCO buffer).
         out = sch.step(0.5, ResponseEvent(0.5, operandum="right"))
         assert not out.reinforced
         assert out.meta.get("cod_suppressed") is True
@@ -504,7 +504,7 @@ class TestConcurrentReset:
         sch = Concurrent(
             {"left": FR(1), "right": FR(1)},
             cod=1.0,
-            cor=2,
+            frco=2,
         )
         sch.step(0.0, ResponseEvent(0.0, operandum="left"))
         sch.step(0.1, ResponseEvent(0.1, operandum="right"))  # streak=1

@@ -199,9 +199,9 @@ def test_bridge_concurrent() -> None:
     s = from_dsl(parse_expr("Conc(FR5, VI30s)"))
     assert isinstance(s, Concurrent)
     assert set(s.components.keys()) == {"c0", "c1"}
-    # Default COD/COR are zero when the DSL omits them.
+    # Default COD/FRCO are zero when the DSL omits them.
     assert s.cod == 0.0
-    assert s.cor == 0
+    assert s.frco == 0
 
 
 @pytest.mark.unit
@@ -212,11 +212,11 @@ def test_bridge_concurrent_with_cod() -> None:
 
 
 @pytest.mark.unit
-def test_bridge_concurrent_with_frco_maps_to_cor() -> None:
+def test_bridge_concurrent_with_frco() -> None:
     s = from_dsl(parse_expr("Conc(VI30s, VI60s, COD=2s, FRCO=5)"))
     assert isinstance(s, Concurrent)
     assert s.cod == pytest.approx(2.0)
-    assert s.cor == 5
+    assert s.frco == 5
 
 
 @pytest.mark.unit

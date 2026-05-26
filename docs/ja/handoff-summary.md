@@ -14,7 +14,7 @@ Rust 実装者のための 1 ページ分オンボーディング資料である
 | 間隔 (Interval) | `FI`, `VI`, `RI`, `LimitedHold` |
 | 時間ベース (Time-based) | `FT`, `VT`, `RT`, `EXT` |
 | 分化強化 (Differential) | `DRO` (resetting/momentary), `DRL`, `DRH` |
-| 複合 (Compound) | `Concurrent` (COD + COR), `Multiple`, `Chained`, `Tandem`, `Alternative` |
+| 複合 (Compound) | `Concurrent` (COD + FRCO), `Multiple`, `Chained`, `Tandem`, `Alternative` |
 | 累進 (Progressive) | `ProgressiveRatio`（`arithmetic`, `geometric`, `richardson_roberts` ステップ関数付） |
 
 すべて `Schedule` Protocol (`step(now, event) -> Outcome`,

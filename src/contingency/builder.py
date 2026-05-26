@@ -156,10 +156,10 @@ class ScheduleBuilder:
     def concurrent(
         components: dict[str, Schedule],
         cod: float = 0.0,
-        cor: int = 0,
+        frco: int = 0,
     ) -> Concurrent:
-        """Concurrent (Catania, 1966) with COD/COR gating."""
-        return Concurrent(components, cod=cod, cor=cor)
+        """Concurrent (Catania, 1966) with COD/FRCO gating."""
+        return Concurrent(components, cod=cod, frco=frco)
 
     @staticmethod
     def multiple(

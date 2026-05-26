@@ -14,7 +14,7 @@ exists, what is deferred, and where to start reading.
 | Interval | `FI`, `VI`, `RI`, `LimitedHold` |
 | Time-based | `FT`, `VT`, `RT`, `EXT` |
 | Differential | `DRO` (resetting/momentary), `DRL`, `DRH` |
-| Compound | `Concurrent` (COD + COR), `Multiple`, `Chained`, `Tandem`, `Alternative` |
+| Compound | `Concurrent` (COD + FRCO), `Multiple`, `Chained`, `Tandem`, `Alternative` |
 | Progressive | `ProgressiveRatio` with `arithmetic`, `geometric`, `richardson_roberts` step fns |
 
 All implement the `Schedule` Protocol (`step(now, event) -> Outcome`,
