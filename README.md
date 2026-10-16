@@ -19,6 +19,12 @@ Bridges [`contingency-dsl`](../contingency-dsl/) AST nodes into executable `Sche
 
 ## Install
 
+```bash
+pip install contingency-py
+```
+
+For development:
+
 ```
 mise install                                # Python 3.11
 mise exec -- python -m venv .venv

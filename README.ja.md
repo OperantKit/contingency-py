@@ -19,6 +19,12 @@
 
 ## インストール
 
+```bash
+pip install contingency-py
+```
+
+開発用:
+
 ```
 mise install                                # Python 3.11
 mise exec -- python -m venv .venv
