@@ -7,7 +7,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- JOSS paper draft (`paper/paper.md`, `paper/paper.bib`) and a workflow that builds its PDF.
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and a Support section in the README.
 
 ## [0.1.1]
