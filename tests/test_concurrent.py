@@ -20,6 +20,8 @@ import pytest
 from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.schedules import Concurrent
+from contingency.schedules.differential import DRO
+from contingency.schedules.interval import FI
 from contingency.schedules.ratio import FR
 from contingency.schedules.time_based import EXT, FT
 
@@ -540,34 +542,82 @@ class TestConcurrentSuppressionMeta:
         out = sch.step(0.0, ResponseEvent(0.0, operandum="left"))
         assert "cod_suppressed" not in out.meta
 
-    def test_suppression_consumes_component_reinforcement(self) -> None:
-        """A suppressed reinforcement still advances the component's state."""
-        left = FR(1)
-        right = FR(2)
+    def test_suppressed_reinforcer_is_held_until_cod_ends(self) -> None:
+        """A reinforcer set up on B is delivered by the first B response after COD."""
+        sch = Concurrent({"a": FR(1), "b": FI(5.0)}, cod=1.5)
+        sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        # FI 5 on b is set up at t=5. Switch a -> b at t=6: within COD.
+        out = sch.step(6.0, ResponseEvent(6.0, operandum="b"))
+        assert not out.reinforced
+        assert out.meta.get("cod_suppressed") is True
+        # First b response after the 1.5-s COD collects the held reinforcer.
+        out = sch.step(7.6, ResponseEvent(7.6, operandum="b"))
+        assert out.reinforced
+        assert out.reinforcer is not None
+        assert out.reinforcer.time == 7.6
+
+    def test_held_reinforcer_survives_switching_back(self) -> None:
+        """Leaving B during COD does not forfeit the reinforcer set up on B."""
+        sch = Concurrent({"a": FR(100), "b": FI(5.0)}, cod=1.5)
+        sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        assert not sch.step(6.0, ResponseEvent(6.0, operandum="b")).reinforced
+        sch.step(6.5, ResponseEvent(6.5, operandum="a"))
+        # Back to b: a new COD starts at t=7.
+        assert not sch.step(7.0, ResponseEvent(7.0, operandum="b")).reinforced
+        assert sch.step(8.6, ResponseEvent(8.6, operandum="b")).reinforced
+
+    def test_next_interval_starts_at_delivery_not_at_setup(self) -> None:
+        """While the reinforcer is held, the component's next interval does not run."""
+        sch = Concurrent({"a": FR(1), "b": FI(5.0)}, cod=1.5)
+        sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        sch.step(6.0, ResponseEvent(6.0, operandum="b"))  # held
+        assert sch.step(7.6, ResponseEvent(7.6, operandum="b")).reinforced
+        # Next FI 5 is timed from the delivery at 7.6, so it sets up at 12.6.
+        assert not sch.step(12.0, ResponseEvent(12.0, operandum="b")).reinforced
+        assert sch.step(12.7, ResponseEvent(12.7, operandum="b")).reinforced
+
+    def test_time_based_reinforcer_is_held_not_lost(self) -> None:
+        """An FT reinforcer that falls on a response inside COD is paid after it."""
+        sch = Concurrent({"a": FR(100), "b": FT(5.0)}, cod=2.0)
+        sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        # FT 5 fires on the b response at 5.5, which opens a 2-s COD.
+        out = sch.step(5.5, ResponseEvent(5.5, operandum="b"))
+        assert not out.reinforced
+        assert out.meta.get("cod_suppressed") is True
+        out = sch.step(7.6, ResponseEvent(7.6, operandum="b"))
+        assert out.reinforced
+        assert out.reinforcer is not None
+        assert out.reinforcer.time == 7.6
+
+    def test_responses_inside_cod_still_reach_dro(self) -> None:
+        """A response inside COD resets DRO even when it coincides with a DRO payout."""
         sch = Concurrent(
-            {"left": left, "right": right},
-            cod=10.0,
+            {"a": FR(100), "b": DRO(2.0, dro_type="momentary")}, cod=1.0
         )
-        # First response on left reinforces (no prior changeover).
+        sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        # The b response at 2.0 lands on the DRO boundary inside COD.
+        out = sch.step(2.0, ResponseEvent(2.0, operandum="b"))
+        assert not out.reinforced
+        sch.step(3.5)
+        # [2, 4) contains the b response at 2.0, so DRO must not pay at 4.0.
+        assert not sch.step(4.0).reinforced
+        # The DRO reinforcer set up at 2.0 is collected by the next b response.
+        assert sch.step(4.5, ResponseEvent(4.5, operandum="b")).reinforced
+
+    def test_held_ratio_reinforcer_restarts_count_after_delivery(self) -> None:
+        """For FR, the ratio completed during COD is paid on the first response after it."""
+        sch = Concurrent({"left": FR(1), "right": FR(2)}, cod=10.0)
         sch.step(0.0, ResponseEvent(0.0, operandum="left"))
-        # Switch to right: first response on right is part of FR(2) so
-        # does not reinforce anyway.
         sch.step(1.0, ResponseEvent(1.0, operandum="right"))
-        # Second response on right would reinforce but COD gates it. The
-        # component's count still resets (spec: component advances).
+        # Ratio completed inside COD: held, not delivered.
         out = sch.step(1.5, ResponseEvent(1.5, operandum="right"))
         assert not out.reinforced
         assert out.meta.get("cod_suppressed") is True
-        # To prove the reinforcement was consumed: accumulate more right
-        # responses after the COD window. If the FR(2) counter were
-        # still at 2, the next response would reinforce. It should
-        # instead need two fresh responses to reinforce.
-        # First response after COD expires — count goes to 1.
-        out = sch.step(12.0, ResponseEvent(12.0, operandum="right"))
-        assert not out.reinforced
-        # Second response after COD expires — FR(2) fires.
-        out = sch.step(12.1, ResponseEvent(12.1, operandum="right"))
-        assert out.reinforced
+        # First response after COD collects it.
+        assert sch.step(12.0, ResponseEvent(12.0, operandum="right")).reinforced
+        # The count then restarts: two fresh responses are needed.
+        assert not sch.step(12.1, ResponseEvent(12.1, operandum="right")).reinforced
+        assert sch.step(12.2, ResponseEvent(12.2, operandum="right")).reinforced
 
 
 # ---------------------------------------------------------------------------

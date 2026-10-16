@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and a Support section in the README.
 
+### Changed
+
+- `Concurrent` COD now holds a reinforcer that a component sets up during the changeover delay and delivers it on the first response on that operandum after the COD, instead of discarding it; the component's next interval or ratio starts from that delivery (Herrnstein, 1961). Results of concurrent schedules with `cod > 0` differ from earlier releases. The conformance fixture `compound/concurrent_cod.json` is updated accordingly.
+
 ## [0.1.1]
 
 ### Fixed

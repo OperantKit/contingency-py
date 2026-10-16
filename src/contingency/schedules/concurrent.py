@@ -9,11 +9,18 @@ the component that received the event, subject to changeover gating.
 
 Changeover Delay (Catania, 1966)
 --------------------------------
-When the subject switches from operandum A to operandum B, the
-reinforcer that would otherwise be delivered on B is *suppressed* for
-``cod`` time units after the switch. This discourages rapid
-alternation and superstitious changeover responding. The timer resets
-on every subsequent changeover: "since the last changeover".
+When the subject switches from operandum A to operandum B, no response
+on B is reinforced for ``cod`` time units after the switch. This
+discourages rapid alternation and superstitious changeover responding.
+The timer resets on every subsequent changeover: "since the last
+changeover".
+
+A reinforcer that B's component sets up during the COD is *held*, not
+lost: it is delivered by the first response on B after the COD ends,
+and B's component does not start its next interval (or ratio) until
+that delivery. This is the procedure of Herrnstein (1961): "no
+response was reinforced within 1.5 seconds of a changeover", with
+the programmed reinforcer kept until collected.
 
 If no changeover has yet occurred (e.g. the very first response of a
 session), COD is not active. This module implements the standard
@@ -59,13 +66,23 @@ https://doi.org/10.1901/jeab.1961.4-267
 
 from __future__ import annotations
 
+import copy
+
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules.interval import FI, RI, VI
+from contingency.schedules.ratio import FR, RR, VR
 
 __all__ = ["Concurrent"]
 
 _TIME_TOL = 1e-9
+
+# Components whose reinforcer can be held *inside* the component: a
+# time tick never reinforces them and responses matter only through
+# the reinforcing one, so withholding that response keeps the
+# reinforcer set up and delays the next interval or ratio.
+_HOLD_IN_COMPONENT: tuple[type, ...] = (FR, VR, RR, FI, VI, RI)
 
 
 def _check_time(last_now: float | None, now: float) -> None:
@@ -95,8 +112,10 @@ class Concurrent:
         order is preserved.
     cod:
         Changeover Delay in the caller's time units. After a changeover,
-        reinforcement on the new operandum is suppressed for ``cod``
-        time units. Default ``0.0`` disables COD. Must be ``>= 0``.
+        no response on the new operandum is reinforced for ``cod`` time
+        units; a reinforcer set up meanwhile is held until the first
+        response after the COD. Default ``0.0`` disables COD. Must be
+        ``>= 0``.
     frco:
         fixed-ratio changeover: number of consecutive responses on a new
         operandum required for the switch to count as a changeover.
@@ -110,13 +129,25 @@ class Concurrent:
     ``event.operandum`` receives the :class:`ResponseEvent`; all other
     components receive ``None`` at the same ``now``.
 
-    Gating. If a component returns a reinforced outcome while COD is
-    active, :class:`Concurrent` silently consumes the reinforcement and
-    returns an un-reinforced outcome carrying
+    Gating. While COD is active on the responded operandum, a
+    reinforcer that the response would produce is held and
+    :class:`Concurrent` returns an un-reinforced outcome carrying
     ``meta["cod_suppressed"] = True`` alongside
-    ``meta["operandum"] = <key>``. This matches standard operant-box
-    behavior: the reinforcer is not delivered to the subject even
-    though the component's internal state has advanced.
+    ``meta["operandum"] = <key>``. The first response on that operandum
+    after the COD collects the held reinforcer. How it is held depends
+    on the component:
+
+    - FR, VR, RR, FI, VI, RI: the response is first tried on a copy of
+      the component. If the copy would reinforce, the real component
+      receives only a time tick, so the reinforcer stays set up and its
+      next interval or ratio does not start until delivery. A response
+      that would not reinforce is applied as usual, so it counts toward
+      a ratio.
+    - Any other component (time-based, differential, nested compound):
+      the response is applied as usual, so the component sees every
+      response, and the reinforcer it produces is kept by
+      :class:`Concurrent` until delivery. The component's own next
+      cycle starts at once.
     """
 
     __slots__ = (
@@ -131,6 +162,7 @@ class Concurrent:
         "_active_cod",
         "_consecutive_new_count",
         "_last_now",
+        "_pending",
     )
 
     def __init__(
@@ -250,6 +282,9 @@ class Concurrent:
         self._active_cod: float = float(cod)
         self._consecutive_new_count: int = 0
         self._last_now: float | None = None
+        # Reinforcers held by the compound (components outside
+        # ``_HOLD_IN_COMPONENT``), per operandum, oldest first.
+        self._pending: dict[str, list[Reinforcer]] = {}
 
     @property
     def components(self) -> dict[str, Schedule]:
@@ -295,14 +330,67 @@ class Concurrent:
             return self._cod_directional[(from_op, to_op)]
         return self._cod
 
-    def _advance_components(
-        self, now: float, event_operandum: str | None, event: ResponseEvent | None
+    def _step_gated(
+        self, component: Schedule, now: float, event: ResponseEvent
     ) -> tuple[Outcome, bool]:
+        """Step ``component`` with ``event`` while COD gates its operandum.
+
+        For :data:`_HOLD_IN_COMPONENT` types the response is first tried
+        on a copy. If the copy would reinforce, the real component only
+        receives a time tick, so the reinforcer stays set up (and its
+        next interval or ratio does not start) until the first response
+        after the COD. For any other component the response is applied
+        as usual and a reinforcer it produces is queued in
+        ``_pending[event.operandum]`` for later delivery.
+
+        Returns ``(outcome, held)``.
+        """
+        if isinstance(component, _HOLD_IN_COMPONENT):
+            probe = copy.deepcopy(component)
+            if probe.step(now, event).reinforced:
+                component.step(now, None)
+                return Outcome(), True
+            return component.step(now, event), False
+        out = component.step(now, event)
+        if out.reinforced and out.reinforcer is not None:
+            self._pending.setdefault(event.operandum, []).append(out.reinforcer)
+            return Outcome(), True
+        return out, False
+
+    def _deliver_pending(
+        self, operandum: str, now: float, outcome: Outcome, from_event: bool
+    ) -> tuple[Outcome, bool]:
+        """Deliver the oldest reinforcer held by :class:`Concurrent` on ``operandum``.
+
+        Called for an ungated response. If the component reinforced on
+        this response too, that reinforcer joins the back of the queue,
+        so each response delivers at most one reinforcer.
+        """
+        queue = self._pending.get(operandum)
+        if not queue:
+            return outcome, from_event
+        if from_event and outcome.reinforced and outcome.reinforcer is not None:
+            queue.append(outcome.reinforcer)
+        held = queue.pop(0)
+        if not queue:
+            del self._pending[operandum]
+        delivered = Reinforcer(time=now, magnitude=held.magnitude, label=held.label)
+        return Outcome(reinforced=True, reinforcer=delivered), True
+
+    def _advance_components(
+        self,
+        now: float,
+        event_operandum: str | None,
+        event: ResponseEvent | None,
+        gated: bool = False,
+    ) -> tuple[Outcome, bool, bool]:
         """Call step() on every component; only ``event_operandum`` receives ``event``.
 
-        Returns a pair ``(outcome, from_event)`` where ``from_event`` is
+        Returns ``(outcome, from_event, held)`` where ``from_event`` is
         ``True`` iff the returned outcome originated from the
-        event-matched component. Priority order:
+        event-matched component, and ``held`` is ``True`` iff that
+        component set up a reinforcer which COD is holding back
+        (only possible when ``gated``). Priority order:
 
         1. The event-matched component's outcome if it reinforced
            (``from_event=True``).
@@ -324,20 +412,24 @@ class Concurrent:
         """
         outcome_for_event: Outcome | None = None
         tick_outcome: Outcome | None = None
+        held = False
         for key, component in self._components.items():
             if key == event_operandum:
-                outcome_for_event = component.step(now, event)
+                if gated and event is not None:
+                    outcome_for_event, held = self._step_gated(component, now, event)
+                else:
+                    outcome_for_event = component.step(now, event)
             else:
                 out = component.step(now, None)
                 if tick_outcome is None and out.reinforced:
                     tick_outcome = out
         if outcome_for_event is not None and outcome_for_event.reinforced:
-            return outcome_for_event, True
+            return outcome_for_event, True, held
         if tick_outcome is not None:
-            return tick_outcome, False
+            return tick_outcome, False, held
         if outcome_for_event is not None:
-            return outcome_for_event, True
-        return Outcome(), False
+            return outcome_for_event, True, held
+        return Outcome(), False, held
 
     def _register_event(self, operandum: str, now: float) -> tuple[bool, str | None]:
         """Update changeover state for a response at ``operandum`` / ``now``.
@@ -416,7 +508,7 @@ class Concurrent:
             # Pure tick: advance every component's clock. A time-based
             # component may fire here; its outcome is returned as-is
             # because no changeover is involved.
-            outcome, _ = self._advance_components(now, None, None)
+            outcome, _, _ = self._advance_components(now, None, None)
             # Ticks also advance punishment components' internal clocks
             # so time-based punishers keep correct time. A tick cannot
             # be the event that triggers a punisher fire (no response),
@@ -433,19 +525,25 @@ class Concurrent:
                 f"known operanda: {sorted(self._components.keys())!r}"
             )
 
-        # Step all components; only the matched one sees ``event``. We
-        # advance the component *before* deciding about gating so that
-        # a suppressed reinforcer still advances the component's state
-        # (the cost of the response is paid by the component regardless
-        # of whether the subject receives the food).
-        outcome, from_event = self._advance_components(now, operandum, event)
-
         # Update changeover bookkeeping. Registration happens *before*
         # gating so that the response which completes a changeover is
         # itself covered by the COD window it opens: the changeover
         # response is the first "on the new operandum" response and
         # COD starts at that instant (Catania, 1966).
         self._register_event(operandum, now)
+        gated = self._cod_active(operandum, now)
+
+        # Step all components; only the matched one sees ``event``.
+        # Under COD, a reinforcer the matched component would deliver
+        # is held on that component until the first response after the
+        # COD (Herrnstein, 1961).
+        outcome, from_event, held = self._advance_components(
+            now, operandum, event, gated=gated
+        )
+        if not gated:
+            outcome, from_event = self._deliver_pending(
+                operandum, now, outcome, from_event
+            )
 
         # Advance punishment schedules for all operanda so their clocks
         # stay aligned with ``now``. Only the matched operandum's
@@ -458,16 +556,14 @@ class Concurrent:
                 else:
                     p_sched.step(now, None)
 
-        cod_suppressed = (
-            outcome.reinforced and from_event and self._cod_active(operandum, now)
-        )
+        cod_suppressed = held
 
-        base_fired = outcome.reinforced and from_event and not cod_suppressed
+        base_fired = outcome.reinforced and from_event
         punisher_fired = punish_outcome is not None and punish_outcome.reinforced
 
         if cod_suppressed and not punisher_fired:
-            # Absorb the reinforcement: component advanced but the
-            # subject does not receive the reinforcer.
+            # The reinforcer stays set up on the component and is not
+            # delivered on this response.
             return Outcome(
                 reinforced=False,
                 reinforcer=None,
@@ -534,3 +630,4 @@ class Concurrent:
         self._active_cod = self._cod
         self._consecutive_new_count = 0
         self._last_now = None
+        self._pending = {}

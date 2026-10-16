@@ -338,8 +338,10 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
     conc_cod = FixtureSpec(
         name="concurrent-fr3-fr3-cod1",
         description=(
-            "Concurrent FR(3)/FR(3) with COD=1.0: after switching, "
-            "reinforcement on the new operandum is suppressed for 1s."
+            "Concurrent FR(3)/FR(3) with COD=1.0: after switching, no "
+            "response on the new operandum is reinforced for 1s; a ratio "
+            "completed inside the COD is held and paid on the first "
+            "response after it, and the next ratio starts from that delivery."
         ),
         schedule={
             "type": "Concurrent",
@@ -356,16 +358,18 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
     # Left 3 responses -> reinforcer on left.
     for t in [1.0, 2.0, 3.0]:
         conc_cod.add(now=t, event={"time": t, "operandum": "left"})
-    # Switch to right; 3 responses within 1s of switch -> suppressed by COD
-    # when the 3rd response completes because the switch anchored the COD
-    # at the first right-press.
+    # Switch to right; the 3rd response completes the ratio within 1s of
+    # the switch (the COD is anchored at the first right-press), so the
+    # reinforcer is held rather than delivered.
     conc_cod.add(now=4.0, event={"time": 4.0, "operandum": "right"})
     conc_cod.add(now=4.3, event={"time": 4.3, "operandum": "right"})
-    conc_cod.add(now=4.6, event={"time": 4.6, "operandum": "right"})  # suppressed
-    # Another FR3 on right, this time well past the COD window.
+    conc_cod.add(now=4.6, event={"time": 4.6, "operandum": "right"})  # held
+    # First right response after the COD collects the held reinforcer.
     conc_cod.add(now=10.0, event={"time": 10.0, "operandum": "right"})
+    # The next FR3 counts from that delivery.
     conc_cod.add(now=10.2, event={"time": 10.2, "operandum": "right"})
-    conc_cod.add(now=10.4, event={"time": 10.4, "operandum": "right"})  # reinforced
+    conc_cod.add(now=10.4, event={"time": 10.4, "operandum": "right"})
+    conc_cod.add(now=10.6, event={"time": 10.6, "operandum": "right"})  # reinforced
     fixtures.append(
         (CONFORMANCE_DIR / "compound" / "concurrent_cod.json", conc_cod)
     )

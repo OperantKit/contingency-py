@@ -1,5 +1,5 @@
 {
-  "description": "Concurrent FR(3)/FR(3) with COD=1.0: after switching, reinforcement on the new operandum is suppressed for 1s.",
+  "description": "Concurrent FR(3)/FR(3) with COD=1.0: after switching, no response on the new operandum is reinforced for 1s; a ratio completed inside the COD is held and paid on the first response after it, and the next ratio starts from that delivery.",
   "name": "concurrent-fr3-fr3-cod1",
   "schedule": {
     "params": {
@@ -98,7 +98,12 @@
         "time": 10.0
       },
       "expect": {
-        "reinforced": false
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 10.0
+        }
       },
       "now": 10.0
     },
@@ -118,14 +123,24 @@
         "time": 10.4
       },
       "expect": {
+        "reinforced": false
+      },
+      "now": 10.4
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 10.6
+      },
+      "expect": {
         "reinforced": true,
         "reinforcer": {
           "label": "SR+",
           "magnitude": 1.0,
-          "time": 10.4
+          "time": 10.6
         }
       },
-      "now": 10.4
+      "now": 10.6
     }
   ]
 }

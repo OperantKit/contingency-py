@@ -101,8 +101,8 @@
     {
       "kind": "deterministic",
       "path": "compound/concurrent_cod.json",
-      "sha256": "386f46f8f713965a7e651c50ddea3f727c12ece844608f5ec05a4dbbc8a04eb6",
-      "steps": 9,
+      "sha256": "2b0c334ae1917f6f1b259478de117018093c3cead737bca983d956f76397072c",
+      "steps": 10,
       "type": "Concurrent"
     },
     {
