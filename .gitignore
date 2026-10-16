@@ -3,9 +3,6 @@
 .env
 *.bak
 
-# Release notes — use git tag / git log until first PyPI release
-CHANGELOG.md
-
 # Python build / caches
 __pycache__/
 *.py[cod]

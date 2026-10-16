@@ -79,6 +79,12 @@ from contingency.builder import ScheduleBuilder
 from contingency.bridge import from_dsl
 ```
 
+## Support
+
+- Report bugs, request features, and ask usage questions in the [issue tracker](https://github.com/OperantKit/contingency-py/issues). For a bug, include the schedule expression (or the code that builds the schedule), the response/event sequence that reproduces it, the expected and observed outcomes, and the versions of Python, contingency-py, and contingency-dsl-py.
+- The project is maintained by a single developer on a best-effort basis. There is no guaranteed response time, but every issue is read.
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute changes and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for the code of conduct.
+
 ## References
 
 - Fleshler, M., & Hoffman, H. S. (1962). A progression for generating variable-interval schedules. *Journal of the Experimental Analysis of Behavior*, 5(4), 529-530. https://doi.org/10.1901/jeab.1962.5-529
