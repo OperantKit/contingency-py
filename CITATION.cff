@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "contingency-py"
+authors:
+  - name: "OperantKit contributors"
+repository-code: "https://github.com/OperantKit/contingency-py"
+license: MIT
+abstract: "Python reinforcement schedule engine for operant contingencies. Bridges contingency-dsl AST to runtime Schedule objects."
