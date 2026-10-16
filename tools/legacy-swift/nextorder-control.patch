@@ -1,0 +1,17 @@
+diff -ru a/Sources/Application/Enums/Parameter.swift b/Sources/Application/Enums/Parameter.swift
+--- a/Sources/Application/Enums/Parameter.swift
++++ b/Sources/Application/Enums/Parameter.swift
+@@ -97,10 +97,10 @@
+         }
+     }
+
+-    func nextOrder() {
++    mutating func nextOrder() {
+         switch self {
+-        case .variable(_, let values, var order):
+-            order = (order + 1) % values.count
++        case .variable(let v, let values, let order):
++            self = .variable(value: v, values: values, order: (order + 1) % values.count)
+         default:
+             return
+         }

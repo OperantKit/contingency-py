@@ -138,6 +138,23 @@ if __name__ == "__main__":
 
 出力は fixture ごとに `PASS` / `FAIL` / `ERROR` / `SKIP` の 1 行と最初の不一致（step・項目・期待値・観測値）、最後に集計。`--json` で同じ内容を JSON で出す。終了コードは、不合格が無ければ 0、不合格かアダプタの異常終了があれば 1、入力の誤り（fixture が見つからない・未知の fixture・読めないファイル）なら 2。
 
+## Swift 原典との違い
+
+本パッケージは Swift のライブラリ [OperantKit](https://github.com/YutoMizutani/OperantKit) の移植である。`tests/test_legacy_swift_parity.py` は手元の Swift 原典をビルドし、小さなドライバ（`tools/legacy-swift/`）で上の fixture に通す。Swift のツールチェーンが要り、原典の場所を渡さない限り skip される。
+
+```bash
+OPERANTKIT_LEGACY_DIR=/path/to/OperantKit .venv/bin/pytest -q tests/test_legacy_swift_parity.py
+```
+
+Swift 原典にあるのは FR・CRF・EXT・FI・FT・VI・VR・VT・Alternative・Concurrent（切り替え遅延なし）。乱数生成器に種を与えられないので、VI・VR・VT は本パッケージが引く値の列をテストが注入する。FR・CRF・EXT・FI・FT は fixture と step ごとに一致する。既知の違い:
+
+- **VI・VR・VT**: Swift 原典は値の列の最初の値を繰り返す。`Parameter.nextOrder()` が `mutating` でないため、列の位置が進まない。この 1 関数だけを `mutating` にすると（`tools/legacy-swift/nextorder-control.patch`、一時コピーにだけ当てる）3 本とも完全に一致する。
+- **Alternative(FR 5, FT 10 s)**: 5 秒に FR が強化した後、Swift は次の FT の間隔を強化の時点（5 秒）から測って 15 秒に強化する。本パッケージは FT を次の step（6 秒）から測り直す。
+- **Hantula (1991) の生成器**: 最小値が 0 に丸まるとき（たとえばテストした `v = 10, n = 12`）、Swift の `hantula1991` は 0 を残す。`generate_intervals_hantula1991` はそれを 1 に置き換えるので、合計が 1 多い。
+- **Fleshler-Hoffman の生成器**（VR 5・`n = 12` と、VI の `(10, 12)`・`(60, 20)`・`(30000, 12)` で確認）: 比率の列は多重集合として一致する。Swift は丸めの過不足を無作為な位置に足すので、他のパラメータでは多重集合が変わりうる。Swift の間隔の生成器は整数を返す。Fleshler-Hoffman の数列を丸め、丸めの余りを無作為な位置の 1 要素に足したものである。`generate_intervals` は小数のまま返す。
+
+これらは記録であって修正ではない。どちらの実装も相手に合わせて変えていない。
+
 ## 公開 API
 
 ```python

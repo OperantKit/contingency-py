@@ -138,6 +138,23 @@ This adapter implements FR only and passes `atomic/fr_basic.json`; without `--on
 
 Output is one `PASS` / `FAIL` / `ERROR` / `SKIP` line per fixture with the first mismatch (step, field, expected, observed), then a summary; `--json` gives the same as JSON. The exit code is 0 when nothing failed, 1 when a fixture failed or the adapter crashed, and 2 for input errors (corpus not found, unknown fixture, unreadable file).
 
+## Differences from the Swift original
+
+This package ports the Swift library [OperantKit](https://github.com/YutoMizutani/OperantKit). `tests/test_legacy_swift_parity.py` builds the Swift original from a local checkout and runs it through the fixtures above with a small driver (`tools/legacy-swift/`). It needs a Swift toolchain and is skipped unless the checkout is given:
+
+```bash
+OPERANTKIT_LEGACY_DIR=/path/to/OperantKit .venv/bin/pytest -q tests/test_legacy_swift_parity.py
+```
+
+The Swift original has FR, CRF, EXT, FI, FT, VI, VR, VT, Alternative and Concurrent (without a changeover delay); its random number generator cannot be seeded, so for VI, VR and VT the test injects the value list this package draws. FR, CRF, EXT, FI and FT match the fixtures step for step. Known differences:
+
+- **VI, VR, VT**: the Swift original repeats the first value of its list. `Parameter.nextOrder()` is not `mutating`, so the position in the list never advances. With that one function made `mutating` (`tools/legacy-swift/nextorder-control.patch`, applied only to a scratch copy), all three fixtures match exactly.
+- **Alternative(FR 5, FT 10 s)**: after FR reinforces at 5 s, Swift times the next FT interval from the reinforcement (5 s) and reinforces at 15 s; this package restarts FT at the next step (6 s).
+- **Hantula (1991) generator**: when the smallest value rounds to 0 (for example `v = 10, n = 12`, the case tested), Swift's `hantula1991` keeps the 0; `generate_intervals_hantula1991` replaces it with 1, so its sum is 1 higher.
+- **Fleshler-Hoffman generators** (checked for VR 5 with `n = 12` and VI `(10, 12)`, `(60, 20)`, `(30000, 12)`): the ratio lists agree as multisets. Swift places rounding surplus at a random position, so other parameters can give different multisets. Swift's interval generator returns integers: the rounded Fleshler-Hoffman progression with the rounding remnant added to one element at a random position, whereas `generate_intervals` keeps floats.
+
+These are recorded, not fixed: neither implementation is changed to match the other.
+
 ## Public API
 
 ```python
