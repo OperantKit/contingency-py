@@ -97,8 +97,25 @@ mapped to runtime constructor kwargs inside :func:`_from_aversive`.
 ``IdentifierRef`` and the trial-based wrapper raise
 :class:`ScheduleConfigError` — they are not yet implemented.
 
-``Program`` nodes translate via ``program.schedule``; program-level
-annotations and param declarations are ignored for this pass.
+``Program`` nodes translate via ``program.schedule``. Of the
+annotations, only ``@algorithm(name, n=N, seed=S)`` affects the runtime
+schedule; it applies to the program (program-level) or to the schedule
+it is attached to (schedule-level), and an inner annotation overrides
+only the fields it sets. ``seed`` seeds every stochastic schedule in
+scope (VI / VR / VT, RI / RR / RT, MTS, GoNoGo), assigning ``S``,
+``S + 1``, ... in construction order, which is left to right except
+that a trial-based schedule takes its seed after its nested
+consequence schedules. A single ``VI30s`` thus matches
+``VI(30.0, seed=S)``, and compound components draw distinct sequences.
+``n`` sets ``n_intervals`` of VI / VR / VT. These are generated only by
+Fleshler-Hoffman: ``@algorithm("arithmetic")`` is valid DSL but has no
+runtime generator, so it raises :class:`ScheduleConfigError` on a VI / VR
+/ VT instead of silently falling back. Malformed values and more than one
+``@algorithm`` on the same program or schedule also raise. An inner
+``seed`` starts a fresh sequence and is not checked against the outer
+one, so an explicit inner seed can repeat a seed the outer sequence also
+hands out. Without the annotation seeds stay ``None``.
+Other annotations and param declarations are ignored.
 
 References
 ----------
@@ -117,6 +134,11 @@ Behavior*, 5(4), 529-530. https://doi.org/10.1901/jeab.1962.5-529
 
 from __future__ import annotations
 
+import random
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Any
 
 from contingency.errors import ScheduleConfigError
@@ -197,6 +219,123 @@ def _scaled_time(value: float, time_unit: str | None, time_unit_seconds: float) 
     return value * _time_unit_factor(time_unit) * time_unit_seconds
 
 
+# --- Schedule-value generation (@algorithm) -------------------------------
+
+
+_KNOWN_ALGORITHMS = frozenset({"fleshler-hoffman", "arithmetic"})
+
+
+class _SeedSequence:
+    """Hands out ``base``, ``base + 1``, ... to successive schedules."""
+
+    def __init__(self, base: int) -> None:
+        self._next = base
+
+    def take(self) -> int:
+        seed = self._next
+        self._next += 1
+        return seed
+
+
+@dataclass(frozen=True)
+class _AlgorithmScope:
+    """The ``@algorithm`` settings in force for a subtree."""
+
+    name: str
+    n: int | None
+    seeds: _SeedSequence | None
+
+
+_ALGORITHM: ContextVar[_AlgorithmScope | None] = ContextVar("_ALGORITHM", default=None)
+
+
+def _whole_number(value: Any, field: str, *, minimum: int | None = None) -> int:
+    """Validate an ``@algorithm`` numeric parameter as a whole number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != int(value):
+        raise ScheduleConfigError(
+            f"@algorithm {field!r} must be a whole number, got {value!r}"
+        )
+    number = int(value)
+    if minimum is not None and number < minimum:
+        raise ScheduleConfigError(
+            f"@algorithm {field!r} must be >= {minimum}, got {value!r}"
+        )
+    return number
+
+
+def _algorithm_scope(annotations: Any) -> _AlgorithmScope | None:
+    """Merge an ``@algorithm`` annotation onto the enclosing scope.
+
+    Fields the annotation omits (``n``, ``seed``) are inherited from the
+    enclosing scope, so an inner annotation that only sets ``n`` keeps
+    drawing seeds from the outer sequence.
+    """
+    found = [a for a in annotations if a.keyword == "algorithm"]
+    outer = _ALGORITHM.get()
+    if not found:
+        return outer
+    if len(found) > 1:
+        raise ScheduleConfigError(
+            "@algorithm may appear at most once per program or schedule"
+        )
+    annotation = found[0]
+    name = annotation.positional
+    if name not in _KNOWN_ALGORITHMS:
+        raise ScheduleConfigError(
+            f"@algorithm name must be one of {sorted(_KNOWN_ALGORITHMS)}, got {name!r}"
+        )
+    params = annotation.params or {}
+    n = params.get("n")
+    seed = params.get("seed")
+    return _AlgorithmScope(
+        name=name,
+        n=_whole_number(n, "n", minimum=1) if n is not None else (outer.n if outer else None),
+        seeds=(
+            _SeedSequence(_whole_number(seed, "seed"))
+            if seed is not None
+            else (outer.seeds if outer else None)
+        ),
+    )
+
+
+@contextmanager
+def _algorithm(scope: _AlgorithmScope | None) -> Iterator[None]:
+    """Make ``scope`` current while translating one subtree."""
+    token = _ALGORITHM.set(scope)
+    try:
+        yield
+    finally:
+        _ALGORITHM.reset(token)
+
+
+def _next_seed() -> int | None:
+    scope = _ALGORITHM.get()
+    if scope is None or scope.seeds is None:
+        return None
+    return scope.seeds.take()
+
+
+def _next_rng() -> random.Random | None:
+    seed = _next_seed()
+    return random.Random(seed) if seed is not None else None
+
+
+def _fleshler_hoffman_kwargs(kind: str) -> dict[str, Any]:
+    """``n_intervals`` / ``seed`` for a VI, VR or VT from ``@algorithm``."""
+    scope = _ALGORITHM.get()
+    if scope is None:
+        return {}
+    if scope.name != "fleshler-hoffman":
+        raise ScheduleConfigError(
+            f"{kind} values are generated only by fleshler-hoffman; "
+            f"@algorithm({scope.name!r}) is not supported"
+        )
+    kwargs: dict[str, Any] = {"seed": _next_seed()}
+    if scope.n is not None:
+        kwargs["n_intervals"] = scope.n
+    return kwargs
+
+
 # --- Dispatch --------------------------------------------------------------
 
 
@@ -250,11 +389,14 @@ def from_dsl(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Schedule:
     from contingency_dsl.ast import SecondOrder as DSLSecondOrder
 
     if isinstance(ast_node, Program):
-        return from_dsl(ast_node.schedule, time_unit_seconds=time_unit_seconds)
+        with _algorithm(_algorithm_scope(ast_node.program_annotations)):
+            return from_dsl(ast_node.schedule, time_unit_seconds=time_unit_seconds)
 
     if isinstance(ast_node, AnnotatedSchedule):
-        # Annotations are metadata; for this pass they are ignored.
-        return from_dsl(ast_node.expr, time_unit_seconds=time_unit_seconds)
+        # Only @algorithm affects the runtime schedule; other annotations
+        # are metadata.
+        with _algorithm(_algorithm_scope(ast_node.annotations)):
+            return from_dsl(ast_node.expr, time_unit_seconds=time_unit_seconds)
 
     if isinstance(ast_node, Atomic):
         return _from_atomic(ast_node, time_unit_seconds)
@@ -350,22 +492,32 @@ def _from_atomic(node: Any, time_unit_seconds: float) -> Schedule:
     if dist is Distribution.FIXED and domain is Domain.TIME:
         return FT(_scaled_time(value, node.time_unit, time_unit_seconds))
     if dist is Distribution.VARIABLE and domain is Domain.RATIO:
-        return VR(float(value))
+        return VR(float(value), **_fleshler_hoffman_kwargs("VR"))
     if dist is Distribution.VARIABLE and domain is Domain.INTERVAL:
-        return VI(_scaled_time(value, node.time_unit, time_unit_seconds))
+        return VI(
+            _scaled_time(value, node.time_unit, time_unit_seconds),
+            **_fleshler_hoffman_kwargs("VI"),
+        )
     if dist is Distribution.VARIABLE and domain is Domain.TIME:
-        return VT(_scaled_time(value, node.time_unit, time_unit_seconds))
+        return VT(
+            _scaled_time(value, node.time_unit, time_unit_seconds),
+            **_fleshler_hoffman_kwargs("VT"),
+        )
     if dist is Distribution.RANDOM and domain is Domain.RATIO:
         if not (value > 0):
             raise ScheduleConfigError(
                 f"RR requires a positive mean-value to convert to "
                 f"probability, got {value!r}"
             )
-        return RR(1.0 / float(value))
+        return RR(1.0 / float(value), rng=_next_rng())
     if dist is Distribution.RANDOM and domain is Domain.INTERVAL:
-        return RI(_scaled_time(value, node.time_unit, time_unit_seconds))
+        return RI(
+            _scaled_time(value, node.time_unit, time_unit_seconds), rng=_next_rng()
+        )
     if dist is Distribution.RANDOM and domain is Domain.TIME:
-        return RT(_scaled_time(value, node.time_unit, time_unit_seconds))
+        return RT(
+            _scaled_time(value, node.time_unit, time_unit_seconds), rng=_next_rng()
+        )
 
     raise ScheduleConfigError(
         f"unhandled atomic combination: dist={dist!r} domain={domain!r}"
@@ -955,6 +1107,7 @@ def _build_mts(
         consequence=consequence,
         incorrect=incorrect,
         iti=iti_seconds,
+        seed=_next_seed(),
     )
 
 
@@ -996,4 +1149,5 @@ def _build_go_nogo(
         correct_go_schedule=consequence,
         correct_nogo_schedule=incorrect,
         false_alarm=false_alarm,
+        seed=_next_seed(),
     )
