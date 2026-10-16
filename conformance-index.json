@@ -1,0 +1,159 @@
+{
+  "fixtures": [
+    {
+      "kind": "deterministic",
+      "path": "atomic/crf_basic.json",
+      "sha256": "9b639e1570465940827ac45f0e5c0132bdf1d4ffaa2f02d28f5314ceb63fb979",
+      "steps": 4,
+      "type": "CRF"
+    },
+    {
+      "kind": "deterministic",
+      "path": "atomic/ext_basic.json",
+      "sha256": "033a84b3654a199bb0b4875810a998fd234e10cc0442d2272d3617d8c785d97e",
+      "steps": 5,
+      "type": "EXT"
+    },
+    {
+      "kind": "deterministic",
+      "path": "atomic/fi_basic.json",
+      "sha256": "877a509f0afdade37287820e87e8908c995d08127d3360d83130225825c8f4c8",
+      "steps": 7,
+      "type": "FI"
+    },
+    {
+      "kind": "deterministic",
+      "path": "atomic/fr_basic.json",
+      "sha256": "e9d42f710e8fa0cae45756bb34687bb74b5f8a4c18df496b1104526e604809b4",
+      "steps": 11,
+      "type": "FR"
+    },
+    {
+      "kind": "deterministic",
+      "path": "atomic/ft_basic.json",
+      "sha256": "a43b819d5468023932c00ee3dbd4c53462f64d2ff753a4875782c5e89f04ec39",
+      "steps": 6,
+      "type": "FT"
+    },
+    {
+      "kind": "deterministic",
+      "path": "atomic/limited_hold_fi.json",
+      "sha256": "5bcf8b3ee32f42036e0fb9521ba0eba286ef18915644f755386f165ff03f6c38",
+      "steps": 8,
+      "type": "LimitedHold"
+    },
+    {
+      "kind": "stochastic",
+      "path": "atomic/ri_seeded_5.json",
+      "sha256": "cf656e856f0ad2c6899d260d10ffeb7fc67cde26a3c7837cce99bb88ead3eae5",
+      "steps": 61,
+      "type": "RI"
+    },
+    {
+      "kind": "stochastic",
+      "path": "atomic/rr_seeded_99.json",
+      "sha256": "4c73e3aaa6950a267a12aa9c675256e473f4490871b16a00382816ca99070ccf",
+      "steps": 60,
+      "type": "RR"
+    },
+    {
+      "kind": "stochastic",
+      "path": "atomic/rt_seeded_11.json",
+      "sha256": "b6600db8e764ba3244f87f7b673f7090c415d18f4f2da99d66bf582638259ebc",
+      "steps": 81,
+      "type": "RT"
+    },
+    {
+      "kind": "stochastic",
+      "path": "atomic/vi_seeded_7.json",
+      "sha256": "f20cdcfdf9b9121e3206ae02718f7fab48f3436794a037a2458ba77b35c6c5cf",
+      "steps": 81,
+      "type": "VI"
+    },
+    {
+      "kind": "stochastic",
+      "path": "atomic/vr_seeded_42.json",
+      "sha256": "66b2f925fbdd3d6bbe9dd979bbfec9726d81cb61e8e1aa4d4a093482b30137c3",
+      "steps": 100,
+      "type": "VR"
+    },
+    {
+      "kind": "stochastic",
+      "path": "atomic/vt_seeded_3.json",
+      "sha256": "2acb7b42522794012516b1dcac2c63fb4665bb67244d29f23137d7feef44e95e",
+      "steps": 81,
+      "type": "VT"
+    },
+    {
+      "kind": "deterministic",
+      "path": "compound/alternative_fr_ft.json",
+      "sha256": "2bbeaaab45f0b1e9c163c5bc0f0066188249f16007cdda380f0a6ec5805d67d6",
+      "steps": 7,
+      "type": "Alternative"
+    },
+    {
+      "kind": "deterministic",
+      "path": "compound/chained_fr2_fr3.json",
+      "sha256": "9ae28675239b5b85c141b3340fb7180a01587e14fc4713c882734d06758a4065",
+      "steps": 7,
+      "type": "Chained"
+    },
+    {
+      "kind": "deterministic",
+      "path": "compound/concurrent_cod.json",
+      "sha256": "386f46f8f713965a7e651c50ddea3f727c12ece844608f5ec05a4dbbc8a04eb6",
+      "steps": 9,
+      "type": "Concurrent"
+    },
+    {
+      "kind": "deterministic",
+      "path": "compound/multiple_fr_fr.json",
+      "sha256": "4db11845fe4df41ac410869ad11c49aea25bfcfd1b72085886faba0ac10ffdd9",
+      "steps": 6,
+      "type": "Multiple"
+    },
+    {
+      "kind": "deterministic",
+      "path": "compound/tandem_fr_fr.json",
+      "sha256": "6d5358258b8c233e1a846662639cd85d7820a96b202f99c1dac508e5bbbeef5d",
+      "steps": 7,
+      "type": "Tandem"
+    },
+    {
+      "kind": "deterministic",
+      "path": "differential/drh_basic.json",
+      "sha256": "95463157276d11993886ce86a98cce3276295e26d02817c988bec008d5843976",
+      "steps": 5,
+      "type": "DRH"
+    },
+    {
+      "kind": "deterministic",
+      "path": "differential/drl_basic.json",
+      "sha256": "7a0b815c3f82d76985c927cd550a0526b13821a753b19246f017c84381700a02",
+      "steps": 5,
+      "type": "DRL"
+    },
+    {
+      "kind": "deterministic",
+      "path": "differential/dro_momentary.json",
+      "sha256": "1b1de3f52e47588baf25bc55bcdfc9fb770bfe483f676067d553a8351e651335",
+      "steps": 6,
+      "type": "DRO"
+    },
+    {
+      "kind": "deterministic",
+      "path": "differential/dro_resetting.json",
+      "sha256": "df8703975726145ea1f0688c3429b9cf47a940d6e99c4849fa250e785d3d0cd8",
+      "steps": 5,
+      "type": "DRO"
+    },
+    {
+      "kind": "deterministic",
+      "path": "progressive/pr_arithmetic.json",
+      "sha256": "cda9eaaf51ec061d9436e3bcb5b5da1de8624a7b5649d9b3774d575f57e3457a",
+      "steps": 15,
+      "type": "ProgressiveRatio"
+    }
+  ],
+  "schema": 1
+}

@@ -77,10 +77,11 @@ Rules:
 
 Every `"schedule"` object's `"type"` maps to a constructor in
 `contingency.schedules`. See the full mapping in
-[`../scripts/generate_conformance.py`](../scripts/generate_conformance.py)
+[`../src/contingency/conformance/spec.py`](../src/contingency/conformance/spec.py)
 (function `build_schedule_from_spec`) — that function is the
-authoritative spec-to-schedule builder and should be mirrored
-verbatim in the Rust port.
+authoritative spec-to-schedule builder, used by both the generator and
+the `replay-python` adapter, and should be mirrored verbatim in the
+Rust port.
 
 Supported types:
 
@@ -118,6 +119,23 @@ Run with:
 
 If a semantic change is intentionally introduced, regenerate the
 corpus and commit the diff in the same change set.
+
+## Index
+
+[`../conformance-index.json`](../conformance-index.json) lists every
+fixture with its `kind` (`deterministic` / `stochastic`), schedule
+`type`, number of `steps`, and `sha256`. It is written by the generator
+and shipped in the wheel as `contingency/conformance/index.json`. It is
+kept outside this directory so harnesses that read every `*.json` here
+as a fixture are not affected.
+
+## Checking another implementation
+
+The `contingency-conformance` command (installed with the package)
+applies the rules below to any implementation: `check` compares
+observed JSON files, `run -- CMD` pipes each fixture to an adapter
+command. See the package README, section "Check your own
+implementation against the fixtures".
 
 ## Rust-side consumption
 

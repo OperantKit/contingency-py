@@ -46,6 +46,9 @@ hw-serial = [
   "pyserial>=3.5",
 ]
 
+[project.scripts]
+contingency-conformance = "contingency.conformance.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/OperantKit"
 Repository = "https://github.com/OperantKit/contingency-py"
@@ -58,6 +61,10 @@ version-file = "src/contingency/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/contingency"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"conformance" = "contingency/conformance"
+"conformance-index.json" = "contingency/conformance/index.json"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

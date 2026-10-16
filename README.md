@@ -69,6 +69,75 @@ A short hand-rolled loop usually gets the following wrong, and each one changes 
 - **Round trip with Method sections.** Because the schedule is written in contingency-dsl, [contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) turns it into a Method-section paragraph and [contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) extracts a schedule from published Method text.
 - **Input validation.** Non-monotonic time, malformed parameters, and unknown operanda raise explicit errors instead of silently producing wrong reinforcement times.
 
+## Check your own implementation against the fixtures
+
+`pip install contingency-py` also installs the conformance corpus and the `contingency-conformance` command. Any implementation, in any language, can be checked against the same 22 fixtures:
+
+```bash
+pip install contingency-py
+contingency-conformance list                    # fixtures, kind, schedule type, steps
+contingency-conformance run --only 'atomic/fr_*' -- python my_adapter.py
+```
+
+`contingency-conformance path` prints the fixture directory so a harness in another language can read the JSON files directly; `CONTINGENCY_CONFORMANCE_DIR` or `--dir` points the command at another copy.
+
+**Observed JSON.** For each fixture, the implementation reports one entry per fixture step:
+
+```json
+{"fixture": "atomic/fr_basic.json",
+ "steps": [{"reinforced": false},
+           {"reinforced": true, "reinforcer": {"time": 5.0, "magnitude": 1.0, "label": "SR+"}}]}
+```
+
+`reinforced` must match exactly; when reinforced, `reinforcer.time` and `magnitude` must agree within 1e-9 and `label` must be equal; every `meta` key in the fixture must be present with the same value (extra keys are allowed); the number of steps must match. Write such files yourself and compare them with `contingency-conformance check observed/*.json`, or let `run` drive an adapter.
+
+**Adapter for `run -- CMD`.** `run` starts CMD once per fixture, writes the fixture JSON to its stdin, and reads the observed JSON from its stdout (`fixture` may be omitted):
+
+```python
+# my_adapter.py — a hand-written FR schedule checked against the fixtures
+import json
+import sys
+
+
+class MyFR:
+    def __init__(self, n):
+        self.n, self.count = n, 0
+
+    def step(self, now, event):  # event: None or {"time", "operandum"}
+        if event is None:
+            return None
+        self.count += 1
+        if self.count < self.n:
+            return None
+        self.count = 0
+        return {"time": event["time"], "magnitude": 1.0, "label": "SR+"}
+
+
+def observe(fixture):
+    schedule = MyFR(fixture["schedule"]["params"]["n"])
+    steps = []
+    for step in fixture["steps"]:
+        sr = schedule.step(step["now"], step["event"])
+        steps.append({"reinforced": True, "reinforcer": sr} if sr else {"reinforced": False})
+    return {"implementation": "my-fr", "steps": steps}
+
+
+if __name__ == "__main__":
+    json.dump(observe(json.load(sys.stdin)), sys.stdout)
+```
+
+This adapter implements FR only and passes `atomic/fr_basic.json`; without `--only`, the other 21 fixtures are reported as `ERROR` because the adapter cannot build their schedules. To cover them, build each schedule `type` in `observe`. The 5 compound fixtures (Alternative, Chained, Concurrent, Multiple, Tandem) also require `meta` on some steps, such as `current_component`, `alternative_winner`, or `cod_suppressed`; the fixture files show which keys each step expects.
+
+`contingency-conformance replay-python` is the same adapter for this package's own runtime; `contingency-conformance run -- contingency-conformance replay-python` passes all 22 fixtures.
+
+**Seeded fixtures.** Six fixtures (seeded VR, VI, VT, RR, RI, RT) are pinned by Python's `random.Random(seed)`. `--stochastic` chooses how they are judged:
+
+- `count` (default): the number of reinforcers must lie within 0.5-1.5 times the recorded number, and the first reinforcer must not precede the first step. Use this when your implementation has its own random number generator.
+- `strict`: judged like the deterministic fixtures. Use this when you reproduce Python's generator.
+- `skip`: not checked.
+
+Output is one `PASS` / `FAIL` / `ERROR` / `SKIP` line per fixture with the first mismatch (step, field, expected, observed), then a summary; `--json` gives the same as JSON. The exit code is 0 when nothing failed, 1 when a fixture failed or the adapter crashed, and 2 for input errors (corpus not found, unknown fixture, unreadable file).
+
 ## Public API
 
 ```python

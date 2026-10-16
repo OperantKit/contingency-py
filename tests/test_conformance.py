@@ -8,18 +8,15 @@ that each step's observed outcome matches the fixture's ``expect``.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from contingency.entities import ResponseEvent
-
 # Reuse the authoritative builder so there is one spec-to-schedule
 # mapping for both fixture generation and consumption.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from generate_conformance import build_schedule_from_spec  # noqa: E402
+from contingency.conformance.spec import build_schedule_from_spec
+from contingency.entities import ResponseEvent
 
 CONFORMANCE_DIR = Path(__file__).resolve().parents[1] / "conformance"
 FLOAT_TOL = 1e-9

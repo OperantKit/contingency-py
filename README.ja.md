@@ -69,6 +69,75 @@ print(reinforcers)  # {'c0': 9, 'c1': 3} — seed 固定なので毎回同じ
 - **Method 節との往復変換.** スケジュールを contingency-dsl で書くので、[contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) で Method 節の段落に変換でき、[contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) で論文の Method 本文からスケジュールを抽出できる。
 - **入力の検査.** 時刻の逆行・不正なパラメータ・未知のオペランダムは明示的なエラーになり、誤った強化時刻を黙って出すことはない。
 
+## 自作の実装を fixture で検算する
+
+`pip install contingency-py` で、適合性 fixture と `contingency-conformance` コマンドも入る。どの言語の実装でも、同じ 22 個の fixture に照らして検算できる。
+
+```bash
+pip install contingency-py
+contingency-conformance list                    # fixture・種別・スケジュール型・step 数
+contingency-conformance run --only 'atomic/fr_*' -- python my_adapter.py
+```
+
+`contingency-conformance path` は fixture のディレクトリを表示するので、他言語の検査器はそこから JSON を直接読める。`CONTINGENCY_CONFORMANCE_DIR` か `--dir` で別の写しを指定できる。
+
+**観測 JSON.** 実装は fixture ごとに、fixture の step 1 つにつき 1 要素を返す。
+
+```json
+{"fixture": "atomic/fr_basic.json",
+ "steps": [{"reinforced": false},
+           {"reinforced": true, "reinforcer": {"time": 5.0, "magnitude": 1.0, "label": "SR+"}}]}
+```
+
+`reinforced` は完全一致。強化された step では `reinforcer.time` と `magnitude` の差が 1e-9 以内で、`label` が等しいこと。fixture の `meta` にあるキーはすべて同じ値で存在すること（観測側に余分なキーがあってもよい）。step 数も一致すること。このファイルを自分で書いて `contingency-conformance check observed/*.json` で比べるか、`run` にアダプタを起動させる。
+
+**`run -- CMD` 用のアダプタ.** `run` は fixture ごとに CMD を 1 回起動し、fixture の JSON を標準入力に渡して、標準出力の観測 JSON を受け取る（`fixture` は省略してよい）。
+
+```python
+# my_adapter.py — 手書きの FR スケジュールを fixture で検算する
+import json
+import sys
+
+
+class MyFR:
+    def __init__(self, n):
+        self.n, self.count = n, 0
+
+    def step(self, now, event):  # event: None か {"time", "operandum"}
+        if event is None:
+            return None
+        self.count += 1
+        if self.count < self.n:
+            return None
+        self.count = 0
+        return {"time": event["time"], "magnitude": 1.0, "label": "SR+"}
+
+
+def observe(fixture):
+    schedule = MyFR(fixture["schedule"]["params"]["n"])
+    steps = []
+    for step in fixture["steps"]:
+        sr = schedule.step(step["now"], step["event"])
+        steps.append({"reinforced": True, "reinforcer": sr} if sr else {"reinforced": False})
+    return {"implementation": "my-fr", "steps": steps}
+
+
+if __name__ == "__main__":
+    json.dump(observe(json.load(sys.stdin)), sys.stdout)
+```
+
+このアダプタは FR だけを実装しているので、合格するのは `atomic/fr_basic.json` だけで、`--only` を外すと、他の 21 本はアダプタがスケジュールを組み立てられず `ERROR` になる。他も通すには `observe` で各スケジュール `type` を組み立てる。合成スケジュールの 5 本（Alternative・Chained・Concurrent・Multiple・Tandem）は一部の step で `meta`（`current_component`・`alternative_winner`・`cod_suppressed` など）も求める。どの step にどのキーが要るかは fixture ファイルに書いてある。
+
+`contingency-conformance replay-python` は本パッケージの実行系に対する同じアダプタで、`contingency-conformance run -- contingency-conformance replay-python` は 22 本すべてに合格する。
+
+**乱数の種を持つ fixture.** 6 本（種付きの VR・VI・VT・RR・RI・RT）は Python の `random.Random(seed)` で固定されている。`--stochastic` で判定のしかたを選ぶ。
+
+- `count`（既定）: 強化の回数が記録値の 0.5〜1.5 倍に入り、最初の強化が最初の step より前でないこと。独自の乱数生成器を持つ実装向け。
+- `strict`: 決定的 fixture と同じ判定。Python の乱数生成器を再現した実装向け。
+- `skip`: 判定しない。
+
+出力は fixture ごとに `PASS` / `FAIL` / `ERROR` / `SKIP` の 1 行と最初の不一致（step・項目・期待値・観測値）、最後に集計。`--json` で同じ内容を JSON で出す。終了コードは、不合格が無ければ 0、不合格かアダプタの異常終了があれば 1、入力の誤り（fixture が見つからない・未知の fixture・読めないファイル）なら 2。
+
 ## 公開 API
 
 ```python
