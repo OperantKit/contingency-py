@@ -32,6 +32,43 @@ mise exec -- python -m venv .venv
 .venv/bin/pytest
 ```
 
+## 30-second example
+
+Write the schedule in [contingency-dsl](https://github.com/OperantKit/contingency-dsl), compile it with `from_dsl`, and drive it with responses:
+
+```python
+from contingency_dsl import parse
+from contingency_dsl.annotations import TemporalExtension
+from contingency_dsl.extensions import ExtensionRegistry
+from contingency import ResponseEvent, from_dsl
+
+registry = ExtensionRegistry.build(TemporalExtension())
+source = '@algorithm("fleshler-hoffman", n=12, seed=42)\nConc(VI30s, VI60s, COD=2s)'
+schedule = from_dsl(parse(source, extensions=registry))
+
+# Simulated subject: one response every 0.5 s, switching operanda every 10 s, for 10 min.
+reinforcers = {"c0": 0, "c1": 0}
+for i in range(1, 1201):
+    now = i * 0.5
+    operandum = "c0" if (i // 20) % 2 == 0 else "c1"
+    outcome = schedule.step(now, ResponseEvent(time=now, operandum=operandum))
+    if outcome.reinforced:
+        reinforcers[operandum] += 1
+print(reinforcers)  # {'c0': 9, 'c1': 3} — identical on every run (seeded)
+```
+
+`contingency-dsl-py` is installed as a dependency. The same `Schedule` object runs inside a full session via [session-runner](https://github.com/OperantKit/session-runner).
+
+## Why not a 50-line hand-written schedule?
+
+A short hand-rolled loop usually gets the following wrong, and each one changes the data you would report:
+
+- **Variable-schedule intervals.** VI/VR values are generated with the Fleshler-Hoffman (1962) progression (the Hantula, 1991, program variant is also available), not ad-hoc `random.uniform` or exponential draws. `n` and `seed` are controllable, so a session can be replayed exactly.
+- **Changeover delay in concurrent schedules.** `Conc` routes each response to its own component, holds an arranged reinforcer until the next response on that operandum, suppresses reinforcement for `COD` time units after a changeover, and supports a fixed-ratio changeover requirement (`FRCO`) and direction-specific COD.
+- **Conformance fixtures.** 22 JSON fixtures under `conformance/` pin the exact outcome sequence of each schedule for a known event sequence. The Rust port [contingency-rs](https://github.com/OperantKit/contingency-rs) replays the same fixtures, so both runtimes are checked against one specification.
+- **Round trip with Method sections.** Because the schedule is written in contingency-dsl, [contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) turns it into a Method-section paragraph and [contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) extracts a schedule from published Method text.
+- **Input validation.** Non-monotonic time, malformed parameters, and unknown operanda raise explicit errors instead of silently producing wrong reinforcement times.
+
 ## Public API
 
 ```python

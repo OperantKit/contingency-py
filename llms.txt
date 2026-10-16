@@ -1,0 +1,39 @@
+# contingency-py
+
+> Python reinforcement schedule engine: compiles contingency-dsl schedules (FR, VR, FI, VI, FT, VT, CRF, EXT, DRO/DRL/DRH, progressive ratio, concurrent with COD, multiple, chained, tandem, alternative, and more) into deterministic, testable state machines.
+
+contingency-py is part of OperantKit, a set of Python/Rust packages for designing and running operant and respondent conditioning experiments (reinforcement schedules, session recording, analysis). Use it instead of hand-writing schedule logic: variable schedules use the Fleshler-Hoffman (1962) progression with a controllable seed, concurrent schedules implement the changeover delay, and 22 conformance fixtures pin the exact outcome of each schedule.
+
+## Install
+
+```bash
+pip install contingency-py
+```
+
+## Minimal example
+
+```python
+from contingency_dsl import parse
+from contingency import ResponseEvent, from_dsl
+
+schedule = from_dsl(parse("FR 5"))  # every 5th response is reinforced
+hits = [t for t in range(1, 11) if schedule.step(t, ResponseEvent(time=t)).reinforced]
+print(hits)  # [5, 10]
+```
+
+A schedule is driven by `schedule.step(now, event)`; `event` is a `ResponseEvent(time, operandum)` or `None` for the passage of time. The returned `Outcome.reinforced` says whether a reinforcer is delivered at `now`. Seed variable schedules with a program annotation such as `@algorithm("fleshler-hoffman", n=12, seed=42)` (parse with `ExtensionRegistry.build(TemporalExtension())`).
+
+## Docs
+
+- [README](https://github.com/OperantKit/contingency-py/blob/main/README.md): scope, 30-second example, why not to hand-roll a schedule, public API
+- [AGENTS.md](https://github.com/OperantKit/contingency-py/blob/main/AGENTS.md): when to use this package and what not to do
+- [Conformance corpus](https://github.com/OperantKit/contingency-py/blob/main/conformance/README.md): fixture schema shared with the Rust port
+
+## Related packages
+
+- [contingency-dsl](https://github.com/OperantKit/contingency-dsl): the schedule language specification (grammar, AST schema, conformance cases)
+- [contingency-dsl-py](https://github.com/OperantKit/contingency-dsl-py): Python parser for the DSL (`pip install contingency-dsl-py`)
+- [contingency-rs](https://github.com/OperantKit/contingency-rs): Rust port of this engine, checked against the same fixtures
+- [session-runner](https://github.com/OperantKit/session-runner): runs a schedule as a full session against a virtual or hardware apparatus
+- [contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure): DSL to Method-section text
+- [contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl): Method-section text to DSL

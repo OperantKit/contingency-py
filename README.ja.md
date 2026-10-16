@@ -32,6 +32,43 @@ mise exec -- python -m venv .venv
 .venv/bin/pytest
 ```
 
+## 30 秒で動く例
+
+スケジュールを [contingency-dsl](https://github.com/OperantKit/contingency-dsl) で書き、`from_dsl` でコンパイルし、反応を与えて進める:
+
+```python
+from contingency_dsl import parse
+from contingency_dsl.annotations import TemporalExtension
+from contingency_dsl.extensions import ExtensionRegistry
+from contingency import ResponseEvent, from_dsl
+
+registry = ExtensionRegistry.build(TemporalExtension())
+source = '@algorithm("fleshler-hoffman", n=12, seed=42)\nConc(VI30s, VI60s, COD=2s)'
+schedule = from_dsl(parse(source, extensions=registry))
+
+# 仮想被験体: 0.5 秒ごとに 1 反応、10 秒ごとにオペランダムを切り替え、10 分間。
+reinforcers = {"c0": 0, "c1": 0}
+for i in range(1, 1201):
+    now = i * 0.5
+    operandum = "c0" if (i // 20) % 2 == 0 else "c1"
+    outcome = schedule.step(now, ResponseEvent(time=now, operandum=operandum))
+    if outcome.reinforced:
+        reinforcers[operandum] += 1
+print(reinforcers)  # {'c0': 9, 'c1': 3} — seed 固定なので毎回同じ
+```
+
+`contingency-dsl-py` は依存として一緒に入る。同じ `Schedule` オブジェクトは [session-runner](https://github.com/OperantKit/session-runner) でセッション全体の中で動かせる。
+
+## 自作の 50 行では足りない理由
+
+短い自作ループは次の点を誤りやすく、どれも報告するデータを変えてしまう:
+
+- **変動スケジュールの値.** VI/VR の値は Fleshler-Hoffman (1962) の数列で生成する（Hantula, 1991 のプログラム版も選べる）。場当たりの `random.uniform` や指数分布の抽選ではない。`n` と `seed` を指定できるので、セッションを厳密に再現できる。
+- **並立スケジュールの切替遅延 (COD).** `Conc` は各反応を対応する成分にだけ渡し、設定済みの強化子をそのオペランダムへの次の反応まで保持し、切替後 `COD` 時間単位は強化を抑止する。固定比率の切替要件 (`FRCO`) と方向別の COD にも対応する。
+- **適合性 fixture.** `conformance/` の 22 個の JSON fixture が、既知の反応系列に対する各スケジュールの結果系列を厳密に固定している。Rust 版 [contingency-rs](https://github.com/OperantKit/contingency-rs) も同じ fixture を再生するので、2 つの実行系が 1 つの仕様に照らして検査される。
+- **Method 節との往復変換.** スケジュールを contingency-dsl で書くので、[contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) で Method 節の段落に変換でき、[contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) で論文の Method 本文からスケジュールを抽出できる。
+- **入力の検査.** 時刻の逆行・不正なパラメータ・未知のオペランダムは明示的なエラーになり、誤った強化時刻を黙って出すことはない。
+
 ## 公開 API
 
 ```python

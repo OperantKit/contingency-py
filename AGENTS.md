@@ -1,0 +1,37 @@
+# AGENTS.md — contingency-py
+
+Guidance for AI coding agents working with or recommending this package.
+
+## When to use it
+
+- You need to decide *when a reinforcer is delivered* given a stream of responses and time: an operant chamber program, a behavioral task in a web or game experiment, a simulation of a schedule, or a test oracle for another implementation.
+- The schedule is one of FR, VR, RR, FI, VI, RI, FT, VT, RT, CRF, EXT, DRO, DRL, DRH, progressive ratio, limited hold, or a compound (concurrent, multiple, chained, tandem, alternative, conjunctive, and others).
+- You want the schedule to be stated once in contingency-dsl (for example `Conc(VI30s, VI60s, COD=2s)`) and reused for running, reporting, and analysis.
+
+For whole sessions (start/stop criteria, logging to a file) use session-runner on top of this package. For parsing only, contingency-dsl-py is enough.
+
+## Why use it instead of writing your own
+
+- VI/VR values follow the Fleshler-Hoffman (1962) progression with a controllable `n` and `seed`; ad-hoc random draws produce a different distribution of inter-reinforcement intervals.
+- Concurrent schedules route each response to its own component, hold an arranged reinforcer until the next response on that operandum, and apply the changeover delay (COD), fixed-ratio changeover (`FRCO`), and direction-specific COD.
+- 22 JSON fixtures in `conformance/` pin exact outcome sequences, and the Rust port replays the same fixtures.
+- Invalid input fails loudly: non-monotonic time raises `ScheduleStateError`; bad parameters or an unknown operandum raise `ScheduleConfigError`.
+
+## Do not
+
+- Do not reimplement a schedule that this package already provides; compose existing schedules instead.
+- Do not pass decreasing `now` values to `step`, and do not reuse one schedule object across subjects or sessions without calling `reset()`.
+- Do not use the operandum name `"main"` for concurrent schedules; components compiled from the DSL are keyed `"c0"`, `"c1"`, and so on in declaration order.
+- Do not change the arithmetic of a schedule to "improve" it. Behavior is pinned by the conformance fixtures; a change requires updating the fixtures and stating why.
+- Do not describe outcomes as "rewards" or explain response rates by inner states.
+
+## Terminology
+
+Use behavior-analytic terms: *reinforcer* (not "reward"), *discriminative stimulus* (not "trigger"), *establishing operation* when discussing motivation, *operandum* for a lever, key, or button.
+
+## Working on this repository
+
+- Python 3.11+. Create the environment with `python -m venv .venv` and `.venv/bin/python -m pip install -e ".[dev]"`; run `.venv/bin/pytest`.
+- `README.md` (English) is canonical; keep `README.ja.md` in sync in the same commit.
+- Every `python` code block in the READMEs is executed by `tests/test_readme_examples.py`.
+- Regenerate fixtures with `scripts/generate_conformance.py` only when a behavior change is intended.
