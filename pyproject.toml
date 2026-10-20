@@ -41,6 +41,7 @@ dev = [
   "contingency-py[test]",
   "mypy>=1.10",
   "ruff>=0.5",
+  "mutmut>=3.3,<4",
 ]
 hw-serial = [
   "pyserial>=3.5",
@@ -100,6 +101,23 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "RET"]
+
+[tool.mutmut]
+source_paths = ["src/"]
+only_mutate = [
+  "src/contingency/schedules/*",
+  "src/contingency/helpers/*",
+]
+also_copy = [
+  "conformance/",
+  "conformance-index.json",
+  "tools/",
+  "docs/",
+  "README.md",
+  "README.ja.md",
+  "AGENTS.md",
+  "llms.txt",
+]
 
 [tool.mypy]
 python_version = "3.11"

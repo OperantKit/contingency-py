@@ -39,3 +39,6 @@ uv.lock
 # hatch-vcs generated version file
 src/contingency/_version.py
 .venv-fresh/
+
+# mutmut working copy
+mutants/
