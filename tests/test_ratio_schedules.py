@@ -26,6 +26,7 @@ from contingency import (
     ScheduleConfigError,
     ScheduleStateError,
 )
+from contingency.helpers.fleshler_hoffman import generate_ratios
 from contingency.schedules import CRF, FR, RR, VR
 
 
@@ -214,6 +215,22 @@ class TestVR:
         counts = _run_until_reinforcers(s, target=20)
         assert len(counts) == 20
         assert all(c >= 1 for c in counts)
+
+    @pytest.mark.parametrize("n_intervals", [3, 4, 5])
+    def test_each_cycle_is_one_full_sequence_of_n_intervals(
+        self, n_intervals: int
+    ) -> None:
+        # Each block of n_intervals realised requirements must be one
+        # permutation of the Fleshler-Hoffman ratios for n_intervals
+        # values, not for the default cycle length.
+        mean = 10.0
+        cycles = 4
+        s = VR(mean, n_intervals=n_intervals, seed=5)
+        counts = _run_until_reinforcers(s, target=cycles * n_intervals)
+        expected = sorted(generate_ratios(mean, n=n_intervals, seed=0))
+        for c in range(cycles):
+            block = counts[c * n_intervals : (c + 1) * n_intervals]
+            assert sorted(block) == expected
 
     def test_non_response_steps_do_not_reinforce(self) -> None:
         s = VR(5.0, n_intervals=12, seed=0)

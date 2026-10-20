@@ -342,6 +342,16 @@ class TestRTBehavior:
         times_b = _run_rt_for_reinforcers(rt, 200.0)
         assert times_a == times_b
 
+    def test_reset_restores_draw_sequence_for_non_unit_mean(self) -> None:
+        # With mean 1.0 the rate 1/mean equals mean, so the test above
+        # cannot tell the rate from the mean. Use a mean far from 1.
+        rt = RT(5.0, rng=random.Random(42))
+        times_a = _run_rt_for_reinforcers(rt, 200.0)
+        rt.reset()
+        times_b = _run_rt_for_reinforcers(rt, 200.0)
+        assert len(times_a) > 10
+        assert times_a == times_b
+
     def test_is_response_independent(self) -> None:
         rt_a = RT(1.0, rng=random.Random(0))
         rt_b = RT(1.0, rng=random.Random(0))

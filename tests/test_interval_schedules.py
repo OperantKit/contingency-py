@@ -12,6 +12,7 @@ from hypothesis import strategies as st
 
 from contingency.entities import ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.helpers.fleshler_hoffman import generate_intervals
 from contingency.schedules.interval import FI, RI, VI, LimitedHold
 
 # ---------------------------------------------------------------------------
@@ -196,6 +197,30 @@ class TestVIBehavior:
         # produced plausible rates.
         iri = [b - a for a, b in zip(times, times[1:], strict=False)]
         assert abs(statistics.fmean(iri) - 2.0) < 0.5
+
+    @pytest.mark.parametrize("n_intervals", [3, 4, 5])
+    def test_each_cycle_uses_every_value_once(self, n_intervals: int) -> None:
+        # Responding every dt, the k-th inter-reinforcement gap is the
+        # k-th interval rounded up to the grid. Each block of
+        # n_intervals gaps must be one full Fleshler-Hoffman cycle of
+        # n_intervals values (sampling without replacement).
+        mean = 10.0
+        dt = 0.01
+        cycles = 4
+        sch = VI(mean, n_intervals=n_intervals, seed=3)
+        times: list[float] = []
+        i = 0
+        while len(times) < cycles * n_intervals:
+            i += 1
+            t = i * dt
+            if sch.step(t, ResponseEvent(time=t)).reinforced:
+                times.append(t)
+        gaps = [b - a for a, b in zip([0.0, *times], times, strict=False)]
+        expected = sorted(generate_intervals(mean, n=n_intervals, seed=0))
+        for c in range(cycles):
+            block = sorted(gaps[c * n_intervals : (c + 1) * n_intervals])
+            for got, want in zip(block, expected, strict=True):
+                assert want - 1e-6 <= got <= want + dt + 1e-6
 
     def test_state_errors(self) -> None:
         sch = VI(2.0, seed=1)

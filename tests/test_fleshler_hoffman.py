@@ -86,6 +86,28 @@ class TestGenerateRatios:
         b = generate_ratios(30.0, n=12, seed=7)
         assert a == b
 
+    @pytest.mark.parametrize(
+        ("v", "n", "expected"),
+        [
+            (1.1, 10, [1] * 9 + [2]),
+            (1.1, 11, [1] * 10 + [2]),
+            (1.0, 12, [1] * 12),
+        ],
+    )
+    def test_fallback_when_rounded_head_exceeds_total(
+        self, v: float, n: int, expected: list[int]
+    ) -> None:
+        # For means near 1 the rounded head of the progression already
+        # exceeds round(v * n), so the last element is set to 1 and
+        # entries >= 2 are decremented from the tail until balanced.
+        floats = _fh_progression(v, n)
+        head = sum(max(1, round(x)) for x in floats[:-1])
+        assert int(round(v * n)) - head < 1
+        out = generate_ratios(v, n=n, seed=0)
+        assert out is not None
+        assert sorted(out) == expected
+        assert sum(out) == int(round(v * n))
+
     @given(
         v=st.integers(min_value=2, max_value=200),
         n=st.integers(min_value=2, max_value=30),
