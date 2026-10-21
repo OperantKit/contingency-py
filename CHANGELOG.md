@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and a Support section in the README.
+- `contingency.envs` (extra `gym`): `ScheduleEnv`, a Gymnasium environment that runs any `Schedule` as a free-operant session, and the registered IDs `contingency/FR-v0` and `contingency/FI-v0` (available after `import contingency.envs`).
 
 ### Changed
 

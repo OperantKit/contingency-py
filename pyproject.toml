@@ -38,13 +38,17 @@ test = [
   "hypothesis>=6",
 ]
 dev = [
-  "contingency-py[test]",
+  "contingency-py[test,gym]",
   "mypy>=1.10",
   "ruff>=0.5",
   "mutmut>=3.3,<4",
 ]
 hw-serial = [
   "pyserial>=3.5",
+]
+gym = [
+  "gymnasium>=1.0",
+  "numpy>=1.22",
 ]
 
 [project.scripts]
