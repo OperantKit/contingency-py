@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and a Support section in the README.
 - `contingency.envs` (extra `gym`): `ScheduleEnv`, a Gymnasium environment that runs any `Schedule` as a free-operant session, and the registered IDs `contingency/FR-v0` and `contingency/FI-v0` (available after `import contingency.envs`).
+- `contingency/ConcVIVI-v0`: concurrent VI VI with changeover delay on operanda `left` and `right` (`mean_left`, `mean_right`, `cod`), with the `conc_vi_vi` factory in `contingency.envs.presets`.
 
 ### Changed
 

@@ -21,6 +21,7 @@ Bridges [`contingency-dsl`](../contingency-dsl/) AST nodes into executable `Sche
 
 ```bash
 pip install contingency-py
+pip install "contingency-py[gym]"   # optional: Gymnasium environments
 ```
 
 For development:
@@ -58,6 +59,30 @@ print(reinforcers)  # {'c0': 9, 'c1': 3} — identical on every run (seeded)
 ```
 
 `contingency-dsl-py` is installed as a dependency. The same `Schedule` object runs inside a full session via [session-runner](https://github.com/OperantKit/session-runner).
+
+## Gymnasium environments
+
+With the `gym` extra, `contingency.envs.ScheduleEnv` runs any `Schedule` as a free-operant session for reinforcement-learning agents. Each step advances the clock by `dt` (default 1); action `0` withholds responding and action `i` emits one response on the `i`-th operandum. The reward is the reinforcer's magnitude. The observation holds only what a subject could know: time and responses since the last reinforcer, whether the last step was reinforced, and the last operandum responded on. The episode is truncated at `max_time`.
+
+Three IDs are registered on import: `contingency/FR-v0` (`n`), `contingency/FI-v0` (`interval`) and `contingency/ConcVIVI-v0` (`mean_left`, `mean_right`, `cod`; operanda `left` and `right`). Keyword arguments to `gym.make` override the defaults.
+
+```python
+import gymnasium as gym
+import contingency.envs  # registers contingency/FR-v0, FI-v0 and ConcVIVI-v0
+
+env = gym.make("contingency/ConcVIVI-v0", mean_left=30.0, mean_right=60.0, cod=2.0)
+obs, info = env.reset(seed=0)
+env.action_space.seed(0)
+n_sr = 0
+while True:  # 0 = no response, 1 = left, 2 = right; one step = 1 time unit
+    obs, reward, terminated, truncated, info = env.step(env.action_space.sample())
+    n_sr += reward > 0
+    if terminated or truncated:  # truncated at max_time=600
+        break
+print(n_sr)  # 21
+```
+
+Changeover-delay suppression is reported in `info["outcome_meta"]["cod_suppressed"]`. In `tests/test_envs_concurrent.py`, a tabular Q-learner trained for 100 sessions on the default Conc VI 30 VI 60 (COD 2) earns 23.2 reinforcers per 600-unit session on 10 sessions not used for training, against 20.7 for a uniform random policy and 21.1 for random choice between the two operanda; the same table before training earns 21.5.
 
 ## Why not a 50-line hand-written schedule?
 

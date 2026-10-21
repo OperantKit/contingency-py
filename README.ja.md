@@ -21,6 +21,7 @@
 
 ```bash
 pip install contingency-py
+pip install "contingency-py[gym]"   # 任意: Gymnasium 環境
 ```
 
 開発用:
@@ -58,6 +59,30 @@ print(reinforcers)  # {'c0': 9, 'c1': 3} — seed 固定なので毎回同じ
 ```
 
 `contingency-dsl-py` は依存として一緒に入る。同じ `Schedule` オブジェクトは [session-runner](https://github.com/OperantKit/session-runner) でセッション全体の中で動かせる。
+
+## Gymnasium 環境
+
+`gym` extra を入れると、`contingency.envs.ScheduleEnv` が任意の `Schedule` を強化学習エージェント向けのフリーオペラントのセッションとして動かす。1 ステップで時計が `dt`（既定 1）進み、行動 `0` は無反応、行動 `i` は `i` 番目のオペランダムへの 1 反応。報酬は強化子の magnitude。観測は被験体が知りうるものだけ（直前の強化からの経過時間と反応数、直前のステップが強化されたか、直前に反応したオペランダム）。エピソードは `max_time` で打ち切る。
+
+import すると 3 つの ID が登録される: `contingency/FR-v0`（`n`）、`contingency/FI-v0`（`interval`）、`contingency/ConcVIVI-v0`（`mean_left`・`mean_right`・`cod`。オペランダムは `left` と `right`）。`gym.make` のキーワード引数で既定値を上書きできる。
+
+```python
+import gymnasium as gym
+import contingency.envs  # registers contingency/FR-v0, FI-v0 and ConcVIVI-v0
+
+env = gym.make("contingency/ConcVIVI-v0", mean_left=30.0, mean_right=60.0, cod=2.0)
+obs, info = env.reset(seed=0)
+env.action_space.seed(0)
+n_sr = 0
+while True:  # 0 = no response, 1 = left, 2 = right; one step = 1 time unit
+    obs, reward, terminated, truncated, info = env.step(env.action_space.sample())
+    n_sr += reward > 0
+    if terminated or truncated:  # truncated at max_time=600
+        break
+print(n_sr)  # 21
+```
+
+切替遅延（COD）による強化の抑止は `info["outcome_meta"]["cod_suppressed"]` に出る。`tests/test_envs_concurrent.py` では、既定の Conc VI 30 VI 60（COD 2）で 100 セッション学習した表形式の Q 学習が、学習に使っていない 10 セッションで 600 時間単位あたり平均 23.2 回の強化を得た。一様な無作為方策は 20.7 回、2 つのオペランダムから無作為に選んで必ず反応する方策は 21.1 回、学習前の同じ表は 21.5 回。
 
 ## 自作の 50 行では足りない理由
 
