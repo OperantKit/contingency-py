@@ -1,0 +1,25 @@
+# S-127〜S-129 の 範囲 の書き換え（S-126 の結果で実名化）
+
+見出しと状態は変えない。以下は各ストーリーの 範囲 の全文。候補の文面から変えた点は末尾の「変更点」にまとめた。
+
+## S-127 範囲
+
+第 1 群（Mixed / Timeout / Conjunctive / InterlockingSchedule / ResponseCost）について、contingency-py の `src/contingency/conformance/spec.py` の `build_schedule_from_spec` を広げ（`scripts/generate_conformance.py` はこの関数を import しているので generator と `replay-python` の両方に効く）、各クラス 1 本の fixture を `scripts/generate_conformance.py` の `define_fixtures` に足して生成する（既存の規約: float 9 桁丸め・時刻は ms 整数・`expect` に reinforced / reinforcer / meta。spec の `type` はクラス名、`params` はコンストラクタのキーワード名、入れ子は `inner` / `first` / `second` / `components` の下に spec）。候補の spec・時刻系列・分岐は `.cloud-handoff/S-126/proto/`（`proto_gen.py` と `proto/fixtures/`）にあり、5 本とも決定的で rs と一致済み。Conjunctive は FI が絶対時刻 `interval` で arm されるため、反応の時刻を 1,2,5,6,…,13 のように置いて同時強化を作る（1 秒刻みでは一度も強化しない）。`tests/test_conformance.py` の rglob で新 fixture が再生されることと、`contingency-conformance run -- contingency-conformance replay-python` が全数 PASS することを確かめる。README.md の "22 fixtures"（68・74・129・131 行目）を実数に直す（README.ja.md も同じ行）。`conformance/README.md` の Layout の木（既に multiple_fr_fr / tandem_fr_fr が抜けている）と "Supported types" に 5 型を足す。
+
+contingency-rs 側（S-126 で判明した必須の作業）: rs の `tests/conformance.rs` の `conformance_corpus_completeness` は `../contingency-py/conformance/` の deterministic fixture すべてに `run_fixture("…")` を要求するので、py に fixture を足すと rs のテストが赤になる。同じストーリーで rs の `build_schedule` に 5 分岐（`Mixed::new(build_component_list)` / `Timeout::new(inner, duration, reset_on_response)` / `Conjunctive::new(first, second)` / `InterlockingSchedule::new(initial_ratio, decay_time)` / `ResponseCost::new(inner, amount, unit, initial_balance)`）と `run_fixture` のテスト 5 本を足し、`cargo test --test conformance` が全数 passed になることを確かめる。rs の README.md 5・77 行目（"22 fixtures"、"16 deterministic"）と README.ja.md、`tests/conformance.rs` 冒頭の doc comment の型の列挙も直す。触るのは contingency-py と contingency-rs の 2 パッケージ（各 repo の `claude/S-127`）。
+
+## S-128 範囲
+
+第 2 群（AdjustingSchedule / Interpolate / Overlay / Percentile / SecondOrder）について S-127 と同じ手順。5 クラスとも決定的（乱数を持つクラスはこの群にない。15 クラスで乱数を持つのは S-129 の MatchingToSample / GoNoGo だけ）なので、seed と「stochastic」の記載は成分に seeded VR / VI / VT / RR / RI / RT を入れた fixture を作るときだけ要る（作るなら fixture の `description` に「stochastic」と書き、rs 側は `run_stochastic_fixture` + `#[ignore]` に回す）。候補の spec・時刻系列は `.cloud-handoff/S-126/proto/` にあり、5 本とも rs と一致済み。注意点: AdjustingSchedule の `target` は "ratio" / "interval" のみ（"delay" / "amount" は py が構築時に例外）。Percentile の `rank` は rs が `u8` で 1〜100（py は 0〜100）なので 1〜100 を使い、`target` は "irt" のみ。Overlay の `net_magnitude` と Percentile の `percentile_threshold` / `percentile_irt` は float の meta なので 9 桁丸めで書かれることを確かめる。SecondOrder の内部合成反応（operandum `__unit_completion__`）は fixture の `event` には現れない。contingency-rs 側: `build_schedule` に 5 分岐（AdjustingTarget / PercentileTarget / PercentileDirection の enum への写しを含む。`SecondOrder::new` は Result を返さない）と `run_fixture` 5 本、README の本数の更新。触るのは contingency-py と contingency-rs の 2 パッケージ（各 repo の `claude/S-128`）。
+
+## S-129 範囲
+
+第 3 群（Sidman / DiscriminatedAvoidance / Escape / MatchingToSample / GoNoGo）について S-127 と同じ手順。S-126 は 5 クラスすべてを「既存の step 形式で表せる」と判定した（電撃と刺激提示は出力側: 電撃は `reinforced: true` で `reinforcer.magnitude` が負・label `SR-`、相は meta `phase` / `aversive_event` / `trial_outcome`。入力は反応事象と tick だけ）ので、5 本とも fixture を作り、blocked にはしない。嫌悪制御の 3 本は決定的で rs と一致済み。DiscriminatedAvoidance と Escape は最初の ITI / 試行を絶対時刻 0 から数えるので fixture は `now = 0` から始める。MatchingToSample / GoNoGo は seed 付きで生成し（py の `is_stochastic` は `seed` param で判定する）、`description` に「stochastic」と書く。MTS の反応は `operandum: "choice_k"`、正しい比較刺激は seed に従って試行ごとに変わり fixture からは観測できない。試行は 20 回以上にする（rs の緩い検査は強化子数が期待の 50〜150% かしか見ないので、試行が少ないと自明に通る）。contingency-rs 側: `build_schedule` に 5 分岐（MTS / GoNoGo の入れ子 `Option<Box<dyn Schedule>>` は spec の省略 or null で `None`、既定値は py と同じ）、嫌悪制御 3 本は `run_fixture`、試行型 2 本は `run_stochastic_fixture` + `#[ignore]`。加えて **`STOCHASTIC_TYPES` に "MatchingToSample" と "GoNoGo" を足す**（足さないと completeness guard が `run_fixture` を要求して落ちる）。README の本数と「Six fixtures (seeded VR, VI, VT, RR, RI, RT)」の文（py README 133 行目、rs README 77 行目の "6 seeded"）を 8 本に直す。任意の改善（本ストーリーの範囲外。引き継ぎ に書く）: MTS で「正答を選んだときの帰結」を言語間で厳密に比べたければ、クラス側で `correct_operandum` を meta に出す変更か、rs 側で py の PRNG を再現する変更が要る。触るのは contingency-py と contingency-rs の 2 パッケージ（各 repo の `claude/S-129`）。
+
+## 変更点（候補の文面から）
+
+1. `build_schedule_from_spec` の場所を `scripts/generate_conformance.py` から `src/contingency/conformance/spec.py` に直した（実測）。
+2. 3 ストーリーとも「触るのは contingency-py 1 パッケージ」を「py と rs の 2 パッケージ」に変えた。理由: rs の `conformance_corpus_completeness` が py の `conformance/` を直接走査し、deterministic fixture が 1 本増えるごとに rs の `build_schedule` の分岐と `run_fixture` のテストを要求する。rs 側を別ストーリーに切り出すなら、py 側の fixture 追加と同時に取り込まないと rs の `cargo test` が赤になる期間ができる。
+3. S-128 の「乱数を含むクラスは seed 付き」を条件付きにした。第 2 群の 5 クラスは全部決定的で、15 クラスで乱数を持つのは MTS / GoNoGo だけ。
+4. S-129 の「表せないクラスは作らず blocked にする」条項は、S-126 の判定（形式拡張が要るクラスは 0）により発動しない見込みなので、5 本とも作る文面にした。代わりに rs の `STOCHASTIC_TYPES` 拡張と、試行数の下限を足した。
+5. README の更新箇所を行番号つきで具体化し、`conformance/README.md` と rs の README / doc comment も対象に入れた。
