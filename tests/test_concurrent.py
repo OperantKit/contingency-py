@@ -433,6 +433,50 @@ class TestConcurrentTimeAdvancement:
         assert out.reinforced
         assert "cod_suppressed" not in out.meta
 
+    def test_tick_reinforcement_survives_hold_on_event_side(self) -> None:
+        """On a step where COD holds the event-side reinforcer, a
+        reinforcer another component delivers on its tick is still
+        returned."""
+        sch = Concurrent({"a": FT(5.0), "b": FI(3.0)}, cod=2.0)
+        results = [
+            sch.step(t, ResponseEvent(t, operandum=op)).reinforced
+            for t, op in [(0.0, "a"), (4.0, "b"), (5.0, "b"), (7.0, "b")]
+        ]
+        assert results == [False, False, True, True]
+
+    def test_tick_reinforcer_on_hold_step_records_hold(self) -> None:
+        sch = Concurrent({"a": FT(5.0), "b": FI(3.0)}, cod=2.0)
+        sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        sch.step(4.0, ResponseEvent(4.0, operandum="b"))
+        out = sch.step(5.0, ResponseEvent(5.0, operandum="b"))
+        assert out.reinforcer is not None
+        assert out.reinforcer.time == 5.0
+        assert out.meta.get("cod_suppressed") is True
+        assert "operandum" not in out.meta
+
+    def test_tick_reinforcement_survives_queued_hold(self) -> None:
+        """Same as above when the event-side reinforcer is queued by
+        :class:`Concurrent` (a component it does not hold in place)."""
+        sch = Concurrent({"a": FT(5.0), "b": FT(1.0)}, cod=2.0)
+        results = [
+            sch.step(t, ResponseEvent(t, operandum=op)).reinforced
+            for t, op in [(0.0, "a"), (4.0, "b"), (5.0, "b"), (7.0, "b")]
+        ]
+        assert results == [False, False, True, True]
+
+    def test_punisher_on_hold_step_still_wins_over_tick(self) -> None:
+        """Unchanged behaviour: when a punisher fires on the hold step,
+        the punisher outcome is returned and the tick reinforcer is not."""
+        sch = Concurrent(
+            {"a": FT(5.0), "b": FI(3.0)}, cod=2.0, punish={"b": FR(1)}
+        )
+        sch.step(0.0, ResponseEvent(0.0, operandum="a"))
+        sch.step(4.0, ResponseEvent(4.0, operandum="b"))
+        out = sch.step(5.0, ResponseEvent(5.0, operandum="b"))
+        assert out.reinforcer is not None
+        assert out.reinforcer.label == "SR-"
+        assert out.meta.get("cod_suppressed") is True
+
 
 # ---------------------------------------------------------------------------
 # State-level error handling

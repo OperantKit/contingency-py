@@ -90,7 +90,7 @@ A short hand-rolled loop usually gets the following wrong, and each one changes 
 
 - **Variable-schedule intervals.** VI/VR values are generated with the Fleshler-Hoffman (1962) progression (the Hantula, 1991, program variant is also available), not ad-hoc `random.uniform` or exponential draws. `n` and `seed` are controllable, so a session can be replayed exactly.
 - **Changeover delay in concurrent schedules.** `Conc` routes each response to its own component, holds an arranged reinforcer until the next response on that operandum, suppresses reinforcement for `COD` time units after a changeover, and supports a fixed-ratio changeover requirement (`FRCO`) and direction-specific COD.
-- **Conformance fixtures.** 22 JSON fixtures under `conformance/` pin the exact outcome sequence of each schedule for a known event sequence. The Rust port [contingency-rs](https://github.com/OperantKit/contingency-rs) replays the same fixtures, so both runtimes are checked against one specification.
+- **Conformance fixtures.** 23 JSON fixtures under `conformance/` pin the exact outcome sequence of each schedule for a known event sequence. The Rust port [contingency-rs](https://github.com/OperantKit/contingency-rs) replays the same fixtures, so both runtimes are checked against one specification.
 - **Round trip with Method sections.** Because the schedule is written in contingency-dsl, [contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) turns it into a Method-section paragraph and [contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) extracts a schedule from published Method text.
 - **Input validation.** Non-monotonic time, malformed parameters, and unknown operanda raise explicit errors instead of silently producing wrong reinforcement times.
 
@@ -104,7 +104,7 @@ A short hand-rolled loop usually gets the following wrong, and each one changes 
 
 ## Check your own implementation against the fixtures
 
-`pip install contingency-py` also installs the conformance corpus and the `contingency-conformance` command. Any implementation, in any language, can be checked against the same 22 fixtures:
+`pip install contingency-py` also installs the conformance corpus and the `contingency-conformance` command. Any implementation, in any language, can be checked against the same 23 fixtures:
 
 ```bash
 pip install contingency-py
@@ -159,9 +159,9 @@ if __name__ == "__main__":
     json.dump(observe(json.load(sys.stdin)), sys.stdout)
 ```
 
-This adapter implements FR only and passes `atomic/fr_basic.json`; without `--only`, the other 21 fixtures are reported as `ERROR` because the adapter cannot build their schedules. To cover them, build each schedule `type` in `observe`. The 5 compound fixtures (Alternative, Chained, Concurrent, Multiple, Tandem) also require `meta` on some steps, such as `current_component`, `alternative_winner`, or `cod_suppressed`; the fixture files show which keys each step expects.
+This adapter implements FR only and passes `atomic/fr_basic.json`; without `--only`, the other 22 fixtures are reported as `ERROR` because the adapter cannot build their schedules. To cover them, build each schedule `type` in `observe`. The 6 compound fixtures (Alternative, Chained, Concurrent, Multiple, Tandem) also require `meta` on some steps, such as `current_component`, `alternative_winner`, or `cod_suppressed`; the fixture files show which keys each step expects.
 
-`contingency-conformance replay-python` is the same adapter for this package's own runtime; `contingency-conformance run -- contingency-conformance replay-python` passes all 22 fixtures.
+`contingency-conformance replay-python` is the same adapter for this package's own runtime; `contingency-conformance run -- contingency-conformance replay-python` passes all 23 fixtures.
 
 **Seeded fixtures.** Six fixtures (seeded VR, VI, VT, RR, RI, RT) are pinned by Python's `random.Random(seed)`. `--stochastic` chooses how they are judged:
 

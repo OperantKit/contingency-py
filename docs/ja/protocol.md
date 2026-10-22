@@ -208,7 +208,9 @@ impl Outcome {
 
 - `Concurrent`: 強化されるはずの反応が COD の内側に入ったときに
   `cod_suppressed: bool` と `operandum: str` を設定する。強化子は
-  その operandum に保持され、COD 明けの最初の反応で渡される。
+  その operandum に保持され、COD 明けの最初の反応で渡される。その
+  step で別のコンポーネントの時間経過による強化子を返すときは、返す
+  強化子が別の operandum のものなので `cod_suppressed` だけを設定する。
 - `Multiple` / `Chained`: 現在活性なコンポーネントの刺激ラベルを
   `current_component: str` に設定し、`Chained` の非終端リンク遷移時
   には `chain_transition: bool` を設定する。

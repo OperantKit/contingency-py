@@ -374,6 +374,38 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "compound" / "concurrent_cod.json", conc_cod)
     )
 
+    conc_cod_tick = FixtureSpec(
+        name="concurrent-ft5-fi3-cod2",
+        description=(
+            "Concurrent FT(5)/FI(3) with COD=2.0: on a step where the COD "
+            "holds the FI reinforcer on the responded operandum, the "
+            "reinforcer FT delivers on its tick at the same step is still "
+            "returned; the held FI reinforcer is paid on the first "
+            "response after the COD."
+        ),
+        schedule={
+            "type": "Concurrent",
+            "params": {
+                "components": {
+                    "a": {"type": "FT", "params": {"interval": 5.0}},
+                    "b": {"type": "FI", "params": {"interval": 3.0}},
+                },
+                "cod": 2.0,
+                "frco": 0,
+            },
+        },
+    )
+    conc_cod_tick.add(now=0.0, event={"time": 0.0, "operandum": "a"})
+    # Switch to b at 4.0: FI(3) is set up, so its reinforcer is held.
+    conc_cod_tick.add(now=4.0, event={"time": 4.0, "operandum": "b"})
+    # Still inside the COD; FT(5) on a fires on its tick and is returned.
+    conc_cod_tick.add(now=5.0, event={"time": 5.0, "operandum": "b"})
+    # First b response after the COD collects the held FI reinforcer.
+    conc_cod_tick.add(now=7.0, event={"time": 7.0, "operandum": "b"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "concurrent_cod_tick.json", conc_cod_tick)
+    )
+
     # --- Compound: Chained --------------------------------------------
 
     chained = FixtureSpec(

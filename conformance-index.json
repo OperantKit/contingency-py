@@ -107,6 +107,13 @@
     },
     {
       "kind": "deterministic",
+      "path": "compound/concurrent_cod_tick.json",
+      "sha256": "f84825d7a2fb134e3e781e0653324c306cbc915e4143275f87daee23f75db9ba",
+      "steps": 4,
+      "type": "Concurrent"
+    },
+    {
+      "kind": "deterministic",
       "path": "compound/multiple_fr_fr.json",
       "sha256": "4db11845fe4df41ac410869ad11c49aea25bfcfd1b72085886faba0ac10ffdd9",
       "steps": 6,

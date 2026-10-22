@@ -134,8 +134,11 @@ class Concurrent:
     :class:`Concurrent` returns an un-reinforced outcome carrying
     ``meta["cod_suppressed"] = True`` alongside
     ``meta["operandum"] = <key>``. The first response on that operandum
-    after the COD collects the held reinforcer. How it is held depends
-    on the component:
+    after the COD collects the held reinforcer. If another component
+    delivers a reinforcer on its tick at that step and no punisher
+    fires, that reinforcer is returned instead, with
+    ``meta["cod_suppressed"] = True`` and no ``"operandum"`` key. How it
+    is held depends on the component:
 
     - FR, VR, RR, FI, VI, RI: the response is first tried on a copy of
       the component. If the copy would reinforce, the real component
@@ -563,7 +566,15 @@ class Concurrent:
 
         if cod_suppressed and not punisher_fired:
             # The reinforcer stays set up on the component and is not
-            # delivered on this response.
+            # delivered on this response. A reinforcer another component
+            # delivered on its tick at this step is still returned, with
+            # ``cod_suppressed`` recording the hold.
+            if outcome.reinforced and not from_event:
+                return Outcome(
+                    reinforced=True,
+                    reinforcer=outcome.reinforcer,
+                    meta={**outcome.meta, "cod_suppressed": True},
+                )
             return Outcome(
                 reinforced=False,
                 reinforcer=None,

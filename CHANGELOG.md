@@ -15,6 +15,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - `Concurrent` COD now holds a reinforcer that a component sets up during the changeover delay and delivers it on the first response on that operandum after the COD, instead of discarding it; the component's next interval or ratio starts from that delivery (Herrnstein, 1961). Results of concurrent schedules with `cod > 0` differ from earlier releases. The conformance fixture `compound/concurrent_cod.json` is updated accordingly.
 
+### Fixed
+
+- `Concurrent`: on a step where the COD holds the responded operandum's reinforcer, a reinforcer that another component delivers on its tick at the same step is returned (with `meta["cod_suppressed"]`) instead of being replaced by an empty outcome, unless a punisher fires at that step. New conformance fixture `compound/concurrent_cod_tick.json`.
+
 ## [0.1.1]
 
 ### Fixed

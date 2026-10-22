@@ -1,0 +1,84 @@
+{
+  "description": "Concurrent FT(5)/FI(3) with COD=2.0: on a step where the COD holds the FI reinforcer on the responded operandum, the reinforcer FT delivers on its tick at the same step is still returned; the held FI reinforcer is paid on the first response after the COD.",
+  "name": "concurrent-ft5-fi3-cod2",
+  "schedule": {
+    "params": {
+      "cod": 2.0,
+      "components": {
+        "a": {
+          "params": {
+            "interval": 5.0
+          },
+          "type": "FT"
+        },
+        "b": {
+          "params": {
+            "interval": 3.0
+          },
+          "type": "FI"
+        }
+      },
+      "frco": 0
+    },
+    "type": "Concurrent"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "a",
+        "time": 0.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "b",
+        "time": 4.0
+      },
+      "expect": {
+        "meta": {
+          "cod_suppressed": true,
+          "operandum": "b"
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "b",
+        "time": 5.0
+      },
+      "expect": {
+        "meta": {
+          "cod_suppressed": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "b",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 7.0
+        }
+      },
+      "now": 7.0
+    }
+  ]
+}
