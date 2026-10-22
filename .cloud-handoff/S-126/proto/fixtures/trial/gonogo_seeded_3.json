@@ -1,0 +1,210 @@
+{
+  "description": "Go/NoGo p=0.5, window 2, ITI 1, seed=3 (stochastic: trial type drawn per trial). Responses in trials 0, 2, 4; withholding in 1, 3.",
+  "name": "gonogo-p05-seeded-3",
+  "schedule": {
+    "params": {
+      "go_probability": 0.5,
+      "iti": 1.0,
+      "response_window": 2.0,
+      "seed": 3
+    },
+    "type": "GoNoGo"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "go",
+          "trial_index": 0
+        },
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 0,
+          "trial_outcome": "correct"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 1.0
+        }
+      },
+      "now": 1.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "nogo",
+          "trial_index": 1
+        },
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "nogo",
+          "trial_index": 1
+        },
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 1,
+          "trial_outcome": "correct_withhold"
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "go",
+          "trial_index": 2
+        },
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "go",
+          "trial_index": 2
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 2,
+          "trial_outcome": "incorrect"
+        },
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "nogo",
+          "trial_index": 3
+        },
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "nogo",
+          "trial_index": 3
+        },
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 3,
+          "trial_outcome": "correct_withhold"
+        },
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "nogo",
+          "trial_index": 4
+        },
+        "reinforced": false
+      },
+      "now": 11.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "nogo",
+          "trial_index": 4
+        },
+        "reinforced": false
+      },
+      "now": 12.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 13.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 4,
+          "trial_outcome": "correct_withhold"
+        },
+        "reinforced": false
+      },
+      "now": 13.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "go",
+          "trial_index": 5
+        },
+        "reinforced": false
+      },
+      "now": 14.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "go",
+          "trial_index": 5
+        },
+        "reinforced": false
+      },
+      "now": 15.0
+    }
+  ]
+}

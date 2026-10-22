@@ -1,0 +1,90 @@
+{
+  "description": "ResponseCost 1 token per response, balance 3, wrapping FR 2; 4th response is unaffordable (meta cost_insufficient).",
+  "name": "response-cost-fr2-balance3",
+  "schedule": {
+    "params": {
+      "amount": 1.0,
+      "initial_balance": 3.0,
+      "inner": {
+        "params": {
+          "n": 2
+        },
+        "type": "FR"
+      },
+      "unit": "token"
+    },
+    "type": "ResponseCost"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 2.0
+        }
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "meta": {
+          "cost_insufficient": true,
+          "unit": "token"
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "cost_insufficient": true,
+          "unit": "token"
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    }
+  ]
+}

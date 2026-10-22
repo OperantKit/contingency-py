@@ -1,0 +1,97 @@
+{
+  "description": "Sidman avoidance SSI=5 RSI=8: shocks (SR-, magnitude -1) at 5 and 15; the response at 7 postpones the next shock to 15.",
+  "name": "sidman-ss5-rs8",
+  "schedule": {
+    "params": {
+      "response_shock_interval": 8.0,
+      "shock_magnitude": 1.0,
+      "shock_shock_interval": 5.0
+    },
+    "type": "Sidman"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 15.0
+        }
+      },
+      "now": 15.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 18.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 20.0
+        }
+      },
+      "now": 20.0
+    }
+  ]
+}

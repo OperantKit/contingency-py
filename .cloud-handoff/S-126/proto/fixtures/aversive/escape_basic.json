@@ -1,0 +1,121 @@
+{
+  "description": "Escape: shock on every tick until the response at 2 terminates it; the second trial (from 6) times out at 9.",
+  "name": "escape-td3-iti4",
+  "schedule": {
+    "params": {
+      "iti": 4.0,
+      "shock_magnitude": 1.0,
+      "trial_duration": 3.0
+    },
+    "type": "Escape"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock_onset",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 0.0
+        }
+      },
+      "now": 0.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 1.0
+        }
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "aversive_event": "shock_termination",
+          "phase": "shock",
+          "trial_outcome": "escape"
+        },
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock_onset",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 6.0
+        }
+      },
+      "now": 6.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 7.0
+        }
+      },
+      "now": 7.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "trial_end",
+          "phase": "shock",
+          "trial_outcome": "failed"
+        },
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock_onset",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 13.0
+        }
+      },
+      "now": 13.0
+    }
+  ]
+}

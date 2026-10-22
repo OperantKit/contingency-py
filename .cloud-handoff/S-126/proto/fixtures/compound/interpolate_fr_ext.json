@@ -1,0 +1,332 @@
+{
+  "description": "Interpolate base FR(2), probe EXT, windows [5,8) and [15,18) from the anchor; meta in_probe.",
+  "name": "interpolate-fr2-ext-10-3",
+  "schedule": {
+    "params": {
+      "base": {
+        "params": {
+          "n": 2
+        },
+        "type": "FR"
+      },
+      "first_probe_at": 5.0,
+      "interval": 10.0,
+      "probe": {
+        "params": {},
+        "type": "EXT"
+      },
+      "probe_duration": 3.0
+    },
+    "type": "Interpolate"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 0.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 1.0
+        }
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 3.0
+        }
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": true
+        },
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": true
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": true
+        },
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 8.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 8.0
+        }
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 9.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 10.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 10.0
+        }
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 11.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 11.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 12.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 12.0
+        }
+      },
+      "now": 12.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 13.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 13.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 14.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 14.0
+        }
+      },
+      "now": 14.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 15.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": true
+        },
+        "reinforced": false
+      },
+      "now": 15.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 16.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": true
+        },
+        "reinforced": false
+      },
+      "now": 16.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 17.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": true
+        },
+        "reinforced": false
+      },
+      "now": 17.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 18.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 18.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 19.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 19.0
+        }
+      },
+      "now": 19.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 20.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 20.0
+    }
+  ]
+}

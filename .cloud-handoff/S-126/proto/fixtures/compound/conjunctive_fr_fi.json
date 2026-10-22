@@ -1,0 +1,149 @@
+{
+  "description": "Conjunctive FR(3) AND FI(5): reinforced only on a step where both fire (5, 8, 11); both reset. FI arms at the absolute time 5 and, after reset, is immediately satisfiable.",
+  "name": "conjunctive-fr3-fi5",
+  "schedule": {
+    "params": {
+      "first": {
+        "params": {
+          "n": 3
+        },
+        "type": "FR"
+      },
+      "second": {
+        "params": {
+          "interval": 5.0
+        },
+        "type": "FI"
+      }
+    },
+    "type": "Conjunctive"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "meta": {
+          "conjunctive": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 8.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 9.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 10.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 11.0
+      },
+      "expect": {
+        "meta": {
+          "conjunctive": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 11.0
+        }
+      },
+      "now": 11.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 12.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 12.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 13.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 13.0
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "description": "Interlocking R0=10 decaying to 0 over 20s: requirement int(10*(1-t/20)).",
+  "name": "interlocking-r10-t20",
+  "schedule": {
+    "params": {
+      "decay_time": 20.0,
+      "initial_ratio": 10
+    },
+    "type": "InterlockingSchedule"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 8.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 10.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 10.0
+        }
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 12.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 12.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 13.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 13.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 20.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 20.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 30.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 30.0
+        }
+      },
+      "now": 30.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 50.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 52.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 52.0
+        }
+      },
+      "now": 52.0
+    }
+  ]
+}

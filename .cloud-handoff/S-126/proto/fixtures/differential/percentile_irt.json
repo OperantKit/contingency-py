@@ -1,0 +1,178 @@
+{
+  "description": "Percentile IRT, rank 50, window 4, above: first 5 responses build the baseline; later IRTs >= median reinforce.",
+  "name": "percentile-irt-50-w4-above",
+  "schedule": {
+    "params": {
+      "direction": "above",
+      "rank": 50,
+      "target": "irt",
+      "window": 4
+    },
+    "type": "Percentile"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 0.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 8.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 12.0
+      },
+      "expect": {
+        "meta": {
+          "percentile_direction": "above",
+          "percentile_irt": 4.0,
+          "percentile_rank": 50,
+          "percentile_threshold": 1.5
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 12.0
+        }
+      },
+      "now": 12.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 13.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 13.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 19.0
+      },
+      "expect": {
+        "meta": {
+          "percentile_direction": "above",
+          "percentile_irt": 6.0,
+          "percentile_rank": 50,
+          "percentile_threshold": 2.0
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 19.0
+        }
+      },
+      "now": 19.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 20.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 20.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 28.0
+      },
+      "expect": {
+        "meta": {
+          "percentile_direction": "above",
+          "percentile_irt": 8.0,
+          "percentile_rank": 50,
+          "percentile_threshold": 2.5
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 28.0
+        }
+      },
+      "now": 28.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 29.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 29.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 30.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 30.0
+    }
+  ]
+}

@@ -1,0 +1,208 @@
+{
+  "description": "MTS with 2 comparisons, seed=1 (stochastic: the correct comparison is drawn per trial). The subject always chooses choice_0; trial 3 times out.",
+  "name": "mts-2-seeded-1",
+  "schedule": {
+    "params": {
+      "choice_timeout": 3.0,
+      "iti": 2.0,
+      "n_comparisons": 2,
+      "sample_duration": 1.0,
+      "seed": 1
+    },
+    "type": "MatchingToSample"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "sample",
+          "trial_index": 0
+        },
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "choice",
+          "trial_index": 0
+        },
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "choice_0",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 0,
+          "trial_outcome": "correct"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 2.0
+        }
+      },
+      "now": 2.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "sample",
+          "trial_index": 1
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "choice",
+          "trial_index": 1
+        },
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "choice_0",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 1,
+          "trial_outcome": "correct"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 6.0
+        }
+      },
+      "now": 6.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "sample",
+          "trial_index": 2
+        },
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "choice",
+          "trial_index": 2
+        },
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": {
+        "operandum": "choice_0",
+        "time": 10.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 2,
+          "trial_outcome": "incorrect"
+        },
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "sample",
+          "trial_index": 3
+        },
+        "reinforced": false
+      },
+      "now": 12.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "choice",
+          "trial_index": 3
+        },
+        "reinforced": false
+      },
+      "now": 13.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 3,
+          "trial_outcome": "incorrect"
+        },
+        "reinforced": false
+      },
+      "now": 17.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "choice",
+          "trial_index": 4
+        },
+        "reinforced": false
+      },
+      "now": 19.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "choice",
+          "trial_index": 4
+        },
+        "reinforced": false
+      },
+      "now": 20.0
+    },
+    {
+      "event": {
+        "operandum": "choice_0",
+        "time": 21.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 4,
+          "trial_outcome": "incorrect"
+        },
+        "reinforced": false
+      },
+      "now": 21.0
+    }
+  ]
+}
