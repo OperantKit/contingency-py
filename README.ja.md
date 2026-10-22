@@ -4,7 +4,7 @@
 
 オペラント随伴性のための Python 製強化スケジュールエンジン。
 
-[`contingency-dsl`](../contingency-dsl/) の AST ノードを実行可能な `Schedule` ランタイムオブジェクトへ橋渡しする。セッション / コンテキスト / 再燃の扱いは含まない純粋ライブラリ — それらは [`experiment-core`](../../experiment/experiment-core/) に置かれる。
+[`contingency-dsl`](https://github.com/OperantKit/contingency-dsl) の AST ノードを実行可能な `Schedule` ランタイムオブジェクトへ橋渡しする。セッション / コンテキスト / 再燃の扱いは含まない純粋ライブラリ — それらは [`experiment-core`](https://github.com/OperantKit/experiment-core) に置かれる。
 
 ## スコープ
 
@@ -207,7 +207,7 @@ from contingency.bridge import from_dsl
 ## 参考文献
 
 - Fleshler, M., & Hoffman, H. S. (1962). A progression for generating variable-interval schedules. *Journal of the Experimental Analysis of Behavior*, 5(4), 529-530. https://doi.org/10.1901/jeab.1962.5-529
-- Hantula, D. A. (1991). A progression for generating variable-interval schedules. *Journal of the Experimental Analysis of Behavior*, 56(2), 391-392.
+- Hantula, D. A. (1991). A simple BASIC program to generate values for variable-interval schedules of reinforcement. *Journal of Applied Behavior Analysis*, 24(4), 799-801. https://doi.org/10.1901/jaba.1991.24-799
 - Catania, A. C. (1966). Concurrent operants. In W. K. Honig (Ed.), *Operant behavior: Areas of research and application* (pp. 213-270). Appleton-Century-Crofts.
 - Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*. Appleton-Century-Crofts.
 

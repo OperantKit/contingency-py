@@ -6,9 +6,12 @@ families of the experimental analysis of behavior:
 * :class:`DRO` — Differential Reinforcement of Other behavior.
   Reinforces the *absence* of a response over an interval. Two
   variants are supported: the resetting (default) variant in which
-  every response resets the DRO timer, and the momentary (also called
-  whole-interval) variant in which the timer runs continuously and
-  boundary checks determine reinforcement.
+  every response resets the DRO timer, and the ``"momentary"`` variant,
+  which is a non-resetting whole-interval DRO: the timer runs
+  continuously and, at each interval boundary, reinforcement depends on
+  whether any response occurred during the whole interval. Despite its
+  ``dro_type`` name it is not the momentary DRO of Lindberg et al.
+  (1999), which checks only the instant at the end of the interval.
 * :class:`DRL` — Differential Reinforcement of Low rate behavior.
   Reinforces a response whose inter-response time (IRT) is at least
   ``interval`` time units.
@@ -32,9 +35,13 @@ Experimental Analysis of Behavior*, 4(1), 57-71.
 https://doi.org/10.1901/jeab.1961.4-57
 
 Reynolds, G. S. (1964). Accurate and rapid reconditioning of
-spaced-responding by differential reinforcement of other behavior.
-*Journal of the Experimental Analysis of Behavior*, 7(3), 223-224.
-https://doi.org/10.1901/jeab.1964.7-223
+spaced responding. *Journal of the Experimental Analysis of
+Behavior*, 7(3), 273-275. https://doi.org/10.1901/jeab.1964.7-273
+
+Lindberg, J. S., Iwata, B. A., Kahng, S., & DeLeon, I. G. (1999). DRO
+contingencies: An analysis of variable-momentary schedules. *Journal of
+Applied Behavior Analysis*, 32(2), 123-136.
+https://doi.org/10.1901/jaba.1999.32-123
 
 Zeiler, M. D. (1977). Schedules of reinforcement: The controlling
 variables. In W. K. Honig & J. E. R. Staddon (Eds.), *Handbook of
@@ -87,7 +94,9 @@ class DRO:
           ``now`` satisfies ``now - timer_start >= interval`` with no
           intervening response. After reinforcement the timer is
           restarted from ``now``.
-        * ``"momentary"`` (also known as *whole-interval*): the timer
+        * ``"momentary"`` (a non-resetting *whole-interval* DRO; not
+          the momentary DRO of Lindberg et al., 1999, which checks
+          only the instant at the end of each interval): the timer
           runs continuously, independent of responses. At every
           interval boundary (``now >= interval_start + interval``) a
           reinforcer is delivered iff no response occurred in
@@ -255,9 +264,8 @@ class DRL:
     reinforcement*. Appleton-Century-Crofts.
 
     Reynolds, G. S. (1964). Accurate and rapid reconditioning of
-    spaced-responding by differential reinforcement of other
-    behavior. *Journal of the Experimental Analysis of Behavior*,
-    7(3), 223-224. https://doi.org/10.1901/jeab.1964.7-223
+    spaced responding. *Journal of the Experimental Analysis of
+    Behavior*, 7(3), 273-275. https://doi.org/10.1901/jeab.1964.7-273
     """
 
     __slots__ = ("_interval", "_last_response_time", "_last_now")

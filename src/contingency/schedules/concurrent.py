@@ -7,7 +7,7 @@ operandum ``k`` are routed exclusively to ``components[k]``. The
 composite returns the :class:`~contingency.entities.Outcome` produced by
 the component that received the event, subject to changeover gating.
 
-Changeover Delay (Catania, 1966)
+Changeover Delay (Catania, 1963)
 --------------------------------
 When the subject switches from operandum A to operandum B, no response
 on B is reinforced for ``cod`` time units after the switch. This
@@ -24,7 +24,7 @@ the programmed reinforcer kept until collected.
 
 If no changeover has yet occurred (e.g. the very first response of a
 session), COD is not active. This module implements the standard
-"since-last-changeover" semantics of Catania (1966): each fresh
+"since-last-changeover" semantics of Catania (1963): each fresh
 switch re-anchors the COD clock.
 
 Fixed-Ratio Changeover (FRCO)
@@ -53,10 +53,10 @@ the extension point.
 
 References
 ----------
-Catania, A. C. (1966). Concurrent performances: Reinforcement
+Catania, A. C. (1963). Concurrent performances: Reinforcement
 interaction and response independence. *Journal of the Experimental
-Analysis of Behavior*, 9(3), 253-263.
-https://doi.org/10.1901/jeab.1966.9-253
+Analysis of Behavior*, 6(2), 253-263.
+https://doi.org/10.1901/jeab.1963.6-253
 
 Herrnstein, R. J. (1961). Relative and absolute strength of response
 as a function of frequency of reinforcement. *Journal of the
@@ -532,7 +532,7 @@ class Concurrent:
         # gating so that the response which completes a changeover is
         # itself covered by the COD window it opens: the changeover
         # response is the first "on the new operandum" response and
-        # COD starts at that instant (Catania, 1966).
+        # COD starts at that instant (Catania, 1963).
         self._register_event(operandum, now)
         gated = self._cod_active(operandum, now)
 

@@ -158,7 +158,7 @@ class ScheduleBuilder:
         cod: float = 0.0,
         frco: int = 0,
     ) -> Concurrent:
-        """Concurrent (Catania, 1966) with COD/FRCO gating."""
+        """Concurrent (Catania, 1963) with COD/FRCO gating."""
         return Concurrent(components, cod=cod, frco=frco)
 
     @staticmethod

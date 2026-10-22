@@ -5,12 +5,17 @@
 Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*.
 Appleton-Century-Crofts.
 
+Lindberg, J. S., Iwata, B. A., Kahng, S., & DeLeon, I. G. (1999). DRO
+contingencies: An analysis of variable-momentary schedules. *Journal of
+Applied Behavior Analysis*, 32(2), 123-136.
+https://doi.org/10.1901/jaba.1999.32-123
+
 Reynolds, G. S. (1961). Behavioral contrast. *JEAB*, 4(1), 57-71.
 https://doi.org/10.1901/jeab.1961.4-57
 
 Reynolds, G. S. (1964). Accurate and rapid reconditioning of
-spaced-responding by differential reinforcement of other behavior.
-*JEAB*, 7(3), 223-224. https://doi.org/10.1901/jeab.1964.7-223
+spaced responding. *JEAB*, 7(3), 273-275.
+https://doi.org/10.1901/jeab.1964.7-273
 
 Zeiler, M. D. (1977). Schedules of reinforcement: The controlling
 variables. In W. K. Honig & J. E. R. Staddon (Eds.), *Handbook of
@@ -39,6 +44,10 @@ momentary バリアントを使用すること。
 interval`) で、`[anchor, now)` — ちょうど `now` の反応は次のウィン
 ドウに属する半開ウィンドウ — に **反応がない** 場合のみ強化子が
 供給される。アンカーは outcome に関わらず各境界で `now` に進む。
+
+`"momentary"` という名前だが、中身はリセットしない全間隔型 DRO
+（ウィンドウ全体を見る）である。間隔の終わりの瞬間だけを見る
+Lindberg et al. (1999) の momentary DRO とは異なる。
 
 ### 状態変数
 

@@ -5,12 +5,17 @@
 Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*.
 Appleton-Century-Crofts.
 
+Lindberg, J. S., Iwata, B. A., Kahng, S., & DeLeon, I. G. (1999). DRO
+contingencies: An analysis of variable-momentary schedules. *Journal of
+Applied Behavior Analysis*, 32(2), 123-136.
+https://doi.org/10.1901/jaba.1999.32-123
+
 Reynolds, G. S. (1961). Behavioral contrast. *JEAB*, 4(1), 57-71.
 https://doi.org/10.1901/jeab.1961.4-57
 
 Reynolds, G. S. (1964). Accurate and rapid reconditioning of
-spaced-responding by differential reinforcement of other behavior.
-*JEAB*, 7(3), 223-224. https://doi.org/10.1901/jeab.1964.7-223
+spaced responding. *JEAB*, 7(3), 273-275.
+https://doi.org/10.1901/jeab.1964.7-273
 
 Zeiler, M. D. (1977). Schedules of reinforcement: The controlling
 variables. In W. K. Honig & J. E. R. Staddon (Eds.), *Handbook of
@@ -42,6 +47,11 @@ delivered iff **no** response occurred in `[anchor, now)` — a
 half-open window where a response at exactly `now` belongs to the
 next window. The anchor advances to `now` on every boundary
 regardless of outcome.
+
+Despite the `"momentary"` name, this is a non-resetting whole-interval
+DRO: the whole window is checked. It is not the momentary DRO of
+Lindberg et al. (1999), which checks only the instant at the end of
+the interval.
 
 ### State variables
 
