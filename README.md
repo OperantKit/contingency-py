@@ -94,6 +94,12 @@ A short hand-rolled loop usually gets the following wrong, and each one changes 
 - **Round trip with Method sections.** Because the schedule is written in contingency-dsl, [contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) turns it into a Method-section paragraph and [contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) extracts a schedule from published Method text.
 - **Input validation.** Non-monotonic time, malformed parameters, and unknown operanda raise explicit errors instead of silently producing wrong reinforcement times.
 
+**Measured on code written by AI agents.** We gave 20 schedule-programming requests to Claude Code (claude-opus-5-5) and Codex CLI (gpt-6.1-sol), one run each, and checked the schedule code they wrote against the contingency-dsl schedule definitions (static checks, plus a second model whose verdicts count only when the code lines it quotes exist):
+
+- VI intervals came from a Fleshler-Hoffman progression in 7 of 14 programs (Claude 7 of 7, Codex 0 of 7); the other 7 drew each interval from an exponential or uniform distribution.
+- All 6 concurrent schedules had a COD, but the review found a COD error in 2 of them: one did not record a changeover made during reinforcer delivery, and one treated the session's first response as a changeover.
+- Interval schedules held the arranged reinforcer until the next response and timed the next interval from delivery in 16 of 19 programs. Of the other 3, one discarded an available reinforcer at a component change, one could reinforce a response made before the interval had elapsed, and one only called this package's `FI`, which the reviewer could not inspect.
+
 ## Check your own implementation against the fixtures
 
 `pip install contingency-py` also installs the conformance corpus and the `contingency-conformance` command. Any implementation, in any language, can be checked against the same 22 fixtures:

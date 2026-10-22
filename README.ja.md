@@ -94,6 +94,12 @@ print(n_sr)  # 21
 - **Method 節との往復変換.** スケジュールを contingency-dsl で書くので、[contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) で Method 節の段落に変換でき、[contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) で論文の Method 本文からスケジュールを抽出できる。
 - **入力の検査.** 時刻の逆行・不正なパラメータ・未知のオペランダムは明示的なエラーになり、誤った強化時刻を黙って出すことはない。
 
+**AI エージェントが書いたコードでの実測.** スケジュールを組む 20 件の依頼を Claude Code（claude-opus-5-5）と Codex CLI（gpt-6.1-sol）に 1 回ずつ与え、書かれたスケジュールのコードを contingency-dsl のスケジュール定義に照らして検査した（静的検査と、別モデルによる判定。判定は引用したコード行が実在するときだけ数える）:
+
+- VI の間隔を Fleshler-Hoffman の数列で作ったのは 14 本中 7 本（Claude 7 本中 7 本、Codex 7 本中 0 本）。残りの 7 本は間隔を 1 つずつ指数分布か一様分布から抽選していた。
+- 並立スケジュール 6 本はすべて COD を持っていたが、判定で 2 本に COD の誤りが見つかった（強化子の提示中の切替を記録しない、セッション最初の反応を切替として扱う）。
+- 間隔スケジュールで、設定済みの強化子を次の反応まで保持し、次の間隔を提示から数えたのは 19 本中 16 本。残りの 3 本は、成分の切替で利用可能な強化子を捨てる、間隔の経過前の反応を強化しうる、このパッケージの `FI` を呼ぶだけで判定器が中身を見られない、の 3 つ。
+
 ## 自作の実装を fixture で検算する
 
 `pip install contingency-py` で、適合性 fixture と `contingency-conformance` コマンドも入る。どの言語の実装でも、同じ 22 個の fixture に照らして検算できる。
