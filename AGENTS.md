@@ -14,7 +14,7 @@ For whole sessions (start/stop criteria, logging to a file) use session-runner o
 
 - VI/VR values follow the Fleshler-Hoffman (1962) progression with a controllable `n` and `seed`; ad-hoc random draws produce a different distribution of inter-reinforcement intervals.
 - Concurrent schedules route each response to its own component, hold an arranged reinforcer until the next response on that operandum, and apply the changeover delay (COD), fixed-ratio changeover (`FRCO`), and direction-specific COD.
-- 23 JSON fixtures in `conformance/` pin exact outcome sequences, and the Rust port replays the same fixtures.
+- 24 JSON fixtures in `conformance/` pin exact outcome sequences, and the Rust port replays the same fixtures.
 - Invalid input fails loudly: non-monotonic time raises `ScheduleStateError`; bad parameters or an unknown operandum raise `ScheduleConfigError`.
 - Measured on schedule code that Claude Code (claude-opus-5-5) and Codex CLI (gpt-6.1-sol) wrote for 20 requests (one run each): VI intervals used Fleshler-Hoffman in 7 of 14 programs (the rest drew exponential or uniform intervals); all 6 concurrent schedules had a COD, but 2 had a COD error; 16 of 19 interval schedules held the arranged reinforcer and timed the next interval from delivery. The README section "Why not a 50-line hand-written schedule?" lists the errors.
 

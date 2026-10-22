@@ -440,6 +440,34 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "compound" / "chained_fr2_fr3.json", chained)
     )
 
+    chained_fi = FixtureSpec(
+        name="chained-fr2-fi5",
+        description=(
+            "Chained FR(2) -> FI(5): the FI link counts from its first "
+            "step after activation, and its clock stops while the FR "
+            "link is active."
+        ),
+        schedule={
+            "type": "Chained",
+            "params": {
+                "components": [
+                    {"type": "FR", "params": {"n": 2}},
+                    {"type": "FI", "params": {"interval": 5.0}},
+                ],
+                "stimuli": ["s0", "s1"],
+            },
+        },
+    )
+    # Link 0 completes at t=2; FI link first stepped at 3, arms at 8.
+    for t in (1.0, 2.0, 3.0, 7.0, 8.0):
+        chained_fi.add(now=t, event={"time": t, "operandum": "main"})
+    # Link 0 again completes at t=10; FI link resumes at 11, arms at 16.
+    for t in (9.0, 10.0, 11.0, 15.0, 16.0):
+        chained_fi.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "chained_fr2_fi5.json", chained_fi)
+    )
+
     # --- Compound: Multiple -------------------------------------------
 
     multiple = FixtureSpec(

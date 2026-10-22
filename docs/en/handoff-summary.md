@@ -120,8 +120,9 @@ pointers. Key semantic differences that a Rust port must honour
    COD. COD does not gate tick-side reinforcement from other
    components.
 4. **`Chained` / `Tandem` do not step inactive components**. A
-   time-based terminal link anchors on its first step after
-   activation, not at the transition instant.
+   time-based link anchors on its first step after activation, not
+   at the transition instant, on a clock that stops while the link
+   is inactive.
 5. **`Alternative` forwards `(now, event)` to both components on
    every step**. Both components maintain their own state; the
    wrapper only gates surfaced outcomes and resets both on a win.

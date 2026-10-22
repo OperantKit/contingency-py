@@ -40,6 +40,7 @@ from collections.abc import Sequence
 from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules.sequence import _ComponentClocks
 
 __all__ = ["Mixed"]
 
@@ -99,7 +100,8 @@ class Mixed:
 
     Notes
     -----
-    Inactive components are **not** stepped (matching
+    Inactive components are **not** stepped, and each component runs on
+    its own clock that stops while it is inactive (matching
     :class:`~contingency.schedules.Multiple`). The integer active
     index is reported in ``Outcome.meta["current_component"]`` on
     every step; this is the key difference from :class:`Multiple`,
@@ -111,12 +113,13 @@ class Mixed:
     reinforcement* (pp. 623-626). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_components", "_active", "_last_now")
+    __slots__ = ("_components", "_active", "_last_now", "_clocks")
 
     def __init__(self, components: Sequence[Schedule]) -> None:
         self._components: list[Schedule] = _validate_components(components)
         self._active: int = 0
         self._last_now: float | None = None
+        self._clocks = _ComponentClocks(len(self._components))
 
     @property
     def n_components(self) -> int:
@@ -133,11 +136,15 @@ class Mixed:
         _check_event(now, event)
         self._last_now = now
 
-        inner = self._components[self._active].step(now, event)
+        inner = self._clocks.step(
+            self._active, self._components[self._active], now, event
+        )
         current = self._active
 
         if inner.reinforced:
-            self._active = (self._active + 1) % len(self._components)
+            nxt = (self._active + 1) % len(self._components)
+            self._clocks.switch(self._active, nxt, now)
+            self._active = nxt
             meta: dict[str, object] = dict(inner.meta)
             meta["current_component"] = current
             return Outcome(
@@ -151,5 +158,6 @@ class Mixed:
     def reset(self) -> None:
         self._active = 0
         self._last_now = None
+        self._clocks.reset()
         for c in self._components:
             c.reset()

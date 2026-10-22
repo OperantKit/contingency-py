@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - `Concurrent`: on a step where the COD holds the responded operandum's reinforcer, a reinforcer that another component delivers on its tick at the same step is returned (with `meta["cod_suppressed"]`) instead of being replaced by an empty outcome, unless a punisher fires at that step. New conformance fixture `compound/concurrent_cod_tick.json`.
+- `Chained`, `Tandem`, `Multiple`: time-based components (FI, VI, RI, FT, VT, RT, DRO) count from their first step after activation, as documented, instead of from session start or the component's last reinforcer. Each component runs on its own clock, which stops while the component is inactive; a re-entered component resumes with the time it had accumulated. For example, `Chained([FR(5), FI(30.0)])` with one response per second now reinforces at 35 and 71 instead of 30 and 60. `Mixed` behaves the same way. New conformance fixture `compound/chained_fr2_fi5.json`.
 
 ## [0.1.1]
 

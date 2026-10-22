@@ -1,0 +1,171 @@
+{
+  "description": "Chained FR(2) -> FI(5): the FI link counts from its first step after activation, and its clock stops while the FR link is active.",
+  "name": "chained-fr2-fi5",
+  "schedule": {
+    "params": {
+      "components": [
+        {
+          "params": {
+            "n": 2
+          },
+          "type": "FR"
+        },
+        {
+          "params": {
+            "interval": 5.0
+          },
+          "type": "FI"
+        }
+      ],
+      "stimuli": [
+        "s0",
+        "s1"
+      ]
+    },
+    "type": "Chained"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s0"
+        },
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "chain_transition": true,
+          "current_component": "s1"
+        },
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s1"
+        },
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s1"
+        },
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 8.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s0"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 8.0
+        }
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 9.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s0"
+        },
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 10.0
+      },
+      "expect": {
+        "meta": {
+          "chain_transition": true,
+          "current_component": "s1"
+        },
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 11.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s1"
+        },
+        "reinforced": false
+      },
+      "now": 11.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 15.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s1"
+        },
+        "reinforced": false
+      },
+      "now": 15.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 16.0
+      },
+      "expect": {
+        "meta": {
+          "current_component": "s0"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 16.0
+        }
+      },
+      "now": 16.0
+    }
+  ]
+}

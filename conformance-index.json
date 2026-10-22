@@ -93,6 +93,13 @@
     },
     {
       "kind": "deterministic",
+      "path": "compound/chained_fr2_fi5.json",
+      "sha256": "6218d5e0afb61b5e821d718342288e36bb7870b64dd8d0d4474dd5f27527e749",
+      "steps": 10,
+      "type": "Chained"
+    },
+    {
+      "kind": "deterministic",
       "path": "compound/chained_fr2_fr3.json",
       "sha256": "9ae28675239b5b85c141b3340fb7180a01587e14fc4713c882734d06758a4065",
       "steps": 7,

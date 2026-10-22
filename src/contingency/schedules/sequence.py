@@ -23,13 +23,21 @@ Time-stepping inactive components
 Inactive components are *not* stepped. Only the active component receives
 :meth:`Schedule.step` calls. This matches the operant-chamber convention
 that inactive components are "off": their clocks do not advance while
-another S^D is in effect. The consequence is that a newly-activated
-component is implicitly "cold" — time-based schedules (FI, FT, VI, VT,
-RI, RT) will anchor on their first step *after* the transition, not on
-the moment the transition occurred. In practice this matters only for
-time-based terminal components in a Chained/Tandem: the interval begins
-when the first step after the transition is taken, exactly as in a real
-operant chamber where the S^D and the clock both restart on link entry.
+another S^D is in effect.
+
+Each component therefore runs on its own clock, which advances only
+while that component is active. The compound translates ``now`` into
+the component's clock before stepping it and translates the reinforcer
+time back. A newly-activated component's clock resumes on its first
+step *after* the transition, at the time it had accumulated while
+active (0 on its first activation). Time-based schedules (FI, FT, VI,
+VT, RI, RT, DRO) therefore count from their first step after
+activation — not from session start or from the component's last
+reinforcer — exactly as in a real operant chamber where the S^D and the
+clock both restart on link entry. The first component runs from time 0,
+as a standalone schedule does. The gap between the transition and that
+first step is counted by no component, so drive time-based links with a
+step grid fine enough for the intended timing.
 
 References
 ----------
@@ -49,6 +57,7 @@ https://doi.org/10.1901/jeab.1961.4-57
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
@@ -119,6 +128,51 @@ def _validate_stimuli(
     return names
 
 
+class _ComponentClocks:
+    """Per-component clocks that stop while a component is inactive.
+
+    A component's local time is ``now - offset``. When a component is
+    entered, its clock stays stopped until the component's first step,
+    and resumes there at the local time it had when it was last left
+    (0 for a component that has never run). The first component runs
+    from time 0, as a standalone schedule does.
+    """
+
+    __slots__ = ("_offsets", "_stopped", "_pending")
+
+    def __init__(self, n: int) -> None:
+        self._offsets: list[float] = [0.0] * n
+        self._stopped: list[float] = [0.0] * n
+        self._pending: list[bool] = [False] * n
+
+    def step(
+        self,
+        index: int,
+        component: Schedule,
+        now: float,
+        event: ResponseEvent | None,
+    ) -> Outcome:
+        if self._pending[index]:
+            self._offsets[index] = now - self._stopped[index]
+            self._pending[index] = False
+        local = now - self._offsets[index]
+        local_event = None if event is None else replace(event, time=local)
+        inner = component.step(local, local_event)
+        if inner.reinforcer is not None:
+            inner = replace(inner, reinforcer=replace(inner.reinforcer, time=now))
+        return inner
+
+    def switch(self, leaving: int, entering: int, now: float) -> None:
+        self._stopped[leaving] = now - self._offsets[leaving]
+        self._pending[entering] = True
+
+    def reset(self) -> None:
+        n = len(self._offsets)
+        self._offsets = [0.0] * n
+        self._stopped = [0.0] * n
+        self._pending = [False] * n
+
+
 class Multiple:
     """Multiple (``mult``) compound schedule.
 
@@ -152,7 +206,7 @@ class Multiple:
     https://doi.org/10.1901/jeab.1961.4-57
     """
 
-    __slots__ = ("_components", "_stimuli", "_active", "_last_now")
+    __slots__ = ("_components", "_stimuli", "_active", "_last_now", "_clocks")
 
     def __init__(
         self,
@@ -165,6 +219,7 @@ class Multiple:
         )
         self._active: int = 0
         self._last_now: float | None = None
+        self._clocks = _ComponentClocks(len(self._components))
 
     @property
     def n_components(self) -> int:
@@ -183,12 +238,14 @@ class Multiple:
         _check_event(now, event)
         self._last_now = now
 
-        inner = self._components[self._active].step(now, event)
+        inner = self._clocks.step(
+            self._active, self._components[self._active], now, event
+        )
         stim = self._stimuli[self._active]
 
         if inner.reinforced:
             # Primary reinforcement; then advance (wrap) for the next step.
-            self._active = (self._active + 1) % len(self._components)
+            self._enter((self._active + 1) % len(self._components), now)
             meta: dict[str, object] = dict(inner.meta)
             meta["current_component"] = stim
             return Outcome(
@@ -199,9 +256,14 @@ class Multiple:
         meta["current_component"] = stim
         return Outcome(meta=meta)
 
+    def _enter(self, index: int, now: float) -> None:
+        self._clocks.switch(self._active, index, now)
+        self._active = index
+
     def reset(self) -> None:
         self._active = 0
         self._last_now = None
+        self._clocks.reset()
         for c in self._components:
             c.reset()
 
@@ -239,7 +301,7 @@ class Chained:
     https://doi.org/10.1901/jeab.1962.5-s543
     """
 
-    __slots__ = ("_components", "_stimuli", "_active", "_last_now")
+    __slots__ = ("_components", "_stimuli", "_active", "_last_now", "_clocks")
 
     def __init__(
         self,
@@ -252,6 +314,7 @@ class Chained:
         )
         self._active: int = 0
         self._last_now: float | None = None
+        self._clocks = _ComponentClocks(len(self._components))
 
     @property
     def n_components(self) -> int:
@@ -274,12 +337,14 @@ class Chained:
         _check_event(now, event)
         self._last_now = now
 
-        inner = self._components[self._active].step(now, event)
+        inner = self._clocks.step(
+            self._active, self._components[self._active], now, event
+        )
 
         if inner.reinforced:
             if self.is_terminal:
                 # Primary reinforcement; cycle back to link 0.
-                self._active = 0
+                self._enter(0, now)
                 meta: dict[str, object] = dict(inner.meta)
                 meta["current_component"] = self._stimuli[self._active]
                 return Outcome(
@@ -289,7 +354,7 @@ class Chained:
                 )
             # Non-terminal completion: conditioned reinforcement =
             # transition to next link; no primary reinforcer.
-            self._active += 1
+            self._enter(self._active + 1, now)
             meta = dict(inner.meta)
             meta["current_component"] = self._stimuli[self._active]
             meta["chain_transition"] = True
@@ -299,9 +364,14 @@ class Chained:
         meta["current_component"] = self._stimuli[self._active]
         return Outcome(meta=meta)
 
+    def _enter(self, index: int, now: float) -> None:
+        self._clocks.switch(self._active, index, now)
+        self._active = index
+
     def reset(self) -> None:
         self._active = 0
         self._last_now = None
+        self._clocks.reset()
         for c in self._components:
             c.reset()
 
@@ -335,12 +405,13 @@ class Tandem:
     https://doi.org/10.1901/jeab.1962.5-s543
     """
 
-    __slots__ = ("_components", "_active", "_last_now")
+    __slots__ = ("_components", "_active", "_last_now", "_clocks")
 
     def __init__(self, components: Sequence[Schedule]) -> None:
         self._components: list[Schedule] = _validate_components(components)
         self._active: int = 0
         self._last_now: float | None = None
+        self._clocks = _ComponentClocks(len(self._components))
 
     @property
     def n_components(self) -> int:
@@ -359,11 +430,13 @@ class Tandem:
         _check_event(now, event)
         self._last_now = now
 
-        inner = self._components[self._active].step(now, event)
+        inner = self._clocks.step(
+            self._active, self._components[self._active], now, event
+        )
 
         if inner.reinforced:
             if self.is_terminal:
-                self._active = 0
+                self._enter(0, now)
                 meta: dict[str, object] = dict(inner.meta)
                 meta["current_component"] = self._active
                 return Outcome(
@@ -371,7 +444,7 @@ class Tandem:
                     reinforcer=inner.reinforcer,
                     meta=meta,
                 )
-            self._active += 1
+            self._enter(self._active + 1, now)
             meta = dict(inner.meta)
             meta["current_component"] = self._active
             meta["chain_transition"] = True
@@ -381,8 +454,13 @@ class Tandem:
         meta["current_component"] = self._active
         return Outcome(meta=meta)
 
+    def _enter(self, index: int, now: float) -> None:
+        self._clocks.switch(self._active, index, now)
+        self._active = index
+
     def reset(self) -> None:
         self._active = 0
         self._last_now = None
+        self._clocks.reset()
         for c in self._components:
             c.reset()

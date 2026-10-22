@@ -477,3 +477,70 @@ class TestTandemStateErrors:
         t = Tandem([FR(1), FR(1)])
         with pytest.raises(ScheduleStateError):
             t.step(1.0, ResponseEvent(time=2.0))
+
+
+def _reinforcement_times(s: Schedule, until: int) -> list[float]:
+    """Respond once per second from t=0 to ``until`` and collect SR+ times."""
+    out: list[float] = []
+    for i in range(until + 1):
+        t = float(i)
+        if s.step(t, ResponseEvent(time=t)).reinforced:
+            out.append(t)
+    return out
+
+
+class TestTimeBasedLinkAnchor:
+    """Time-based links count from their first step after activation.
+
+    A component's clock stops while it is inactive, so neither session
+    time nor time spent in other links counts toward its interval.
+    """
+
+    def test_chained_fi_terminal_counts_from_link_entry(self) -> None:
+        from contingency.schedules import FI
+
+        c = Chained([FR(5), FI(30.0)], ["s0", "s1"])
+        # FR 5 completes at t=4; FI link first stepped at 5 -> SR+ at 35.
+        # FR 5 again at 36..40; FI link first stepped at 41 -> SR+ at 71.
+        assert _reinforcement_times(c, 75) == [35.0, 71.0]
+
+    def test_tandem_fi_terminal_counts_from_link_entry(self) -> None:
+        from contingency.schedules import FI
+
+        t = Tandem([FR(5), FI(30.0)])
+        assert _reinforcement_times(t, 75) == [35.0, 71.0]
+
+    def test_chained_ft_terminal_counts_from_link_entry(self) -> None:
+        c = Chained([FR(5), FT(10.0)], ["s0", "s1"])
+        out: list[float] = []
+        for i in range(40):
+            t = float(i)
+            # Respond only while link 0 is active, tick otherwise.
+            ev = ResponseEvent(time=t) if c.active_index == 0 else None
+            if c.step(t, ev).reinforced:
+                out.append(t)
+        # FT link first stepped at 5 -> SR+ at 15; FR 5 at 16..20;
+        # FT link first stepped at 21 -> SR+ at 31.
+        assert out == [15.0, 31.0]
+
+    def test_multiple_fi_component_clock_pauses_while_inactive(self) -> None:
+        from contingency.schedules import FI
+
+        m = Multiple([FI(10.0), FR(20)], ["a", "b"])
+        # FI from 0 -> SR+ at 10; FR 20 at 11..30; FI resumes at 31 with
+        # 10 s already used -> SR+ at 41.
+        assert _reinforcement_times(m, 45) == [10.0, 30.0, 41.0]
+
+    def test_mixed_fi_component_clock_pauses_while_inactive(self) -> None:
+        from contingency.schedules import FI, Mixed
+
+        m = Mixed([FI(10.0), FR(20)])
+        assert _reinforcement_times(m, 45) == [10.0, 30.0, 41.0]
+
+    def test_chained_escape_link_delivers_onset_on_entry(self) -> None:
+        from contingency.schedules import Escape
+
+        c = Chained([FR(1), Escape(5.0, 10.0)], ["s0", "s1"])
+        c.step(0.0, ResponseEvent(time=0.0))
+        o = c.step(1.0)
+        assert o.meta.get("aversive_event") == "shock_onset"
