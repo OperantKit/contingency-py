@@ -94,6 +94,8 @@ A short hand-rolled loop usually gets the following wrong, and each one changes 
 - **Round trip with Method sections.** Because the schedule is written in contingency-dsl, [contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) turns it into a Method-section paragraph and [contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) extracts a schedule from published Method text.
 - **Input validation.** Non-monotonic time, malformed parameters, and unknown operanda raise explicit errors instead of silently producing wrong reinforcement times.
 
+[Schedule terms](docs/en/schedule-terms.md) answers the questions behind these points in a few sentences each — changeover delay (COD) in concurrent VI schedules, the Fleshler-Hoffman progression, DRL and interresponse time, resetting DRO, and when a VI interval starts — with the expression to write for each.
+
 **Measured on code written by AI agents.** We gave 20 schedule-programming requests to Claude Code (claude-opus-5-5) and Codex CLI (gpt-6.1-sol), one run each, and checked the schedule code they wrote against the contingency-dsl schedule definitions (static checks, plus a second model whose verdicts count only when the code lines it quotes exist):
 
 - VI intervals came from a Fleshler-Hoffman progression in 7 of 14 programs (Claude 7 of 7, Codex 0 of 7); the other 7 drew each interval from an exponential or uniform distribution.

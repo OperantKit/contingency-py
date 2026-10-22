@@ -94,6 +94,8 @@ print(n_sr)  # 21
 - **Method 節との往復変換.** スケジュールを contingency-dsl で書くので、[contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) で Method 節の段落に変換でき、[contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) で論文の Method 本文からスケジュールを抽出できる。
 - **入力の検査.** 時刻の逆行・不正なパラメータ・未知のオペランダムは明示的なエラーになり、誤った強化時刻を黙って出すことはない。
 
+[スケジュールの用語](docs/ja/schedule-terms.md) では、これらの点の背景にある問い（並立 VI の切替遅延 (COD)、Fleshler-Hoffman の数列、DRL と反応間時間、リセット型 DRO、VI の間隔がいつ始まるか）に数文ずつ答え、それぞれの書き方を示している。
+
 **AI エージェントが書いたコードでの実測.** スケジュールを組む 20 件の依頼を Claude Code（claude-opus-5-5）と Codex CLI（gpt-6.1-sol）に 1 回ずつ与え、書かれたスケジュールのコードを contingency-dsl のスケジュール定義に照らして検査した（静的検査と、別モデルによる判定。判定は引用したコード行が実在するときだけ数える）:
 
 - VI の間隔を Fleshler-Hoffman の数列で作ったのは 14 本中 7 本（Claude 7 本中 7 本、Codex 7 本中 0 本）。残りの 7 本は間隔を 1 つずつ指数分布か一様分布から抽選していた。
