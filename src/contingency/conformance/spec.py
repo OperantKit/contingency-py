@@ -27,16 +27,21 @@ from contingency.schedules import (
     VI,
     VR,
     VT,
+    AdjustingSchedule,
     Alternative,
     Chained,
     Concurrent,
     Conjunctive,
     InterlockingSchedule,
+    Interpolate,
     LimitedHold,
     Mixed,
     Multiple,
+    Overlay,
+    Percentile,
     ProgressiveRatio,
     ResponseCost,
+    SecondOrder,
     Tandem,
     Timeout,
     arithmetic,
@@ -175,6 +180,44 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
     if stype == "InterlockingSchedule":
         return InterlockingSchedule(
             int(params["initial_ratio"]), float(params["decay_time"])
+        )
+    if stype == "AdjustingSchedule":
+        minimum = params.get("minimum")
+        maximum = params.get("maximum")
+        return AdjustingSchedule(
+            str(params["target"]),
+            float(params["start"]),
+            float(params["step"]),
+            minimum=float(minimum) if minimum is not None else None,
+            maximum=float(maximum) if maximum is not None else None,
+        )
+    if stype == "Interpolate":
+        first_probe_at = params.get("first_probe_at")
+        return Interpolate(
+            build_schedule_from_spec(params["base"]),
+            build_schedule_from_spec(params["probe"]),
+            float(params["interval"]),
+            float(params["probe_duration"]),
+            first_probe_at=(
+                float(first_probe_at) if first_probe_at is not None else None
+            ),
+        )
+    if stype == "Overlay":
+        return Overlay(
+            build_schedule_from_spec(params["base"]),
+            build_schedule_from_spec(params["punisher"]),
+        )
+    if stype == "Percentile":
+        return Percentile(
+            str(params["target"]),
+            int(params["rank"]),
+            int(params["window"]),
+            direction=str(params.get("direction", "above")),
+        )
+    if stype == "SecondOrder":
+        return SecondOrder(
+            build_schedule_from_spec(params["overall"]),
+            build_schedule_from_spec(params["unit"]),
         )
 
     raise ValueError(f"unknown schedule type: {stype!r}")

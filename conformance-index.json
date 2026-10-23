@@ -128,6 +128,13 @@
     },
     {
       "kind": "deterministic",
+      "path": "compound/interpolate_fr2_ext.json",
+      "sha256": "0dc8ae460e48355cdaf163716f441bc8e69626eb8072e84730646d2a76f6a015",
+      "steps": 10,
+      "type": "Interpolate"
+    },
+    {
+      "kind": "deterministic",
       "path": "compound/mixed_fr2_fr3.json",
       "sha256": "45072eae0a2cd4047921d5b3f242211177a4df00442daef8a94514870453a6ea",
       "steps": 6,
@@ -139,6 +146,20 @@
       "sha256": "4db11845fe4df41ac410869ad11c49aea25bfcfd1b72085886faba0ac10ffdd9",
       "steps": 6,
       "type": "Multiple"
+    },
+    {
+      "kind": "deterministic",
+      "path": "compound/overlay_fr2_fr3.json",
+      "sha256": "ff8bd3c59b1e13b89153e204a06d45cf962666e2a0556bd6c39060904ae9ffb9",
+      "steps": 7,
+      "type": "Overlay"
+    },
+    {
+      "kind": "deterministic",
+      "path": "compound/second_order_fr2_fr3.json",
+      "sha256": "9cc76aafd3fa3d567c15b6a6ac54498272d19731cd530be63926964314e53bdd",
+      "steps": 8,
+      "type": "SecondOrder"
     },
     {
       "kind": "deterministic",
@@ -174,6 +195,20 @@
       "sha256": "df8703975726145ea1f0688c3429b9cf47a940d6e99c4849fa250e785d3d0cd8",
       "steps": 5,
       "type": "DRO"
+    },
+    {
+      "kind": "deterministic",
+      "path": "differential/percentile_irt_r75_w3.json",
+      "sha256": "e73efea5a9a98ae7682d737d6b021b68ed78c9afd6f8c0fa3728767a4a5f1693",
+      "steps": 9,
+      "type": "Percentile"
+    },
+    {
+      "kind": "deterministic",
+      "path": "progressive/adjusting_ratio_s2_max3.json",
+      "sha256": "05998d51c78b8165affff960a8b910bb75467f15b994f131634505c2881a075b",
+      "steps": 9,
+      "type": "AdjustingSchedule"
     },
     {
       "kind": "deterministic",

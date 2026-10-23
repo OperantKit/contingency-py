@@ -1,0 +1,166 @@
+{
+  "description": "Interpolate(base=FR(2), probe=EXT, interval=10, probe_duration=4, first_probe_at=5): the first step anchors the session at t=0, so probe windows are [5, 9) and [15, 19). Base FR(2) reinforces at t=2; the response at t=3 leaves its count at 1. Responses at t=6 and t=8 fall in the probe (EXT, in_probe=true) and do not advance base. At t=9 the window has closed (half-open end), base resumes from count 1 and reinforces. The same repeats around the second window: t=15 probe, t=19 and t=20 base, reinforced at t=20.",
+  "name": "interpolate-fr2-ext-i10-p4",
+  "schedule": {
+    "params": {
+      "base": {
+        "params": {
+          "n": 2
+        },
+        "type": "FR"
+      },
+      "first_probe_at": 5.0,
+      "interval": 10.0,
+      "probe": {
+        "params": {},
+        "type": "EXT"
+      },
+      "probe_duration": 4.0
+    },
+    "type": "Interpolate"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 2.0
+        }
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": true
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 8.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": true
+        },
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 9.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 9.0
+        }
+      },
+      "now": 9.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 15.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": true
+        },
+        "reinforced": false
+      },
+      "now": 15.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 19.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": false
+      },
+      "now": 19.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 20.0
+      },
+      "expect": {
+        "meta": {
+          "in_probe": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 20.0
+        }
+      },
+      "now": 20.0
+    }
+  ]
+}

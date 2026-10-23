@@ -1,0 +1,111 @@
+{
+  "description": "SecondOrder(overall=FR(2), unit=FR(3)): each completion of the FR(3) unit is fed to the overall as one synthetic response (operandum __unit_completion__) and the unit is reset. The first unit completion at t=3 carries unit_completed with no SR+; the second at t=6 completes the overall FR(2) and delivers SR+ with second_order. A tick between them changes nothing.",
+  "name": "second-order-fr2-fr3",
+  "schedule": {
+    "params": {
+      "overall": {
+        "params": {
+          "n": 2
+        },
+        "type": "FR"
+      },
+      "unit": {
+        "params": {
+          "n": 3
+        },
+        "type": "FR"
+      }
+    },
+    "type": "SecondOrder"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "meta": {
+          "unit_completed": true
+        },
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.5
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "second_order": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 6.0
+        }
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    }
+  ]
+}

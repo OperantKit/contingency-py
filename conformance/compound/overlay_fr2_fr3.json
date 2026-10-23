@@ -1,0 +1,127 @@
+{
+  "description": "Overlay(base=FR(2), punisher=FR(3)): both components see every response. Base alone fires at t=2 and t=4 (SR+, magnitude 1); the punisher alone fires at t=3 (SR-, magnitude -1). At t=6 both fire on the same step, so the surfaced reinforcer carries net_magnitude = 1 - 1 = 0 and label SR0. A tick changes nothing.",
+  "name": "overlay-fr2-fr3",
+  "schedule": {
+    "params": {
+      "base": {
+        "params": {
+          "n": 2
+        },
+        "type": "FR"
+      },
+      "punisher": {
+        "params": {
+          "n": 3
+        },
+        "type": "FR"
+      }
+    },
+    "type": "Overlay"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": true,
+          "punisher_fired": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 2.0
+        }
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": false,
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 3.0
+        }
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 4.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": true,
+          "punisher_fired": false
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 4.0
+        }
+      },
+      "now": 4.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.5
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": true,
+          "net_magnitude": 0.0,
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR0",
+          "magnitude": 0.0,
+          "time": 6.0
+        }
+      },
+      "now": 6.0
+    }
+  ]
+}

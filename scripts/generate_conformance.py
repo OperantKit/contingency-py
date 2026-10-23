@@ -648,6 +648,96 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "compound" / "tandem_fr_fr.json", tandem)
     )
 
+    # --- Compound: SecondOrder ----------------------------------------
+
+    second_order = FixtureSpec(
+        name="second-order-fr2-fr3",
+        description=(
+            "SecondOrder(overall=FR(2), unit=FR(3)): each completion of the "
+            "FR(3) unit is fed to the overall as one synthetic response "
+            "(operandum __unit_completion__) and the unit is reset. The first "
+            "unit completion at t=3 carries unit_completed with no SR+; the "
+            "second at t=6 completes the overall FR(2) and delivers SR+ with "
+            "second_order. A tick between them changes nothing."
+        ),
+        schedule={
+            "type": "SecondOrder",
+            "params": {
+                "overall": {"type": "FR", "params": {"n": 2}},
+                "unit": {"type": "FR", "params": {"n": 3}},
+            },
+        },
+    )
+    for t in [1.0, 2.0, 3.0]:
+        second_order.add(now=t, event={"time": t, "operandum": "main"})
+    second_order.add(now=3.5, event=None)
+    for t in [4.0, 5.0, 6.0, 7.0]:
+        second_order.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "second_order_fr2_fr3.json", second_order)
+    )
+
+    # --- Compound: Overlay --------------------------------------------
+
+    overlay = FixtureSpec(
+        name="overlay-fr2-fr3",
+        description=(
+            "Overlay(base=FR(2), punisher=FR(3)): both components see every "
+            "response. Base alone fires at t=2 and t=4 (SR+, magnitude 1); "
+            "the punisher alone fires at t=3 (SR-, magnitude -1). At t=6 "
+            "both fire on the same step, so the surfaced reinforcer carries "
+            "net_magnitude = 1 - 1 = 0 and label SR0. A tick changes nothing."
+        ),
+        schedule={
+            "type": "Overlay",
+            "params": {
+                "base": {"type": "FR", "params": {"n": 2}},
+                "punisher": {"type": "FR", "params": {"n": 3}},
+            },
+        },
+    )
+    for t in [1.0, 2.0, 3.0, 4.0]:
+        overlay.add(now=t, event={"time": t, "operandum": "main"})
+    overlay.add(now=4.5, event=None)
+    for t in [5.0, 6.0]:
+        overlay.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "overlay_fr2_fr3.json", overlay)
+    )
+
+    # --- Compound: Interpolate ----------------------------------------
+
+    interp = FixtureSpec(
+        name="interpolate-fr2-ext-i10-p4",
+        description=(
+            "Interpolate(base=FR(2), probe=EXT, interval=10, "
+            "probe_duration=4, first_probe_at=5): the first step anchors the "
+            "session at t=0, so probe windows are [5, 9) and [15, 19). Base "
+            "FR(2) reinforces at t=2; the response at t=3 leaves its count "
+            "at 1. Responses at t=6 and t=8 fall in the probe (EXT, "
+            "in_probe=true) and do not advance base. At t=9 the window has "
+            "closed (half-open end), base resumes from count 1 and "
+            "reinforces. The same repeats around the second window: t=15 "
+            "probe, t=19 and t=20 base, reinforced at t=20."
+        ),
+        schedule={
+            "type": "Interpolate",
+            "params": {
+                "base": {"type": "FR", "params": {"n": 2}},
+                "probe": {"type": "EXT", "params": {}},
+                "interval": 10.0,
+                "probe_duration": 4.0,
+                "first_probe_at": 5.0,
+            },
+        },
+    )
+    interp.add(now=0.0, event=None)
+    for t in [1.0, 2.0, 3.0, 6.0, 8.0, 9.0, 15.0, 19.0, 20.0]:
+        interp.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "interpolate_fr2_ext.json", interp)
+    )
+
     # --- Compound: Alternative ----------------------------------------
 
     alt = FixtureSpec(
@@ -757,6 +847,37 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "differential" / "drh_basic.json", drh)
     )
 
+    pctl = FixtureSpec(
+        name="percentile-irt-r75-w3-above",
+        description=(
+            "Percentile(target=irt, rank=75, window=3, direction=above): the "
+            "response at t=0 anchors the IRT clock; the next three IRTs "
+            "(1, 2, 3) fill the window and never reinforce. Each later "
+            "response is compared with the 75th percentile of the window "
+            "before its own IRT is added (linear interpolation, h = 0.75 * "
+            "2 = 1.5): t=7 IRT 1 < 2.5 no; t=10 IRT 3 >= 2.5 reinforced; "
+            "t=12 IRT 2 < 3 (window 3, 1, 3) no; t=14.5 IRT 2.5 >= 2.5 "
+            "reinforced at the equality boundary. A tick changes nothing."
+        ),
+        schedule={
+            "type": "Percentile",
+            "params": {
+                "target": "irt",
+                "rank": 75,
+                "window": 3,
+                "direction": "above",
+            },
+        },
+    )
+    for t in [0.0, 1.0, 3.0, 6.0, 7.0]:
+        pctl.add(now=t, event={"time": t, "operandum": "main"})
+    pctl.add(now=8.0, event=None)
+    for t in [10.0, 12.0, 14.5]:
+        pctl.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "differential" / "percentile_irt_r75_w3.json", pctl)
+    )
+
     # --- Progressive Ratio --------------------------------------------
 
     pr = FixtureSpec(
@@ -798,6 +919,34 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
     ilock.add(now=21.0, event=None)
     fixtures.append(
         (CONFORMANCE_DIR / "progressive" / "interlocking_r4_t8.json", ilock)
+    )
+
+    adjusting = FixtureSpec(
+        name="adjusting-ratio-s2-step1-max3",
+        description=(
+            "AdjustingSchedule(target=ratio, start=2, step=1, maximum=3): an "
+            "FR whose requirement rises by 1 after each reinforcer, clamped "
+            "at 3. Requirement 2 is met at t=2 (value -> 3), requirement 3 at "
+            "t=5 (value 4 is clamped back to 3), and requirement 3 again at "
+            "t=8. A tick does not count as a response."
+        ),
+        schedule={
+            "type": "AdjustingSchedule",
+            "params": {
+                "target": "ratio",
+                "start": 2.0,
+                "step": 1.0,
+                "maximum": 3.0,
+            },
+        },
+    )
+    for t in [1.0, 2.0, 3.0]:
+        adjusting.add(now=t, event={"time": t, "operandum": "main"})
+    adjusting.add(now=3.5, event=None)
+    for t in [4.0, 5.0, 6.0, 7.0, 8.0]:
+        adjusting.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "progressive" / "adjusting_ratio_s2_max3.json", adjusting)
     )
 
     return fixtures

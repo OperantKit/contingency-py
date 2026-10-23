@@ -33,7 +33,10 @@ conformance/
 │   ├── mixed_fr2_fr3.json
 │   ├── tandem_fr_fr.json
 │   ├── alternative_fr_ft.json
-│   └── conjunctive_fr3_fi5.json
+│   ├── conjunctive_fr3_fi5.json
+│   ├── interpolate_fr2_ext.json
+│   ├── overlay_fr2_fr3.json
+│   └── second_order_fr2_fr3.json
 ├── wrapper/
 │   ├── timeout_fr2_to3.json
 │   └── response_cost_fr2.json
@@ -41,10 +44,12 @@ conformance/
 │   ├── dro_resetting.json
 │   ├── dro_momentary.json
 │   ├── drl_basic.json
-│   └── drh_basic.json
+│   ├── drh_basic.json
+│   └── percentile_irt_r75_w3.json
 └── progressive/
     ├── pr_arithmetic.json
-    └── interlocking_r4_t8.json
+    ├── interlocking_r4_t8.json
+    └── adjusting_ratio_s2_max3.json
 ```
 
 ## Fixture schema
@@ -98,10 +103,11 @@ Supported types:
 - Atomic: `FR`, `VR`, `RR`, `FI`, `VI`, `RI`, `FT`, `VT`, `RT`,
   `CRF`, `EXT`.
 - Wrappers: `LimitedHold`, `Timeout`, `ResponseCost`.
-- Differential: `DRO`, `DRL`, `DRH`.
+- Differential: `DRO`, `DRL`, `DRH`, `Percentile`.
 - Compound: `Concurrent`, `Alternative`, `Conjunctive`, `Multiple`,
-  `Mixed`, `Chained`, `Tandem`.
-- Progressive: `ProgressiveRatio`, `InterlockingSchedule`.
+  `Mixed`, `Chained`, `Tandem`, `Interpolate`, `Overlay`, `SecondOrder`.
+- Progressive: `ProgressiveRatio`, `InterlockingSchedule`,
+  `AdjustingSchedule`.
 
 ## Regenerate
 
