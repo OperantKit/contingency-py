@@ -86,6 +86,27 @@
     },
     {
       "kind": "deterministic",
+      "path": "aversive/discriminated_avoidance_w3_iti4.json",
+      "sha256": "ee866989e5affe41ebd54eb13408dc4e00bac77354e6c87d1135aa72ea994b26",
+      "steps": 9,
+      "type": "DiscriminatedAvoidance"
+    },
+    {
+      "kind": "deterministic",
+      "path": "aversive/escape_trial3_iti2.json",
+      "sha256": "dc70ebd7c8f085dd4325db09e303dddf970097542ebe49f143ea4e5f63bcf5dd",
+      "steps": 10,
+      "type": "Escape"
+    },
+    {
+      "kind": "deterministic",
+      "path": "aversive/sidman_ssi5_rsi3.json",
+      "sha256": "125771f2f77e3f0597bca6f66512ea821b5ad8d5c5dab74c53f2a7d7a5f46e7f",
+      "steps": 9,
+      "type": "Sidman"
+    },
+    {
+      "kind": "deterministic",
       "path": "compound/alternative_fr_ft.json",
       "sha256": "2bbeaaab45f0b1e9c163c5bc0f0066188249f16007cdda380f0a6ec5805d67d6",
       "steps": 7,
@@ -223,6 +244,20 @@
       "sha256": "cda9eaaf51ec061d9436e3bcb5b5da1de8624a7b5649d9b3774d575f57e3457a",
       "steps": 15,
       "type": "ProgressiveRatio"
+    },
+    {
+      "kind": "stochastic",
+      "path": "trial/gonogo_p05_seed1.json",
+      "sha256": "f20f5a4ae1801e965efaec87ad6e6bfdac90071ff2f46bb334761e7f86cdb1fc",
+      "steps": 8,
+      "type": "GoNoGo"
+    },
+    {
+      "kind": "stochastic",
+      "path": "trial/mts_n2_seed7.json",
+      "sha256": "bbaad300f2aa5b1fb4c6887b7c050943bb891110a1cadaccb81feaf50a3fd58e",
+      "steps": 11,
+      "type": "MatchingToSample"
     },
     {
       "kind": "deterministic",

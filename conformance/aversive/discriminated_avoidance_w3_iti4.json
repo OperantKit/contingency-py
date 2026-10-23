@@ -1,0 +1,123 @@
+{
+  "description": "DiscriminatedAvoidance(warning_duration=3, iti=4): the ITI runs from t=0 and the warning stimulus starts at t=4. A response at t=5 avoids (no SR-); a response at t=6 falls in the ITI and is ignored. The warning starts again at t=9 and, with no response, the tick at t=12 delivers a shock. The next warning starts at t=16 and a response on that same step avoids immediately.",
+  "name": "discriminated-avoidance-w3-iti4",
+  "schedule": {
+    "params": {
+      "iti": 4.0,
+      "warning_duration": 3.0
+    },
+    "type": "DiscriminatedAvoidance"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti"
+        },
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "warning"
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.0
+      },
+      "expect": {
+        "meta": {
+          "aversive_event": "avoidance",
+          "phase": "warning",
+          "trial_outcome": "avoid"
+        },
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti"
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "warning"
+        },
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "warning"
+        },
+        "reinforced": false
+      },
+      "now": 11.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock",
+          "phase": "warning",
+          "trial_outcome": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 12.0
+        }
+      },
+      "now": 12.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti"
+        },
+        "reinforced": false
+      },
+      "now": 14.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 16.0
+      },
+      "expect": {
+        "meta": {
+          "aversive_event": "avoidance",
+          "phase": "warning",
+          "trial_outcome": "avoid"
+        },
+        "reinforced": false
+      },
+      "now": 16.0
+    }
+  ]
+}

@@ -32,9 +32,13 @@ from contingency.schedules import (
     Chained,
     Concurrent,
     Conjunctive,
+    DiscriminatedAvoidance,
+    Escape,
+    GoNoGo,
     InterlockingSchedule,
     Interpolate,
     LimitedHold,
+    MatchingToSample,
     Mixed,
     Multiple,
     Overlay,
@@ -42,6 +46,7 @@ from contingency.schedules import (
     ProgressiveRatio,
     ResponseCost,
     SecondOrder,
+    Sidman,
     Tandem,
     Timeout,
     arithmetic,
@@ -50,6 +55,10 @@ from contingency.schedules import (
 )
 
 __all__ = ["build_schedule_from_spec"]
+
+
+def _optional_spec(spec: dict[str, Any] | None) -> Schedule | None:
+    return build_schedule_from_spec(spec) if spec is not None else None
 
 
 def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
@@ -218,6 +227,44 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
         return SecondOrder(
             build_schedule_from_spec(params["overall"]),
             build_schedule_from_spec(params["unit"]),
+        )
+    if stype == "Sidman":
+        return Sidman(
+            float(params["shock_shock_interval"]),
+            float(params["response_shock_interval"]),
+            shock_magnitude=float(params.get("shock_magnitude", 1.0)),
+        )
+    if stype == "DiscriminatedAvoidance":
+        return DiscriminatedAvoidance(
+            float(params["warning_duration"]),
+            float(params["iti"]),
+            shock_magnitude=float(params.get("shock_magnitude", 1.0)),
+        )
+    if stype == "Escape":
+        return Escape(
+            float(params["trial_duration"]),
+            float(params["iti"]),
+            shock_magnitude=float(params.get("shock_magnitude", 1.0)),
+        )
+    if stype == "MatchingToSample":
+        return MatchingToSample(
+            int(params["n_comparisons"]),
+            sample_duration=float(params.get("sample_duration", 0.0)),
+            choice_timeout=float(params.get("choice_timeout", 5.0)),
+            consequence=_optional_spec(params.get("consequence")),
+            incorrect=_optional_spec(params.get("incorrect")),
+            iti=float(params.get("iti", 1.0)),
+            seed=params.get("seed"),
+        )
+    if stype == "GoNoGo":
+        return GoNoGo(
+            float(params.get("go_probability", 0.5)),
+            response_window=float(params.get("response_window", 5.0)),
+            iti=float(params.get("iti", 5.0)),
+            correct_go_schedule=_optional_spec(params.get("correct_go_schedule")),
+            correct_nogo_schedule=_optional_spec(params.get("correct_nogo_schedule")),
+            false_alarm=_optional_spec(params.get("false_alarm")),
+            seed=params.get("seed"),
         )
 
     raise ValueError(f"unknown schedule type: {stype!r}")

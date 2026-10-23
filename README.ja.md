@@ -90,7 +90,7 @@ print(n_sr)  # 21
 
 - **変動スケジュールの値.** VI/VR の値は Fleshler-Hoffman (1962) の数列で生成する（Hantula, 1991 のプログラム版も選べる）。場当たりの `random.uniform` や指数分布の抽選ではない。`n` と `seed` を指定できるので、セッションを厳密に再現できる。
 - **並立スケジュールの切替遅延 (COD).** `Conc` は各反応を対応する成分にだけ渡し、設定済みの強化子をそのオペランダムへの次の反応まで保持し、切替後 `COD` 時間単位は強化を抑止する。固定比率の切替要件 (`FRCO`) と方向別の COD にも対応する。
-- **適合性 fixture.** `conformance/` の 34 個の JSON fixture が、既知の反応系列に対する各スケジュールの結果系列を厳密に固定している。Rust 版 [contingency-rs](https://github.com/OperantKit/contingency-rs) も同じ fixture を再生するので、2 つの実行系が 1 つの仕様に照らして検査される。
+- **適合性 fixture.** `conformance/` の 39 個の JSON fixture が、既知の反応系列に対する各スケジュールの結果系列を厳密に固定している。Rust 版 [contingency-rs](https://github.com/OperantKit/contingency-rs) も同じ fixture を再生するので、2 つの実行系が 1 つの仕様に照らして検査される。
 - **Method 節との往復変換.** スケジュールを contingency-dsl で書くので、[contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) で Method 節の段落に変換でき、[contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) で論文の Method 本文からスケジュールを抽出できる。
 - **入力の検査.** 時刻の逆行・不正なパラメータ・未知のオペランダムは明示的なエラーになり、誤った強化時刻を黙って出すことはない。
 
@@ -104,7 +104,7 @@ print(n_sr)  # 21
 
 ## 自作の実装を fixture で検算する
 
-`pip install contingency-py` で、適合性 fixture と `contingency-conformance` コマンドも入る。どの言語の実装でも、同じ 34 個の fixture に照らして検算できる。
+`pip install contingency-py` で、適合性 fixture と `contingency-conformance` コマンドも入る。どの言語の実装でも、同じ 39 個の fixture に照らして検算できる。
 
 ```bash
 pip install contingency-py
@@ -159,15 +159,17 @@ if __name__ == "__main__":
     json.dump(observe(json.load(sys.stdin)), sys.stdout)
 ```
 
-このアダプタは FR だけを実装しているので、合格するのは `atomic/fr_basic.json` だけで、`--only` を外すと、他の 33 本はアダプタがスケジュールを組み立てられず `ERROR` になる。他も通すには `observe` で各スケジュール `type` を組み立てる。合成スケジュールの 12 本（Alternative・Chained・Concurrent・Conjunctive・Interpolate・Mixed・Multiple・Overlay・SecondOrder・Tandem）と包み型の 2 本（Timeout・ResponseCost）、Percentile の 1 本は一部の step で `meta`（`current_component`・`alternative_winner`・`cod_suppressed`・`timeout_active`・`in_probe`・`net_magnitude` など）も求める。どの step にどのキーが要るかは fixture ファイルに書いてある。
+このアダプタは FR だけを実装しているので、合格するのは `atomic/fr_basic.json` だけで、`--only` を外すと、他の 38 本はアダプタがスケジュールを組み立てられず `ERROR` になる。他も通すには `observe` で各スケジュール `type` を組み立てる。合成スケジュールの 12 本（Alternative・Chained・Concurrent・Conjunctive・Interpolate・Mixed・Multiple・Overlay・SecondOrder・Tandem）と包み型の 2 本（Timeout・ResponseCost）、Percentile の 1 本、嫌悪制御の 3 本（Sidman・DiscriminatedAvoidance・Escape）、試行型の 2 本（MatchingToSample・GoNoGo）は一部の step で `meta`（`current_component`・`alternative_winner`・`cod_suppressed`・`timeout_active`・`in_probe`・`net_magnitude`・`phase`・`aversive_event`・`trial_outcome` など）も求める。どの step にどのキーが要るかは fixture ファイルに書いてある。
 
-`contingency-conformance replay-python` は本パッケージの実行系に対する同じアダプタで、`contingency-conformance run -- contingency-conformance replay-python` は 34 本すべてに合格する。
+`contingency-conformance replay-python` は本パッケージの実行系に対する同じアダプタで、`contingency-conformance run -- contingency-conformance replay-python` は 39 本すべてに合格する。
 
-**乱数の種を持つ fixture.** 6 本（種付きの VR・VI・VT・RR・RI・RT）は Python の `random.Random(seed)` で固定されている。`--stochastic` で判定のしかたを選ぶ。
+**乱数の種を持つ fixture.** 8 本（種付きの VR・VI・VT・RR・RI・RT・MatchingToSample・GoNoGo）は Python の `random.Random(seed)` で固定されている。`--stochastic` で判定のしかたを選ぶ。
 
 - `count`（既定）: 強化の回数が記録値の 0.5〜1.5 倍に入り、最初の強化が最初の step より前でないこと。独自の乱数生成器を持つ実装向け。
 - `strict`: 決定的 fixture と同じ判定。Python の乱数生成器を再現した実装向け。
 - `skip`: 判定しない。
+
+試行型の 2 本では、どの比較刺激が正解か（MatchingToSample）、どの試行が Go か（GoNoGo）を乱数が決める。生成器が違うと、同じ固定の反応で得る強化の回数が変わり、正しい実装でも `count` で落ちうる。Python の生成器を再現しない限り、この 2 本は `--stochastic skip` で流すか、生成器を移植してから `strict` で確かめる。
 
 出力は fixture ごとに `PASS` / `FAIL` / `ERROR` / `SKIP` の 1 行と最初の不一致（step・項目・期待値・観測値）、最後に集計。`--json` で同じ内容を JSON で出す。終了コードは、不合格が無ければ 0、不合格かアダプタの異常終了があれば 1、入力の誤り（fixture が見つからない・未知の fixture・読めないファイル）なら 2。
 

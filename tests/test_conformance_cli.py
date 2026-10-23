@@ -23,7 +23,8 @@ from contingency.conformance.replay import replay
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "conformance"
-N_FIXTURES = 34
+N_FIXTURES = 39
+N_STOCHASTIC = 8
 ADAPTER = [sys.executable, "-m", "contingency.conformance.cli", "replay-python"]
 
 
@@ -54,7 +55,7 @@ def _write(tmp_path: Path, doc: dict[str, Any], name: str = "observed.json") -> 
 def test_iter_fixtures_finds_whole_corpus() -> None:
     fixtures = list(iter_fixtures(CORPUS))
     assert len(fixtures) == N_FIXTURES
-    assert sum(fx.stochastic for fx in fixtures) == 6
+    assert sum(fx.stochastic for fx in fixtures) == N_STOCHASTIC
 
 
 def test_env_var_overrides_lookup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -100,7 +101,7 @@ def test_python_replay_passes_every_fixture(mode: str) -> None:
 def test_skip_mode_skips_only_stochastic() -> None:
     statuses = {fx.rel: compare(fx, replay(fx.data), "skip").status
                 for fx in iter_fixtures(CORPUS)}
-    assert sum(s == "SKIP" for s in statuses.values()) == 6
+    assert sum(s == "SKIP" for s in statuses.values()) == N_STOCHASTIC
     assert statuses["atomic/fr_basic.json"] == "PASS"
 
 

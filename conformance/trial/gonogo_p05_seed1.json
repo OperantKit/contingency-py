@@ -1,0 +1,121 @@
+{
+  "description": "GoNoGo(go_probability=0.5, response_window=2, iti=1, seed=1): Python's Mersenne Twister with seed 1 draws Go, NoGo, NoGo, Go for trials 0-3. Trial 0 (Go): a response at t=0.5 is correct (default CRF). Trial 1 (NoGo) starts at t=1.5; a response at t=2 is a false alarm (no consequence). Trial 2 (NoGo) starts at t=3; the tick at t=5 closes the window as correct_withhold (correct_nogo_schedule null, so no reinforcer). Trial 3 (Go) starts at t=6; the tick at t=8 closes it as a miss (incorrect).",
+  "name": "gonogo-p05-seed1",
+  "schedule": {
+    "params": {
+      "correct_go_schedule": null,
+      "correct_nogo_schedule": null,
+      "false_alarm": null,
+      "go_probability": 0.5,
+      "iti": 1.0,
+      "response_window": 2.0,
+      "seed": 1
+    },
+    "type": "GoNoGo"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "go",
+          "trial_index": 0
+        },
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 0.5
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 0,
+          "trial_outcome": "correct"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 0.5
+        }
+      },
+      "now": 0.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "nogo",
+          "trial_index": 1
+        },
+        "reinforced": false
+      },
+      "now": 1.5
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 1,
+          "trial_outcome": "false_alarm"
+        },
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "nogo",
+          "trial_index": 2
+        },
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 2,
+          "trial_outcome": "correct_withhold"
+        },
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "go",
+          "trial_index": 3
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 3,
+          "trial_outcome": "incorrect"
+        },
+        "reinforced": false
+      },
+      "now": 8.0
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "description": "Sidman(shock_shock_interval=5, response_shock_interval=3): the first shock is due at t=5 and is delivered as an SR- with magnitude -1. A response at t=7 postpones the next shock to t=10 (R-S), so the tick at t=9 delivers nothing and t=10 shocks. Responses at t=12 and t=14 push the shock to t=17; the tick at t=16 is quiet and t=17 shocks.",
+  "name": "sidman-ssi5-rsi3",
+  "schedule": {
+    "params": {
+      "response_shock_interval": 3.0,
+      "shock_shock_interval": 5.0
+    },
+    "type": "Sidman"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 10.0
+        }
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 12.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 12.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 14.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 14.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 16.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 17.0
+        }
+      },
+      "now": 17.0
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "description": "MatchingToSample(n_comparisons=2, sample_duration=1, choice_timeout=3, iti=1, seed=7): Python's Mersenne Twister with seed 7 picks the correct comparisons choice_1, choice_0, choice_1 for trials 0-2. Trial 0: a response during the sample (t=0.5) is ignored; the choice opens at t=1 and choice_1 at t=1.5 is correct (default CRF). Trial 1 starts at t=2.5, the choice opens at t=3.5 and choice_1 at t=4 is incorrect (no consequence). Trial 2 starts at t=5, the choice opens at t=6 and the tick at t=9.5 times it out as incorrect.",
+  "name": "mts-n2-seed7",
+  "schedule": {
+    "params": {
+      "choice_timeout": 3.0,
+      "consequence": null,
+      "incorrect": null,
+      "iti": 1.0,
+      "n_comparisons": 2,
+      "sample_duration": 1.0,
+      "seed": 7
+    },
+    "type": "MatchingToSample"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "sample",
+          "trial_index": 0
+        },
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "choice_1",
+        "time": 0.5
+      },
+      "expect": {
+        "meta": {
+          "phase": "sample",
+          "trial_index": 0
+        },
+        "reinforced": false
+      },
+      "now": 0.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "choice",
+          "trial_index": 0
+        },
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "choice_1",
+        "time": 1.5
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 0,
+          "trial_outcome": "correct"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 1.5
+        }
+      },
+      "now": 1.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 0
+        },
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "sample",
+          "trial_index": 1
+        },
+        "reinforced": false
+      },
+      "now": 2.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "choice",
+          "trial_index": 1
+        },
+        "reinforced": false
+      },
+      "now": 3.5
+    },
+    {
+      "event": {
+        "operandum": "choice_1",
+        "time": 4.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 1,
+          "trial_outcome": "incorrect"
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "sample",
+          "trial_index": 2
+        },
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "choice",
+          "trial_index": 2
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti",
+          "trial_index": 2,
+          "trial_outcome": "incorrect"
+        },
+        "reinforced": false
+      },
+      "now": 9.5
+    }
+  ]
+}

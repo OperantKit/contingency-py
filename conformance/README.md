@@ -46,10 +46,17 @@ conformance/
 │   ├── drl_basic.json
 │   ├── drh_basic.json
 │   └── percentile_irt_r75_w3.json
-└── progressive/
-    ├── pr_arithmetic.json
-    ├── interlocking_r4_t8.json
-    └── adjusting_ratio_s2_max3.json
+├── progressive/
+│   ├── pr_arithmetic.json
+│   ├── interlocking_r4_t8.json
+│   └── adjusting_ratio_s2_max3.json
+├── aversive/
+│   ├── sidman_ssi5_rsi3.json
+│   ├── discriminated_avoidance_w3_iti4.json
+│   └── escape_trial3_iti2.json
+└── trial/
+    ├── mts_n2_seed7.json
+    └── gonogo_p05_seed1.json
 ```
 
 ## Fixture schema
@@ -108,6 +115,18 @@ Supported types:
   `Mixed`, `Chained`, `Tandem`, `Interpolate`, `Overlay`, `SecondOrder`.
 - Progressive: `ProgressiveRatio`, `InterlockingSchedule`,
   `AdjustingSchedule`.
+- Aversive control: `Sidman`, `DiscriminatedAvoidance`, `Escape`.
+  A shock is an output of the schedule (`"reinforced": true` with a
+  negative `magnitude` and `"label": "SR-"`); the only inputs are
+  responses and ticks.
+- Trial-based: `MatchingToSample`, `GoNoGo` (seeded). Comparison
+  stimuli are operanda `choice_0` … `choice_{N-1}`.
+
+`meta.phase` means different things in the two groups. The aversive
+schedules report the phase in which the step's event happened (an
+avoidance step reports `warning`, an Escape `trial_end` reports
+`shock`). The trial-based schedules report the phase after the step
+(a step that resolves a trial reports `iti`).
 
 ## Regenerate
 
@@ -167,7 +186,8 @@ function, load each fixture, and assert:
    corresponding entries in `outcome.meta` (extra meta keys in the
    Rust outcome are tolerated; missing keys are a failure).
 
-Stochastic fixtures (seeded VR, VI, VT, RR, RI, RT) are pinned by
+Stochastic fixtures (seeded VR, VI, VT, RR, RI, RT, MatchingToSample,
+GoNoGo) are pinned by
 the Python runtime's `random.Random(seed)` sequence. Rust ports may
 use a different PRNG — in that case the stochastic fixtures cannot
 be bit-reproduced and should be loaded as **trajectory templates**:

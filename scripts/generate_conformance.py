@@ -949,6 +949,163 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "progressive" / "adjusting_ratio_s2_max3.json", adjusting)
     )
 
+    # --- Aversive control ---------------------------------------------
+
+    sidman = FixtureSpec(
+        name="sidman-ssi5-rsi3",
+        description=(
+            "Sidman(shock_shock_interval=5, response_shock_interval=3): the "
+            "first shock is due at t=5 and is delivered as an SR- with "
+            "magnitude -1. A response at t=7 postpones the next shock to "
+            "t=10 (R-S), so the tick at t=9 delivers nothing and t=10 "
+            "shocks. Responses at t=12 and t=14 push the shock to t=17; "
+            "the tick at t=16 is quiet and t=17 shocks."
+        ),
+        schedule={
+            "type": "Sidman",
+            "params": {"shock_shock_interval": 5.0, "response_shock_interval": 3.0},
+        },
+    )
+    sidman.add(now=0.0, event=None)
+    sidman.add(now=5.0, event=None)
+    sidman.add(now=7.0, event={"time": 7.0, "operandum": "main"})
+    sidman.add(now=9.0, event=None)
+    sidman.add(now=10.0, event=None)
+    sidman.add(now=12.0, event={"time": 12.0, "operandum": "main"})
+    sidman.add(now=14.0, event={"time": 14.0, "operandum": "main"})
+    sidman.add(now=16.0, event=None)
+    sidman.add(now=17.0, event=None)
+    fixtures.append((CONFORMANCE_DIR / "aversive" / "sidman_ssi5_rsi3.json", sidman))
+
+    disc_avoid = FixtureSpec(
+        name="discriminated-avoidance-w3-iti4",
+        description=(
+            "DiscriminatedAvoidance(warning_duration=3, iti=4): the ITI runs "
+            "from t=0 and the warning stimulus starts at t=4. A response at "
+            "t=5 avoids (no SR-); a response at t=6 falls in the ITI and is "
+            "ignored. The warning starts again at t=9 and, with no response, "
+            "the tick at t=12 delivers a shock. The next warning starts at "
+            "t=16 and a response on that same step avoids immediately."
+        ),
+        schedule={
+            "type": "DiscriminatedAvoidance",
+            "params": {"warning_duration": 3.0, "iti": 4.0},
+        },
+    )
+    disc_avoid.add(now=0.0, event=None)
+    disc_avoid.add(now=4.0, event=None)
+    disc_avoid.add(now=5.0, event={"time": 5.0, "operandum": "main"})
+    disc_avoid.add(now=6.0, event={"time": 6.0, "operandum": "main"})
+    disc_avoid.add(now=9.0, event=None)
+    disc_avoid.add(now=11.0, event=None)
+    disc_avoid.add(now=12.0, event=None)
+    disc_avoid.add(now=14.0, event=None)
+    disc_avoid.add(now=16.0, event={"time": 16.0, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "aversive" / "discriminated_avoidance_w3_iti4.json", disc_avoid)
+    )
+
+    escape = FixtureSpec(
+        name="escape-trial3-iti2",
+        description=(
+            "Escape(trial_duration=3, iti=2), ticked every 1 s while the "
+            "shock is on; every shock tick emits one SR- (continuous "
+            "emission), so the tick interval sets the SR- count. Trial 0: "
+            "shock_onset at t=0, shock at t=1, a response at t=1.5 escapes. "
+            "The ITI ends at t=3.5 and trial 1 starts with shock_onset; "
+            "shock at t=4.5 and t=5.5; with no response the tick at t=6.5 "
+            "ends the trial as failed. A response at t=7 falls in the ITI "
+            "and is ignored; trial 2 starts at t=8.5."
+        ),
+        schedule={
+            "type": "Escape",
+            "params": {"trial_duration": 3.0, "iti": 2.0},
+        },
+    )
+    escape.add(now=0.0, event=None)
+    escape.add(now=1.0, event=None)
+    escape.add(now=1.5, event={"time": 1.5, "operandum": "main"})
+    escape.add(now=2.5, event=None)
+    for t in [3.5, 4.5, 5.5, 6.5]:
+        escape.add(now=t, event=None)
+    escape.add(now=7.0, event={"time": 7.0, "operandum": "main"})
+    escape.add(now=8.5, event=None)
+    fixtures.append((CONFORMANCE_DIR / "aversive" / "escape_trial3_iti2.json", escape))
+
+    # --- Trial-based (seeded) -----------------------------------------
+
+    mts = FixtureSpec(
+        name="mts-n2-seed7",
+        description=(
+            "MatchingToSample(n_comparisons=2, sample_duration=1, "
+            "choice_timeout=3, iti=1, seed=7): Python's Mersenne Twister "
+            "with seed 7 picks the correct comparisons choice_1, choice_0, "
+            "choice_1 for trials 0-2. Trial 0: a response during the sample "
+            "(t=0.5) is ignored; the choice opens at t=1 and choice_1 at "
+            "t=1.5 is correct (default CRF). Trial 1 starts at t=2.5, the "
+            "choice opens at t=3.5 and choice_1 at t=4 is incorrect (no "
+            "consequence). Trial 2 starts at t=5, the choice opens at t=6 "
+            "and the tick at t=9.5 times it out as incorrect."
+        ),
+        schedule={
+            "type": "MatchingToSample",
+            "params": {
+                "n_comparisons": 2,
+                "sample_duration": 1.0,
+                "choice_timeout": 3.0,
+                "iti": 1.0,
+                "consequence": None,
+                "incorrect": None,
+                "seed": 7,
+            },
+        },
+    )
+    mts.add(now=0.0, event=None)
+    mts.add(now=0.5, event={"time": 0.5, "operandum": "choice_1"})
+    mts.add(now=1.0, event=None)
+    mts.add(now=1.5, event={"time": 1.5, "operandum": "choice_1"})
+    mts.add(now=2.0, event=None)
+    for t in [2.5, 3.5]:
+        mts.add(now=t, event=None)
+    mts.add(now=4.0, event={"time": 4.0, "operandum": "choice_1"})
+    for t in [5.0, 6.0, 9.5]:
+        mts.add(now=t, event=None)
+    fixtures.append((CONFORMANCE_DIR / "trial" / "mts_n2_seed7.json", mts))
+
+    gonogo = FixtureSpec(
+        name="gonogo-p05-seed1",
+        description=(
+            "GoNoGo(go_probability=0.5, response_window=2, iti=1, seed=1): "
+            "Python's Mersenne Twister with seed 1 draws Go, NoGo, NoGo, Go "
+            "for trials 0-3. Trial 0 (Go): a response at t=0.5 is correct "
+            "(default CRF). Trial 1 (NoGo) starts at t=1.5; a response at "
+            "t=2 is a false alarm (no consequence). Trial 2 (NoGo) starts at "
+            "t=3; the tick at t=5 closes the window as correct_withhold "
+            "(correct_nogo_schedule null, so no reinforcer). Trial 3 (Go) "
+            "starts at t=6; the tick at t=8 closes it as a miss "
+            "(incorrect)."
+        ),
+        schedule={
+            "type": "GoNoGo",
+            "params": {
+                "go_probability": 0.5,
+                "response_window": 2.0,
+                "iti": 1.0,
+                "correct_go_schedule": None,
+                "correct_nogo_schedule": None,
+                "false_alarm": None,
+                "seed": 1,
+            },
+        },
+    )
+    gonogo.add(now=0.0, event=None)
+    gonogo.add(now=0.5, event={"time": 0.5, "operandum": "main"})
+    gonogo.add(now=1.5, event=None)
+    gonogo.add(now=2.0, event={"time": 2.0, "operandum": "main"})
+    for t in [3.0, 5.0, 6.0, 8.0]:
+        gonogo.add(now=t, event=None)
+    fixtures.append((CONFORMANCE_DIR / "trial" / "gonogo_p05_seed1.json", gonogo))
+
     return fixtures
 
 

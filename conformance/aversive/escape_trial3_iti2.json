@@ -1,0 +1,159 @@
+{
+  "description": "Escape(trial_duration=3, iti=2), ticked every 1 s while the shock is on; every shock tick emits one SR- (continuous emission), so the tick interval sets the SR- count. Trial 0: shock_onset at t=0, shock at t=1, a response at t=1.5 escapes. The ITI ends at t=3.5 and trial 1 starts with shock_onset; shock at t=4.5 and t=5.5; with no response the tick at t=6.5 ends the trial as failed. A response at t=7 falls in the ITI and is ignored; trial 2 starts at t=8.5.",
+  "name": "escape-trial3-iti2",
+  "schedule": {
+    "params": {
+      "iti": 2.0,
+      "trial_duration": 3.0
+    },
+    "type": "Escape"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock_onset",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 0.0
+        }
+      },
+      "now": 0.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 1.0
+        }
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.5
+      },
+      "expect": {
+        "meta": {
+          "aversive_event": "shock_termination",
+          "phase": "shock",
+          "trial_outcome": "escape"
+        },
+        "reinforced": false
+      },
+      "now": 1.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "phase": "iti"
+        },
+        "reinforced": false
+      },
+      "now": 2.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock_onset",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 3.5
+        }
+      },
+      "now": 3.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 4.5
+        }
+      },
+      "now": 4.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 5.5
+        }
+      },
+      "now": 5.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "trial_end",
+          "phase": "shock",
+          "trial_outcome": "failed"
+        },
+        "reinforced": false
+      },
+      "now": 6.5
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 7.0
+      },
+      "expect": {
+        "meta": {
+          "phase": "iti"
+        },
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock_onset",
+          "phase": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 8.5
+        }
+      },
+      "now": 8.5
+    }
+  ]
+}
