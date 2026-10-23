@@ -4,7 +4,8 @@ The agent plays the subject in a free-operant session. Each step
 advances the session clock by ``dt`` and the agent either withholds
 responding (action ``0``) or emits one response on ``operanda[i - 1]``
 (action ``i``). The wrapped schedule decides whether that step delivers
-a reinforcer; the reward is the reinforcer's magnitude.
+a reinforcer; the reward is the reinforcer's magnitude, minus an
+optional ``response_cost`` on every step with a response.
 
 The observation carries only what a subject could have access to —
 time and responses since the last reinforcer, whether the last step was
@@ -61,6 +62,14 @@ class ScheduleEnv(gym.Env[dict[str, Any], np.int64]):
     max_reinforcers:
         If given, the episode terminates once this many reinforcers
         have been delivered.
+    response_cost:
+        Subtracted from the reward of every step with a response
+        (action ``!= 0``), reinforced or not; withholding costs nothing.
+        A reinforced response earns ``magnitude - response_cost``.
+        Must be a finite real ``>= 0``; the default ``0`` leaves the reward
+        unchanged. This is an effort cost on the reward signal, not the
+        :class:`~contingency.schedules.ResponseCost` schedule (a token
+        balance that a wrapped schedule debits).
     render_mode:
         ``None`` or ``"ansi"``.
 
@@ -85,6 +94,7 @@ class ScheduleEnv(gym.Env[dict[str, Any], np.int64]):
         dt: float = 1.0,
         operanda: Sequence[str] = ("main",),
         max_reinforcers: int | None = None,
+        response_cost: float = 0.0,
         render_mode: str | None = None,
     ) -> None:
         if not max_time > 0:
@@ -102,6 +112,13 @@ class ScheduleEnv(gym.Env[dict[str, Any], np.int64]):
             or max_reinforcers < 1
         ):
             raise ValueError(f"max_reinforcers must be an int >= 1, got {max_reinforcers!r}")
+        if (
+            not isinstance(response_cost, int | float)
+            or isinstance(response_cost, bool)
+            or not math.isfinite(response_cost)
+            or response_cost < 0
+        ):
+            raise ValueError(f"response_cost must be a finite real >= 0, got {response_cost!r}")
         if render_mode is not None and render_mode not in self.metadata["render_modes"]:
             raise ValueError(f"unsupported render_mode {render_mode!r}")
         if isinstance(schedule, type):
@@ -115,6 +132,7 @@ class ScheduleEnv(gym.Env[dict[str, Any], np.int64]):
         self.dt = float(dt)
         self.operanda = tuple(operanda)
         self.max_reinforcers = max_reinforcers
+        self.response_cost = float(response_cost) + 0.0  # -0.0 -> 0.0
         self.render_mode = render_mode
         self.max_steps = max_steps
 
@@ -187,6 +205,8 @@ class ScheduleEnv(gym.Env[dict[str, Any], np.int64]):
             self._responses[:] = 0
         else:
             self._last_sr = 0
+        if a:
+            reward -= self.response_cost
 
         terminated = self.max_reinforcers is not None and self._n_sr >= self.max_reinforcers
         truncated = not terminated and self._steps >= self.max_steps

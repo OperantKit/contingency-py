@@ -84,6 +84,8 @@ print(n_sr)  # 21
 
 切替遅延（COD）による強化の抑止は `info["outcome_meta"]["cod_suppressed"]` に出る。`tests/test_envs_concurrent.py` では、既定の Conc VI 30 VI 60（COD 2）で 100 セッション学習した表形式の Q 学習が、学習に使っていない 10 セッションで 600 時間単位あたり平均 23.2 回の強化を得た。一様な無作為方策は 20.7 回、2 つのオペランダムから無作為に選んで必ず反応する方策は 21.1 回、学習前の同じ表は 21.5 回。
 
+`response_cost`（既定 0。`gym.make` にも渡せる）は反応したステップの報酬から引かれる。強化された反応は `magnitude - response_cost` を得て、反応しないステップは費用 0（報酬に掛かる労力の費用で、`ResponseCost` スケジュールとは別物）。`contingency.envs.tabular` はこうした比較に使う ε-greedy の表形式 Q 学習を持つ。`train_q(env, episodes=..., seed=..., state=..., n_states=...)` が表を返し、`run_greedy(env, q, seed=...)` が評価 1 セッションの `(times, actions, last_sr)` を返す。既定の状態 `fi_state` は 1 オペランダム用で、直前の強化からの反応数（4 で頭打ち）と経過時間（5 単位ごとの帯）の組。
+
 ## 自作の 50 行では足りない理由
 
 短い自作ループは次の点を誤りやすく、どれも報告するデータを変えてしまう:

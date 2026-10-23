@@ -84,6 +84,8 @@ print(n_sr)  # 21
 
 Changeover-delay suppression is reported in `info["outcome_meta"]["cod_suppressed"]`. In `tests/test_envs_concurrent.py`, a tabular Q-learner trained for 100 sessions on the default Conc VI 30 VI 60 (COD 2) earns 23.2 reinforcers per 600-unit session on 10 sessions not used for training, against 20.7 for a uniform random policy and 21.1 for random choice between the two operanda; the same table before training earns 21.5.
 
+`response_cost` (default 0, also accepted by `gym.make`) is subtracted from the reward of every step with a response, so a reinforced response earns `magnitude - response_cost` and withholding costs nothing (an effort cost on the reward, unlike the `ResponseCost` schedule). `contingency.envs.tabular` provides the epsilon-greedy Q-learner used for such comparisons: `train_q(env, episodes=..., seed=..., state=..., n_states=...)` returns the table, `run_greedy(env, q, seed=...)` returns the `(times, actions, last_sr)` of one evaluation session, and `fi_state` is the default state for one operandum (responses since the last reinforcer capped at 4, and the time since it in 5-unit bins).
+
 ## Why not a 50-line hand-written schedule?
 
 A short hand-rolled loop usually gets the following wrong, and each one changes the data you would report:

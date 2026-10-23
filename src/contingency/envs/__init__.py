@@ -10,6 +10,7 @@ Importing this module registers the environment IDs::
 
 Gymnasium 1.0 removed automatic registration through entry points, so
 the import is what makes the IDs available to :func:`gymnasium.make`.
+:mod:`contingency.envs.tabular` holds a reference tabular Q-learner.
 """
 
 from __future__ import annotations

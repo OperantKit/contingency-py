@@ -296,3 +296,50 @@ def test_invalid_config_raises(kwargs: dict[str, object]) -> None:
 def test_schedule_class_instead_of_instance_raises() -> None:
     with pytest.raises(TypeError):
         ScheduleEnv(FR, max_time=10.0)
+
+
+# --- response cost --------------------------------------------------------
+
+
+def test_response_cost_defaults_to_zero() -> None:
+    env = ScheduleEnv(FR(2), max_time=10.0)
+    env.reset(seed=0)
+    assert [env.step(a)[1] for a in (1, 0, 1)] == [0.0, 0.0, 1.0]
+
+
+def test_response_cost_is_subtracted_from_response_steps() -> None:
+    env = ScheduleEnv(FR(2), max_time=10.0, response_cost=0.1)
+    env.reset(seed=0)
+    assert env.step(1)[1] == pytest.approx(-0.1)
+    assert env.step(1)[1] == pytest.approx(0.9)  # reinforced: magnitude - cost
+
+
+def test_withholding_costs_nothing() -> None:
+    env = ScheduleEnv(FR(2), max_time=10.0, response_cost=0.1)
+    env.reset(seed=0)
+    assert env.step(0)[1] == 0.0
+
+
+def test_response_cost_passes_through_make() -> None:
+    env = gym.make("contingency/FI-v0", interval=5.0, max_time=20.0, response_cost=0.01)
+    env.reset(seed=0)
+    assert env.step(1)[1] == pytest.approx(-0.01)
+
+
+def test_response_cost_above_magnitude_makes_reinforced_step_negative() -> None:
+    env = ScheduleEnv(FR(1), max_time=10.0, response_cost=1.5)
+    env.reset(seed=0)
+    assert env.step(1)[1] == pytest.approx(-0.5)
+
+
+def test_check_env_passes_with_response_cost() -> None:
+    env = ScheduleEnv(fi(30.0), max_time=600.0, response_cost=0.1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        check_env(env, skip_render_check=True)
+
+
+@pytest.mark.parametrize("cost", [-0.1, float("nan"), float("inf"), True, "0.1", None])
+def test_invalid_response_cost_raises(cost: object) -> None:
+    with pytest.raises(ValueError):
+        ScheduleEnv(FR(1), max_time=10.0, response_cost=cost)  # type: ignore[arg-type]
