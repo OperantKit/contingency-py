@@ -1,0 +1,92 @@
+{
+  "description": "InterlockingSchedule(initial_ratio=4, decay_time=8): the requirement is int(4 * (1 - t/8)) for t since the last reinforcer (the first tick anchors t=0). 3 responses meet the requirement 2 at t=3; 1 response meets the requirement 1 at t=9 (6 s later); after 11 s the requirement is 0 and the response at t=20 reinforces. A bare tick never reinforces.",
+  "name": "interlocking-r4-t8",
+  "schedule": {
+    "params": {
+      "decay_time": 8.0,
+      "initial_ratio": 4
+    },
+    "type": "InterlockingSchedule"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 3.0
+        }
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 9.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 9.0
+        }
+      },
+      "now": 9.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 20.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 20.0
+        }
+      },
+      "now": 20.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 21.0
+    }
+  ]
+}

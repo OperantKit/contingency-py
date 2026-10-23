@@ -30,10 +30,15 @@ from contingency.schedules import (
     Alternative,
     Chained,
     Concurrent,
+    Conjunctive,
+    InterlockingSchedule,
     LimitedHold,
+    Mixed,
     Multiple,
     ProgressiveRatio,
+    ResponseCost,
     Tandem,
+    Timeout,
     arithmetic,
     geometric,
     richardson_roberts,
@@ -91,6 +96,22 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
     if stype == "LimitedHold":
         inner = build_schedule_from_spec(params["inner"])
         return LimitedHold(inner, float(params["hold"]))  # type: ignore[arg-type]
+    if stype == "Timeout":
+        return Timeout(
+            build_schedule_from_spec(params["inner"]),
+            float(params["duration"]),
+            reset_on_response=bool(params.get("reset_on_response", False)),
+        )
+    if stype == "ResponseCost":
+        initial_balance = params.get("initial_balance")
+        return ResponseCost(
+            build_schedule_from_spec(params["inner"]),
+            float(params["amount"]),
+            unit=str(params.get("unit", "token")),
+            initial_balance=(
+                float(initial_balance) if initial_balance is not None else None
+            ),
+        )
     if stype == "DRO":
         return DRO(
             float(params["interval"]),
@@ -114,6 +135,13 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
         first = build_schedule_from_spec(params["first"])
         second = build_schedule_from_spec(params["second"])
         return Alternative(first, second)
+    if stype == "Conjunctive":
+        return Conjunctive(
+            build_schedule_from_spec(params["first"]),
+            build_schedule_from_spec(params["second"]),
+        )
+    if stype == "Mixed":
+        return Mixed([build_schedule_from_spec(c) for c in params["components"]])
     if stype == "Multiple":
         comp_list: list[Schedule] = [
             build_schedule_from_spec(c) for c in params["components"]
@@ -144,5 +172,9 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
         else:
             raise ValueError(f"unknown PR step: {step_name!r}")
         return ProgressiveRatio(step_fn)
+    if stype == "InterlockingSchedule":
+        return InterlockingSchedule(
+            int(params["initial_ratio"]), float(params["decay_time"])
+        )
 
     raise ValueError(f"unknown schedule type: {stype!r}")

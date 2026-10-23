@@ -121,6 +121,20 @@
     },
     {
       "kind": "deterministic",
+      "path": "compound/conjunctive_fr3_fi5.json",
+      "sha256": "214fcbf0329d3e04863c994b588eaf94dc783479ec6c060faaed20b2c3f96f44",
+      "steps": 10,
+      "type": "Conjunctive"
+    },
+    {
+      "kind": "deterministic",
+      "path": "compound/mixed_fr2_fr3.json",
+      "sha256": "45072eae0a2cd4047921d5b3f242211177a4df00442daef8a94514870453a6ea",
+      "steps": 6,
+      "type": "Mixed"
+    },
+    {
+      "kind": "deterministic",
       "path": "compound/multiple_fr_fr.json",
       "sha256": "4db11845fe4df41ac410869ad11c49aea25bfcfd1b72085886faba0ac10ffdd9",
       "steps": 6,
@@ -163,10 +177,31 @@
     },
     {
       "kind": "deterministic",
+      "path": "progressive/interlocking_r4_t8.json",
+      "sha256": "f6b63b2c21a0c95bb43ee644362d3ed557782ace82a63fe0a3b4aeb3a8ab72f6",
+      "steps": 7,
+      "type": "InterlockingSchedule"
+    },
+    {
+      "kind": "deterministic",
       "path": "progressive/pr_arithmetic.json",
       "sha256": "cda9eaaf51ec061d9436e3bcb5b5da1de8624a7b5649d9b3774d575f57e3457a",
       "steps": 15,
       "type": "ProgressiveRatio"
+    },
+    {
+      "kind": "deterministic",
+      "path": "wrapper/response_cost_fr2.json",
+      "sha256": "89fc6164cc09fbcd637fb6a38e2b82074ad15bf635b19a0e9a7e180bb81b9499",
+      "steps": 6,
+      "type": "ResponseCost"
+    },
+    {
+      "kind": "deterministic",
+      "path": "wrapper/timeout_fr2_to3.json",
+      "sha256": "92f1bc47011a86408714ed7275e8453fdd06bbe2e9d32b635c81ab6a5adad270",
+      "steps": 7,
+      "type": "Timeout"
     }
   ],
   "schema": 1

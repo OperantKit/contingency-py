@@ -333,6 +333,62 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "atomic" / "limited_hold_fi.json", lh_fi)
     )
 
+    # --- Wrappers: Timeout and ResponseCost ---------------------------
+
+    timeout = FixtureSpec(
+        name="timeout-fr2-to3",
+        description=(
+            "Timeout(FR(2), duration=3, reset_on_response=false): the "
+            "reinforcer at t=2 starts a timeout ending at t=5. The response "
+            "at t=3 and the tick at t=4 fall inside it and are dropped "
+            "(timeout_active); with reset_on_response=false the response "
+            "does not extend it. The response at t=5 is at the boundary and "
+            "counts toward the next FR(2), which reinforces at t=6."
+        ),
+        schedule={
+            "type": "Timeout",
+            "params": {
+                "inner": {"type": "FR", "params": {"n": 2}},
+                "duration": 3.0,
+                "reset_on_response": False,
+            },
+        },
+    )
+    for t in [1.0, 2.0, 3.0]:
+        timeout.add(now=t, event={"time": t, "operandum": "main"})
+    timeout.add(now=4.0, event=None)
+    for t in [5.0, 6.0, 7.0]:
+        timeout.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "wrapper" / "timeout_fr2_to3.json", timeout)
+    )
+
+    rcost = FixtureSpec(
+        name="response-cost-fr2-balance3",
+        description=(
+            "ResponseCost(FR(2), amount=1, initial_balance=3): the first "
+            "three responses are paid for (the 2nd completes FR(2)); the "
+            "4th and later responses cannot be afforded, are not passed to "
+            "FR(2), and carry cost_insufficient. A tick passes through."
+        ),
+        schedule={
+            "type": "ResponseCost",
+            "params": {
+                "inner": {"type": "FR", "params": {"n": 2}},
+                "amount": 1.0,
+                "unit": "token",
+                "initial_balance": 3.0,
+            },
+        },
+    )
+    for t in [1.0, 2.0, 3.0, 4.0]:
+        rcost.add(now=t, event={"time": t, "operandum": "main"})
+    rcost.add(now=5.0, event=None)
+    rcost.add(now=6.0, event={"time": 6.0, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "wrapper" / "response_cost_fr2.json", rcost)
+    )
+
     # --- Compound: Concurrent + COD -----------------------------------
 
     conc_cod = FixtureSpec(
@@ -504,6 +560,60 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "compound" / "multiple_fr_fr.json", multiple)
     )
 
+    # --- Compound: Mixed ----------------------------------------------
+
+    mixed = FixtureSpec(
+        name="mixed-fr2-fr3",
+        description=(
+            "Mixed FR(2) / FR(3): the same component sequence as Multiple "
+            "but with no S^D. On reinforcement the active index advances "
+            "and wraps after the last component; current_component is the "
+            "integer index."
+        ),
+        schedule={
+            "type": "Mixed",
+            "params": {
+                "components": [
+                    {"type": "FR", "params": {"n": 2}},
+                    {"type": "FR", "params": {"n": 3}},
+                ],
+            },
+        },
+    )
+    # Component 0 (FR 2) reinforces at t=2, component 1 (FR 3) at t=5,
+    # then the index wraps back to component 0.
+    for t in [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]:
+        mixed.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "mixed_fr2_fr3.json", mixed)
+    )
+
+    # --- Compound: Conjunctive ----------------------------------------
+
+    conj = FixtureSpec(
+        name="conjunctive-fr3-fi5",
+        description=(
+            "Conjunctive FR(3) AND FI(5): reinforcement only on a step where "
+            "both components reinforce. FR(3) completes alone at t=3 and "
+            "t=7 and FI(5) alone at t=6; each lone completion resets only "
+            "its own component and produces no SR+. Both complete at t=12, "
+            "which reinforces and resets both."
+        ),
+        schedule={
+            "type": "Conjunctive",
+            "params": {
+                "first": {"type": "FR", "params": {"n": 3}},
+                "second": {"type": "FI", "params": {"interval": 5.0}},
+            },
+        },
+    )
+    conj.add(now=0.0, event=None)  # anchors FI at 0 (arms at 5)
+    for t in [1.0, 2.0, 3.0, 4.0, 6.0, 7.0, 8.0, 9.0, 12.0]:
+        conj.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "conjunctive_fr3_fi5.json", conj)
+    )
+
     # --- Compound: Tandem ---------------------------------------------
 
     tandem = FixtureSpec(
@@ -665,6 +775,29 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         pr.add(now=t, event={"time": t, "operandum": "main"})
     fixtures.append(
         (CONFORMANCE_DIR / "progressive" / "pr_arithmetic.json", pr)
+    )
+
+    ilock = FixtureSpec(
+        name="interlocking-r4-t8",
+        description=(
+            "InterlockingSchedule(initial_ratio=4, decay_time=8): the "
+            "requirement is int(4 * (1 - t/8)) for t since the last "
+            "reinforcer (the first tick anchors t=0). 3 responses meet the "
+            "requirement 2 at t=3; 1 response meets the requirement 1 at "
+            "t=9 (6 s later); after 11 s the requirement is 0 and the "
+            "response at t=20 reinforces. A bare tick never reinforces."
+        ),
+        schedule={
+            "type": "InterlockingSchedule",
+            "params": {"initial_ratio": 4, "decay_time": 8.0},
+        },
+    )
+    ilock.add(now=0.0, event=None)
+    for t in [1.0, 2.0, 3.0, 9.0, 20.0]:
+        ilock.add(now=t, event={"time": t, "operandum": "main"})
+    ilock.add(now=21.0, event=None)
+    fixtures.append(
+        (CONFORMANCE_DIR / "progressive" / "interlocking_r4_t8.json", ilock)
     )
 
     return fixtures

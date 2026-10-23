@@ -28,14 +28,23 @@ conformance/
 │   ├── concurrent_cod.json
 │   ├── concurrent_cod_tick.json
 │   ├── chained_fr2_fr3.json
-│   └── alternative_fr_ft.json
+│   ├── chained_fr2_fi5.json
+│   ├── multiple_fr_fr.json
+│   ├── mixed_fr2_fr3.json
+│   ├── tandem_fr_fr.json
+│   ├── alternative_fr_ft.json
+│   └── conjunctive_fr3_fi5.json
+├── wrapper/
+│   ├── timeout_fr2_to3.json
+│   └── response_cost_fr2.json
 ├── differential/
 │   ├── dro_resetting.json
 │   ├── dro_momentary.json
 │   ├── drl_basic.json
 │   └── drh_basic.json
 └── progressive/
-    └── pr_arithmetic.json
+    ├── pr_arithmetic.json
+    └── interlocking_r4_t8.json
 ```
 
 ## Fixture schema
@@ -88,10 +97,11 @@ Supported types:
 
 - Atomic: `FR`, `VR`, `RR`, `FI`, `VI`, `RI`, `FT`, `VT`, `RT`,
   `CRF`, `EXT`.
-- Wrappers: `LimitedHold`.
+- Wrappers: `LimitedHold`, `Timeout`, `ResponseCost`.
 - Differential: `DRO`, `DRL`, `DRH`.
-- Compound: `Concurrent`, `Alternative`, `Multiple`, `Chained`, `Tandem`.
-- Progressive: `ProgressiveRatio`.
+- Compound: `Concurrent`, `Alternative`, `Conjunctive`, `Multiple`,
+  `Mixed`, `Chained`, `Tandem`.
+- Progressive: `ProgressiveRatio`, `InterlockingSchedule`.
 
 ## Regenerate
 

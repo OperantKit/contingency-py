@@ -23,7 +23,7 @@ from contingency.conformance.replay import replay
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "conformance"
-N_FIXTURES = 24
+N_FIXTURES = 29
 ADAPTER = [sys.executable, "-m", "contingency.conformance.cli", "replay-python"]
 
 
