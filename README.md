@@ -175,6 +175,10 @@ In the two trial-based fixtures the draw decides which comparison is correct (Ma
 
 Output is one `PASS` / `FAIL` / `ERROR` / `SKIP` line per fixture with the first mismatch (step, field, expected, observed), then a summary; `--json` gives the same as JSON. The exit code is 0 when nothing failed, 1 when a fixture failed or the adapter crashed, and 2 for input errors (corpus not found, unknown fixture, unreadable file).
 
+## Replayed against MED-PC session records
+
+`tests/test_apparatus_replay.py` feeds the responses recorded by a MED-PC apparatus in published sessions to `DRL` and `ProgressiveRatio` and checks which responses are reinforced. Over the whole datasets — DRL 10 s, 928 sessions and 30,578 reinforcers (Sosa et al., 2026); progressive ratio 1, 4, 7, …, 273 sessions and 3,979 reinforcers (McCutcheon, 2022) — the engine reinforced the same response for 99.30% (DRL) and 99.75% (PR) of the recorded reinforcers, once the IRT clock is started at the onset of the DRL phase and responses in the 4 s after each reinforcer (5.1 s for PR) are left out, as the apparatus programs do. Every disagreement is a timing-resolution case: for DRL, 192 responses within ±70 ms of the 10 s boundary and 93 responses that follow them; for PR, 20 responses at the boundary of the 5.1 s timeout and the responses that follow them. The test keeps four of these sessions as fixtures.
+
 ## Differences from the Swift original
 
 This package ports the Swift library [OperantKit](https://github.com/YutoMizutani/OperantKit). `tests/test_legacy_swift_parity.py` builds the Swift original from a local checkout and runs it through the fixtures above with a small driver (`tools/legacy-swift/`). It needs a Swift toolchain and is skipped unless the checkout is given:
@@ -214,6 +218,8 @@ from contingency.bridge import from_dsl
 - Hantula, D. A. (1991). A simple BASIC program to generate values for variable-interval schedules of reinforcement. *Journal of Applied Behavior Analysis*, 24(4), 799-801. https://doi.org/10.1901/jaba.1991.24-799
 - Catania, A. C. (1966). Concurrent operants. In W. K. Honig (Ed.), *Operant behavior: Areas of research and application* (pp. 213-270). Appleton-Century-Crofts.
 - Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*. Appleton-Century-Crofts.
+- McCutcheon, J. (2022). *Progressive ratio in protein-restricted vs. non-restricted rats* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.5409201
+- Sosa, R., Mata-Luévanos, J., Tapia-de-Jesús, A., Saavedra, P., & Buenrostro-Jáuregui, M. (2026). *Longitudinal association between different indices of behavioral inhibition* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19164959
 
 ## License
 

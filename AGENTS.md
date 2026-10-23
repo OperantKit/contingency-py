@@ -16,6 +16,7 @@ For whole sessions (start/stop criteria, logging to a file) use session-runner o
 - Concurrent schedules route each response to its own component, hold an arranged reinforcer until the next response on that operandum, and apply the changeover delay (COD), fixed-ratio changeover (`FRCO`), and direction-specific COD.
 - 24 JSON fixtures in `conformance/` pin exact outcome sequences, and the Rust port replays the same fixtures.
 - Invalid input fails loudly: non-monotonic time raises `ScheduleStateError`; bad parameters or an unknown operandum raise `ScheduleConfigError`.
+- Replayed against MED-PC session records (`tests/test_apparatus_replay.py`): with the IRT clock started at the onset of the DRL phase and responses in the 4 s after each reinforcer (5.1 s for PR) left out, `DRL` reinforced the same response for 99.30% of 30,578 recorded reinforcers in 928 DRL 10 s sessions and `ProgressiveRatio` for 99.75% of 3,979 in 273 PR sessions; every disagreement is a response at the 10 s or timeout boundary (DRL: 192 within ±70 ms, plus 93 that follow them; PR: 20).
 - Measured on schedule code that Claude Code (claude-opus-5-5) and Codex CLI (gpt-6.1-sol) wrote for 20 requests (one run each): VI intervals used Fleshler-Hoffman in 7 of 14 programs (the rest drew exponential or uniform intervals); all 6 concurrent schedules had a COD, but 2 had a COD error; 16 of 19 interval schedules held the arranged reinforcer and timed the next interval from delivery. The README section "Why not a 50-line hand-written schedule?" lists the errors.
 
 ## Do not

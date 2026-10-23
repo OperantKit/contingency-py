@@ -175,6 +175,10 @@ if __name__ == "__main__":
 
 出力は fixture ごとに `PASS` / `FAIL` / `ERROR` / `SKIP` の 1 行と最初の不一致（step・項目・期待値・観測値）、最後に集計。`--json` で同じ内容を JSON で出す。終了コードは、不合格が無ければ 0、不合格かアダプタの異常終了があれば 1、入力の誤り（fixture が見つからない・未知の fixture・読めないファイル）なら 2。
 
+## MED-PC の記録で再生した結果
+
+`tests/test_apparatus_replay.py` は、公開されたセッションで MED-PC の装置が記録した反応を `DRL` と `ProgressiveRatio` にそのまま渡し、どの反応が強化されるかを比べる。データ全体 — DRL 10 s の 928 セッション・強化 30,578 件（Sosa et al., 2026）と、比率が 1, 4, 7, … と増える累進比率の 273 セッション・強化 3,979 件（McCutcheon, 2022）— で、装置のプログラムと同じく IRT の計時を DRL の開始時点から始め、強化後 4 s（累進比率では 5.1 s）の反応を除くと、記録された強化のうち DRL で 99.30%、累進比率で 99.75% を engine も同じ反応で強化した。食い違いはすべて計時の分解能によるもので、DRL では 10 s の境界から ±70 ms 以内の反応 192 件とそれに続く反応 93 件、累進比率では 5.1 s のタイムアウトの境界にあった反応とそれに続く反応の計 20 件。テストはこのうち 4 セッションを fixture として持つ。
+
 ## Swift 原典との違い
 
 本パッケージは Swift のライブラリ [OperantKit](https://github.com/YutoMizutani/OperantKit) の移植である。`tests/test_legacy_swift_parity.py` は手元の Swift 原典をビルドし、小さなドライバ（`tools/legacy-swift/`）で上の fixture に通す。Swift のツールチェーンが要り、原典の場所を渡さない限り skip される。
@@ -214,6 +218,8 @@ from contingency.bridge import from_dsl
 - Hantula, D. A. (1991). A simple BASIC program to generate values for variable-interval schedules of reinforcement. *Journal of Applied Behavior Analysis*, 24(4), 799-801. https://doi.org/10.1901/jaba.1991.24-799
 - Catania, A. C. (1966). Concurrent operants. In W. K. Honig (Ed.), *Operant behavior: Areas of research and application* (pp. 213-270). Appleton-Century-Crofts.
 - Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*. Appleton-Century-Crofts.
+- McCutcheon, J. (2022). *Progressive ratio in protein-restricted vs. non-restricted rats* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.5409201
+- Sosa, R., Mata-Luévanos, J., Tapia-de-Jesús, A., Saavedra, P., & Buenrostro-Jáuregui, M. (2026). *Longitudinal association between different indices of behavioral inhibition* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19164959
 
 ## ライセンス
 
