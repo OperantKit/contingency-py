@@ -61,7 +61,7 @@ The components of a concurrent schedule are named `c0`, `c1`, … in the order t
 | Building schedules | `contingency.bridge.from_dsl` (from a contingency-dsl expression), `contingency.builder.ScheduleBuilder` (from Python calls) |
 | Hardware abstraction layer (`contingency.hw`) | An `Apparatus` interface with a virtual backend, a serial backend (needs `pyserial`), and a TCP backend for a hardware-in-the-loop (HIL) test rig |
 | Conformance | 39 JSON fixtures in `conformance/` and the `contingency-conformance` command |
-| Gymnasium | `contingency.envs.ScheduleEnv` and three registered environments (optional) |
+| Gymnasium | `contingency.envs.ScheduleEnv` and six registered environments (optional) |
 
 ```python
 from contingency import Schedule, Observation, Reinforcer
@@ -84,9 +84,11 @@ The JSON format, a complete adapter, and how seeded fixtures are judged are in [
 
 ### Gymnasium environments
 
-`contingency.envs.ScheduleEnv` runs any `Schedule` as a free-operant session for reinforcement-learning agents. Each step advances the clock by `dt` (default 1); action `0` withholds responding and action `i` emits one response on the `i`-th operandum. The `reward` value returned by `step` is the reinforcer's magnitude, minus `response_cost` (default 0) on every step with a response. The observation holds only what a subject could know: time and responses since the last reinforcer, whether the last step was reinforced, and the last operandum responded on. Four IDs are registered on import: `contingency/FR-v0` (`n`), `contingency/FI-v0` (`interval`), `contingency/ConcVIVI-v0` (`mean_left`, `mean_right`, `cod`; operanda `left` and `right`) and `contingency/ConcPhases-v0` (`phases`, `cod`).
+`contingency.envs.ScheduleEnv` runs any `Schedule` as a free-operant session for reinforcement-learning agents. Each step advances the clock by `dt` (default 1); action `0` withholds responding and action `i` emits one response on the `i`-th operandum. The `reward` value returned by `step` is the reinforcer's magnitude, minus `response_cost` (default 0) on every step with a response. The observation holds only what a subject could know: time and responses since the last reinforcer, whether the last step was reinforced, and the last operandum responded on. Six IDs are registered on import: `contingency/FR-v0` (`n`), `contingency/FI-v0` (`interval`), `contingency/ConcVIVI-v0` (`mean_left`, `mean_right`, `cod`; operanda `left` and `right`), `contingency/ConcPhases-v0` (`phases`, `cod`), `contingency/SidmanAvoidance-v0` (`rs`, `ss`, `shock_magnitude`) and `contingency/PunishedVI-v0` (`mean`, `punishment`, `ratio`).
 
 `ConcPhases-v0` runs phases one after another in one session, for procedures such as resurgence. Each phase is `(left, right, steps)`: the VI mean in seconds on each operandum (`None` = extinction) and the number of steps it lasts. The default is VI 15 s on `left` for 18000 steps, then `left` in extinction with VI 15 s on `right` for 12000 steps, then both in extinction for 3000 steps. The phase is not in the observation; `info["phase"]` and `info["phase_step"]` report it, and the episode terminates when the last phase ends.
+
+`SidmanAvoidance-v0` and `PunishedVI-v0` are for aversive control. In `SidmanAvoidance-v0` (free-operant avoidance), a shock comes every `ss` seconds while the subject does not respond, and each response postpones the next shock to `rs` seconds after it; a shock step has reward `-shock_magnitude`. In `PunishedVI-v0`, VI `mean` delivers reinforcers of magnitude 1 and every `ratio`-th response is punished with reward `-punishment` (`punishment=0` leaves VI alone). With `ratio=1` the reward signal is the same as VI with `response_cost=punishment`; the difference is that punishers are counted. In both, shocks and punishers are counted in `info["n_shock"]`, not in `info["n_sr"]`, and do not reset the time and responses since the last reinforcer. The observation adds `time_since_response`, `time_since_shock` and `responses_since_shock`.
 
 ```python
 import gymnasium as gym

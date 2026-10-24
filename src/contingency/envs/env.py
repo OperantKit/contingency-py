@@ -25,7 +25,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from contingency.entities import ResponseEvent
+from contingency.entities import Outcome, ResponseEvent
 from contingency.interfaces import Schedule
 
 __all__ = ["ScheduleEnv", "ScheduleFactory"]
@@ -175,6 +175,31 @@ class ScheduleEnv(gym.Env[dict[str, Any], np.int64]):
     def step(
         self, action: np.int64 | int
     ) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
+        a, now, outcome = self._advance(action)
+
+        reward = 0.0
+        if outcome.reinforced and outcome.reinforcer is not None:
+            reward = float(outcome.reinforcer.magnitude)
+            self._deliver_sr(now)
+        else:
+            self._last_sr = 0
+        if a:
+            reward -= self.response_cost
+        return self._finish(reward, outcome.meta)
+
+    def render(self) -> str | None:
+        if self.render_mode == "ansi":
+            return f"t={self._now:g} n_sr={self._n_sr}"
+        return None
+
+    # --- step parts (shared with subclasses) -------------------------------
+
+    def _advance(self, action: np.int64 | int) -> tuple[int, float, Outcome]:
+        """Check ``action``, advance the clock and step the schedule.
+
+        Returns the action as an int, the new time and the schedule's
+        outcome; the response count and ``last_operandum`` are updated.
+        """
         if self._schedule is None:
             raise RuntimeError("call reset() before step()")
         if self._done:
@@ -195,28 +220,22 @@ class ScheduleEnv(gym.Env[dict[str, Any], np.int64]):
         if a:
             self._responses[a - 1] += 1
         self._last_operandum = a
+        return a, now, outcome
 
-        reward = 0.0
-        if outcome.reinforced and outcome.reinforcer is not None:
-            reward = float(outcome.reinforcer.magnitude)
-            self._n_sr += 1
-            self._last_sr = 1
-            self._last_sr_time = now
-            self._responses[:] = 0
-        else:
-            self._last_sr = 0
-        if a:
-            reward -= self.response_cost
+    def _deliver_sr(self, now: float) -> None:
+        """Record a reinforcer delivered at ``now``."""
+        self._n_sr += 1
+        self._last_sr = 1
+        self._last_sr_time = now
+        self._responses[:] = 0
 
+    def _finish(
+        self, reward: float, meta: dict[str, object]
+    ) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
         terminated = self.max_reinforcers is not None and self._n_sr >= self.max_reinforcers
         truncated = not terminated and self._steps >= self.max_steps
         self._done = terminated or truncated
-        return self._observation(), reward, terminated, truncated, self._info(outcome.meta)
-
-    def render(self) -> str | None:
-        if self.render_mode == "ansi":
-            return f"t={self._now:g} n_sr={self._n_sr}"
-        return None
+        return self._observation(), reward, terminated, truncated, self._info(meta)
 
     # --- internals ---------------------------------------------------------
 

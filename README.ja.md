@@ -61,7 +61,7 @@ print(reinforcers)  # {'c0': 16, 'c1': 9} — 種を固定しているので毎�
 | スケジュールの組み立て | `contingency.bridge.from_dsl`（contingency-dsl の式から）、`contingency.builder.ScheduleBuilder`（Python の呼び出しから） |
 | ハードウェア抽象化層（`contingency.hw`） | `Apparatus` インタフェースと、仮想の装置、シリアル接続（`pyserial` が必要）、ハードウェア・イン・ザ・ループ（HIL）試験装置向けの TCP 接続 |
 | 適合性検査 | `conformance/` の 39 個の JSON fixture と `contingency-conformance` コマンド |
-| Gymnasium | `contingency.envs.ScheduleEnv` と、登録済みの 3 つの環境（任意） |
+| Gymnasium | `contingency.envs.ScheduleEnv` と、登録済みの 6 つの環境（任意） |
 
 ```python
 from contingency import Schedule, Observation, Reinforcer
@@ -84,9 +84,11 @@ JSON の形式、動くアダプタの全文、乱数の種を持つ fixture の
 
 ### Gymnasium 環境
 
-`contingency.envs.ScheduleEnv` は、任意の `Schedule` を強化学習エージェント向けのフリーオペラントのセッションとして動かします。1 ステップで時計が `dt`（既定 1）進み、行動 `0` は反応しないこと、行動 `i` は `i` 番目のオペランダムへの 1 反応です。`step` が返す `reward` の値は強化子の大きさで、反応したステップでは `response_cost`（既定 0）を引きます。観測は被験体が知りうるものだけです（直前の強化からの経過時間と反応数、直前のステップが強化されたか、直前に反応したオペランダム）。import すると 4 つの ID が登録されます: `contingency/FR-v0`（`n`）、`contingency/FI-v0`（`interval`）、`contingency/ConcVIVI-v0`（`mean_left`・`mean_right`・`cod`。オペランダムは `left` と `right`）、`contingency/ConcPhases-v0`（`phases`・`cod`）。
+`contingency.envs.ScheduleEnv` は、任意の `Schedule` を強化学習エージェント向けのフリーオペラントのセッションとして動かします。1 ステップで時計が `dt`（既定 1）進み、行動 `0` は反応しないこと、行動 `i` は `i` 番目のオペランダムへの 1 反応です。`step` が返す `reward` の値は強化子の大きさで、反応したステップでは `response_cost`（既定 0）を引きます。観測は被験体が知りうるものだけです（直前の強化からの経過時間と反応数、直前のステップが強化されたか、直前に反応したオペランダム）。import すると 6 つの ID が登録されます: `contingency/FR-v0`（`n`）、`contingency/FI-v0`（`interval`）、`contingency/ConcVIVI-v0`（`mean_left`・`mean_right`・`cod`。オペランダムは `left` と `right`）、`contingency/ConcPhases-v0`（`phases`・`cod`）、`contingency/SidmanAvoidance-v0`（`rs`・`ss`・`shock_magnitude`）、`contingency/PunishedVI-v0`（`mean`・`punishment`・`ratio`）。
 
 `ConcPhases-v0` は、リサージェンス（resurgence）などの手続きのために、1 つのセッションで相を順に切り替えます。各相は `(left, right, steps)` で、各オペランダムの VI の平均（秒。`None` は消去）と、その相が続くステップ数を表します。既定は、`left` に VI 15 s を 18000 ステップ、次に `left` を消去して `right` に VI 15 s を 12000 ステップ、最後に両方を消去して 3000 ステップです。相は観測に入らず、`info["phase"]` と `info["phase_step"]` に出ます。最後の相が終わるとエピソードは終了（terminated）します。
+
+`SidmanAvoidance-v0` と `PunishedVI-v0` は嫌悪制御のための環境です。`SidmanAvoidance-v0`（フリーオペラント回避）では、反応しない間は `ss` 秒ごとに shock が来て、反応するたびに次の shock がその反応の `rs` 秒後に延びます。shock のステップの報酬は `-shock_magnitude` です。`PunishedVI-v0` では、VI `mean` が大きさ 1 の強化子を提示し、`ratio` 回目ごとの反応が報酬 `-punishment` で罰されます（`punishment=0` なら VI だけ）。`ratio=1` のとき報酬の信号は `response_cost=punishment` の VI と同じで、違いは罰の回数を数えることです。どちらでも shock と罰は `info["n_sr"]` ではなく `info["n_shock"]` に数え、直前の強化からの経過時間と反応数は戻しません。観測には `time_since_response`・`time_since_shock`・`responses_since_shock` が加わります。
 
 ```python
 import gymnasium as gym
