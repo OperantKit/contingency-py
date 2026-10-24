@@ -205,3 +205,20 @@ def test_max_time_and_operanda_cannot_be_passed() -> None:
 def test_invalid_phase_tuples_are_rejected(phases: tuple) -> None:  # type: ignore[type-arg]
     with pytest.raises((ValueError, ScheduleConfigError)):
         make_conc_phases_env(phases=phases)
+
+
+def test_phases_read_from_json_lists_and_numpy_ints_are_accepted() -> None:
+    env = make_conc_phases_env(phases=[[15.0, None, np.int64(5)], [None, 15, 5]])
+    env.reset(seed=0)
+    assert env.unwrapped.max_steps == 10
+
+
+@pytest.mark.parametrize("phase_steps", [[], [0, 5], [5, 1.5]])
+def test_phased_env_rejects_bad_phase_steps(phase_steps: list) -> None:  # type: ignore[type-arg]
+    from contingency.envs.presets import PhasedScheduleEnv, conc_phases
+
+    schedule = conc_phases(((15.0, None, 5),), 2.0, seed=0)
+    with pytest.raises(ValueError):
+        PhasedScheduleEnv(
+            schedule, phase_steps=phase_steps, max_time=5.0, operanda=("left", "right")
+        )

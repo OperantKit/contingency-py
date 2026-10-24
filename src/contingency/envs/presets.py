@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import numbers
 from collections.abc import Sequence
 from typing import Any
 
@@ -107,27 +108,41 @@ The phase lengths keep the 30 : 20 : 5 session ratio of Craig & Shahan
 """
 
 
-def _check_phase_specs(phases: Sequence[PhaseSpec]) -> None:
+def _phase_steps(n: Any, where: str) -> int:
+    if isinstance(n, bool) or not isinstance(n, numbers.Integral) or n < 1:
+        raise ValueError(f"{where}: steps must be an int >= 1, got {n!r}")
+    return int(n)
+
+
+def _normalize_phase_specs(phases: Sequence[Sequence[Any]]) -> tuple[PhaseSpec, ...]:
+    """Check ``phases`` and return them as tuples of ``float | None`` and ``int``.
+
+    Lists (as read from JSON) and numpy scalars are accepted.
+    """
     if len(phases) == 0:
         raise ValueError("phases must contain at least one phase")
+    out: list[PhaseSpec] = []
     for i, spec in enumerate(phases):
-        if not isinstance(spec, tuple) or len(spec) != 3:
+        if isinstance(spec, str | bytes) or not isinstance(spec, Sequence) or len(spec) != 3:
             raise ValueError(f"phase {i}: expected (left, right, steps), got {spec!r}")
-        *means, steps = spec
-        for mean in means:
+        left, right, steps = spec
+        means: list[float | None] = []
+        for mean in (left, right):
             if mean is None:
+                means.append(None)
                 continue
             if (
                 isinstance(mean, bool)
-                or not isinstance(mean, int | float)
+                or not isinstance(mean, numbers.Real)
                 or not math.isfinite(mean)
                 or mean <= 0
             ):
                 raise ValueError(
                     f"phase {i}: a VI mean must be a finite real > 0 or None, got {mean!r}"
                 )
-        if not isinstance(steps, int) or isinstance(steps, bool) or steps < 1:
-            raise ValueError(f"phase {i}: steps must be an int >= 1, got {steps!r}")
+            means.append(float(mean))
+        out.append((means[0], means[1], _phase_steps(steps, f"phase {i}")))
+    return tuple(out)
 
 
 def _vi_or_ext(mean: float | None, seed: int | None) -> Schedule:
@@ -135,16 +150,15 @@ def _vi_or_ext(mean: float | None, seed: int | None) -> Schedule:
 
 
 def conc_phases(
-    phases: Sequence[PhaseSpec], cod: float, *, dt: float = 1.0, seed: int | None = None
+    phases: Sequence[Sequence[Any]], cod: float, *, dt: float = 1.0, seed: int | None = None
 ) -> PhasedConcurrent:
     """Concurrent VI / EXT phases on operanda ``"left"`` and ``"right"``.
 
     Each phase lasts ``steps * dt``. With a ``seed``, phase ``i`` draws its
     left VI from ``seed + 2 * i`` and its right VI from ``seed + 2 * i + 1``.
     """
-    _check_phase_specs(phases)
     built = []
-    for i, (left, right, steps) in enumerate(phases):
+    for i, (left, right, steps) in enumerate(_normalize_phase_specs(phases)):
         left_seed = None if seed is None else seed + 2 * i
         right_seed = None if seed is None else seed + 2 * i + 1
         conc = Concurrent(
@@ -165,10 +179,12 @@ class PhasedScheduleEnv(ScheduleEnv):
     """
 
     def __init__(self, schedule: Any, *, phase_steps: Sequence[int], **kwargs: Any) -> None:
+        if len(phase_steps) == 0:
+            raise ValueError("phase_steps must contain at least one phase")
         ends: list[int] = []
         total = 0
-        for n in phase_steps:
-            total += n
+        for i, n in enumerate(phase_steps):
+            total += _phase_steps(n, f"phase_steps[{i}]")
             ends.append(total)
         self._phase_ends = tuple(ends)
         super().__init__(schedule, **kwargs)
@@ -191,7 +207,7 @@ class PhasedScheduleEnv(ScheduleEnv):
 
 
 def make_conc_phases_env(
-    phases: Sequence[PhaseSpec] = DEFAULT_PHASES,
+    phases: Sequence[Sequence[Any]] = DEFAULT_PHASES,
     cod: float = 2.0,
     **kwargs: Any,
 ) -> ScheduleEnv:
@@ -206,14 +222,14 @@ def make_conc_phases_env(
     for fixed in ("max_time", "operanda"):
         if fixed in kwargs:
             raise TypeError(f"ConcPhases fixes {fixed} from phases; do not pass {fixed}")
-    phases = tuple(phases)
+    spec = _normalize_phase_specs(phases)
     dt = float(kwargs.get("dt", 1.0))
     # Build once so that bad parameters fail here, not at the first reset().
-    conc_phases(phases, cod, dt=dt, seed=0)
-    phase_steps = [steps for _, _, steps in phases]
+    conc_phases(spec, cod, dt=dt, seed=0)
+    phase_steps = [steps for _, _, steps in spec]
 
     def factory(seed: int) -> PhasedConcurrent:
-        return conc_phases(phases, cod, dt=dt, seed=seed)
+        return conc_phases(spec, cod, dt=dt, seed=seed)
 
     return PhasedScheduleEnv(
         factory,
