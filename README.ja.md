@@ -12,15 +12,17 @@ contingency-py は、強化子をいつ提示するかを決める Python のラ
 
 ## インストール
 
-Python 3.11 以上が必要です。contingency-py はまだ PyPI に登録されていません。本体と、式を読む [contingency-dsl-py](https://github.com/OperantKit/contingency-dsl-py) を、依存の解決をせずに GitHub から入れます。
+
+Python 3.11 以上が必要です。contingency-py はまだ PyPI に登録されていません。本体と、式を読む [contingency-dsl-py](https://github.com/OperantKit/contingency-dsl-py) を一緒に GitHub から入れます。
 
 ```bash
-G=git+https://github.com/OperantKit
-pip install --no-deps $G/contingency-dsl-py $G/contingency-py
+# PyPI に公開されるまでは、OperantKit の依存と一緒に GitHub から入れる。
+pip install git+https://github.com/OperantKit/contingency-dsl-py \
+            git+https://github.com/OperantKit/contingency-py
 pip install gymnasium numpy     # 任意: Gymnasium 環境を使うときだけ
 ```
 
-`pip check` はこれらの開発版のあいだの版の不一致を報告しますが、以下の例には影響しません。
+依存は pip が解決するので、`pip check` は何も報告しません。
 
 ## 例
 

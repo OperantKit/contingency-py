@@ -12,15 +12,17 @@ contingency-py is a Python library that decides when a reinforcer is delivered. 
 
 ## Installation
 
-Python 3.11 or newer. contingency-py is not on PyPI yet. Install it and its parser, [contingency-dsl-py](https://github.com/OperantKit/contingency-dsl-py), from GitHub without dependency resolution:
+
+Python 3.11 or newer. contingency-py is not on PyPI yet. Install it from GitHub together with its parser, [contingency-dsl-py](https://github.com/OperantKit/contingency-dsl-py):
 
 ```bash
-G=git+https://github.com/OperantKit
-pip install --no-deps $G/contingency-dsl-py $G/contingency-py
+# Until the PyPI release, install from GitHub together with its OperantKit dependencies.
+pip install git+https://github.com/OperantKit/contingency-dsl-py \
+            git+https://github.com/OperantKit/contingency-py
 pip install gymnasium numpy     # optional: only for the Gymnasium environments
 ```
 
-`pip check` reports a version mismatch between these development builds; it does not affect the examples below.
+pip resolves the dependencies between them, and `pip check` reports nothing.
 
 ## Example
 
