@@ -2,40 +2,29 @@
 
 :jp: [日本語版 README](README.ja.md)
 
-Python reinforcement schedule engine for operant contingencies.
+contingency-py is a Python library that decides when a reinforcer is delivered. You give it a reinforcement schedule, such as `FR 5`, `VI 60-s`, or `Conc(VI 30-s, VI 60-s, COD=2-s)`, and the responses as they happen; for each step it tells you whether a reinforcer is delivered. Use it in a chamber program, a simulation, a teaching demo, or as a reference to test another implementation against. It is the Python schedule engine of [OperantKit](https://github.com/OperantKit); running a whole session (start and stop criteria, logging) is done by [session-runner](https://github.com/OperantKit/session-runner) on top of it.
 
-Bridges [`contingency-dsl`](https://github.com/OperantKit/contingency-dsl) AST nodes into executable `Schedule` runtime objects. Pure library with no session/context/renewal concerns — those live in [`experiment-core`](https://github.com/OperantKit/experiment-core).
+- **Variable schedules use the Fleshler–Hoffman (1962) progression,** with the number of values and the seed under your control, so a session can be replayed exactly.
+- **Concurrent schedules handle the changeover delay (COD)** — the time after a switch between operanda (levers, keys) during which no response is reinforced — and hold an arranged reinforcer until the next response on its operandum.
+- **39 conformance fixtures pin the outcome of each schedule** for a known response sequence. The Rust engine [contingency-rs](https://github.com/OperantKit/contingency-rs) replays them, and you can check your own implementation against them.
 
-## Scope
+[Schedule terms](docs/en/schedule-terms.md) explains these points (COD, the Fleshler–Hoffman progression, DRL and interresponse time, resetting DRO, when a VI interval starts) in a few sentences each. Notes for AI coding agents, including a comparison with schedule code written by AI assistants, are in [AGENTS.md](AGENTS.md).
 
-- Atomic reinforcement schedules: FR, VR, RR, FI, VI, RI, FT, VT, RT, CRF, EXT
-- Compound schedules: Concurrent (+ COD), Multiple, Chained, Tandem, Alternative
-- Differential: DRO (resetting, momentary), DRL, DRH
-- Progressive Ratio (arithmetic, geometric, Hantula step functions)
-- Limited Hold wrapper
-- Fleshler-Hoffman VI/VR distribution generator (Fleshler & Hoffman, 1962; Hantula, 1991)
-- DSL bridge: `contingency.bridge.from_dsl(ast)` → `Schedule`
-- HAL (`contingency.hw`): virtual / serial / HIL bridge backends
+## Installation
 
-## Install
+Python 3.11 or newer. contingency-py is not on PyPI yet. Install it and its parser, [contingency-dsl-py](https://github.com/OperantKit/contingency-dsl-py), from GitHub without dependency resolution:
 
 ```bash
-pip install contingency-py
-pip install "contingency-py[gym]"   # optional: Gymnasium environments
+G=git+https://github.com/OperantKit
+pip install --no-deps $G/contingency-dsl-py $G/contingency-py
+pip install gymnasium numpy     # optional: only for the Gymnasium environments
 ```
 
-For development:
+`pip check` reports a version mismatch between these development builds; it does not affect the examples below.
 
-```
-mise install                                # Python 3.11
-mise exec -- python -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
-.venv/bin/pytest
-```
+## Example
 
-## 30-second example
-
-Write the schedule in [contingency-dsl](https://github.com/OperantKit/contingency-dsl), compile it with `from_dsl`, and drive it with responses:
+Write the schedule as a [contingency-dsl](https://github.com/OperantKit/contingency-dsl) expression, compile it with `from_dsl`, and feed it responses:
 
 ```python
 from contingency_dsl import parse
@@ -55,16 +44,47 @@ for i in range(1, 1201):
     outcome = schedule.step(now, ResponseEvent(time=now, operandum=operandum))
     if outcome.reinforced:
         reinforcers[operandum] += 1
-print(reinforcers)  # {'c0': 9, 'c1': 3} — identical on every run (seeded)
+print(reinforcers)  # {'c0': 16, 'c1': 9} — the same on every run (seeded)
 ```
 
-`contingency-dsl-py` is installed as a dependency. The same `Schedule` object runs inside a full session via [session-runner](https://github.com/OperantKit/session-runner).
+The components of a concurrent schedule are named `c0`, `c1`, … in the order they are written.
 
-## Gymnasium environments
+## What is included
 
-With the `gym` extra, `contingency.envs.ScheduleEnv` runs any `Schedule` as a free-operant session for reinforcement-learning agents. Each step advances the clock by `dt` (default 1); action `0` withholds responding and action `i` emits one response on the `i`-th operandum. The reward is the reinforcer's magnitude. The observation holds only what a subject could know: time and responses since the last reinforcer, whether the last step was reinforced, and the last operandum responded on. The episode is truncated at `max_time`.
+| Area | Contents |
+|---|---|
+| Simple schedules | FR, VR, RR, FI, VI, RI, FT, VT, RT, CRF, EXT, limited hold |
+| Compound schedules | Concurrent (with COD, fixed-ratio changeover, direction-specific COD), Multiple, Mixed, Chained, Tandem, Alternative, Conjunctive, Interpolate, Overlay, second-order |
+| Differential and progressive | DRO (resetting, momentary), DRL, DRH, percentile, progressive ratio (arithmetic, geometric, Richardson–Roberts), adjusting, interlocking |
+| Other procedures | Timeout, response cost, Sidman avoidance, discriminated avoidance, escape, matching-to-sample, go/no-go |
+| Value generators | Fleshler–Hoffman (Fleshler & Hoffman, 1962) and the Hantula (1991) variant |
+| Building schedules | `contingency.bridge.from_dsl` (from a contingency-dsl expression), `contingency.builder.ScheduleBuilder` (from Python calls) |
+| Hardware abstraction layer (`contingency.hw`) | An `Apparatus` interface with a virtual backend, a serial backend (needs `pyserial`), and a TCP backend for a hardware-in-the-loop (HIL) test rig |
+| Conformance | 39 JSON fixtures in `conformance/` and the `contingency-conformance` command |
+| Gymnasium | `contingency.envs.ScheduleEnv` and three registered environments (optional) |
 
-Four IDs are registered on import: `contingency/FR-v0` (`n`), `contingency/FI-v0` (`interval`), `contingency/ConcVIVI-v0` (`mean_left`, `mean_right`, `cod`; operanda `left` and `right`) and `contingency/ConcPhases-v0` (`phases`, `cod`). Keyword arguments to `gym.make` override the defaults.
+```python
+from contingency import Schedule, Observation, Reinforcer
+from contingency.schedules import FR, VR, FI, VI, FT, VT, CRF, EXT, DRO
+from contingency.schedules import Concurrent, Multiple, Chained, Tandem, Alternative
+from contingency.builder import ScheduleBuilder
+from contingency.bridge import from_dsl
+```
+
+### Check your own implementation against the fixtures
+
+The `contingency-conformance` command checks any schedule implementation, in any language, against the 39 fixtures. Your program reads a fixture as JSON and writes back which steps were reinforced:
+
+```bash
+contingency-conformance list                    # fixtures, kind, schedule type, steps
+contingency-conformance run --only 'atomic/fr_*' -- python my_adapter.py
+```
+
+The JSON format, a complete adapter, and how seeded fixtures are judged are in [Checking your own implementation against the fixtures](docs/en/conformance-checker.md).
+
+### Gymnasium environments
+
+`contingency.envs.ScheduleEnv` runs any `Schedule` as a free-operant session for reinforcement-learning agents. Each step advances the clock by `dt` (default 1); action `0` withholds responding and action `i` emits one response on the `i`-th operandum. The `reward` value returned by `step` is the reinforcer's magnitude, minus `response_cost` (default 0) on every step with a response. The observation holds only what a subject could know: time and responses since the last reinforcer, whether the last step was reinforced, and the last operandum responded on. Four IDs are registered on import: `contingency/FR-v0` (`n`), `contingency/FI-v0` (`interval`), `contingency/ConcVIVI-v0` (`mean_left`, `mean_right`, `cod`; operanda `left` and `right`) and `contingency/ConcPhases-v0` (`phases`, `cod`).
 
 `ConcPhases-v0` runs phases one after another in one session, for procedures such as resurgence. Each phase is `(left, right, steps)`: the VI mean in seconds on each operandum (`None` = extinction) and the number of steps it lasts. The default is VI 15 s on `left` for 18000 steps, then `left` in extinction with VI 15 s on `right` for 12000 steps, then both in extinction for 3000 steps. The phase is not in the observation; `info["phase"]` and `info["phase_step"]` report it, and the episode terminates when the last phase ends.
 
@@ -84,98 +104,14 @@ while True:  # 0 = no response, 1 = left, 2 = right; one step = 1 time unit
 print(n_sr)  # 21
 ```
 
-Changeover-delay suppression is reported in `info["outcome_meta"]["cod_suppressed"]`. In `tests/test_envs_concurrent.py`, a tabular Q-learner trained for 100 sessions on the default Conc VI 30 VI 60 (COD 2) earns 23.2 reinforcers per 600-unit session on 10 sessions not used for training, against 20.7 for a uniform random policy and 21.1 for random choice between the two operanda; the same table before training earns 21.5.
+`contingency.envs.tabular` provides an epsilon-greedy tabular Q-learner (`train_q`, `run_greedy`). In `tests/test_envs_concurrent.py`, a table trained for 100 sessions on the default Conc VI 30 VI 60 (COD 2) earns 23.2 reinforcers per 600-unit session on 10 sessions not used for training, against 20.7 for a uniform random policy, 21.1 for random choice between the two operanda (always responding), and 21.5 for the same table before training.
 
-`response_cost` (default 0, also accepted by `gym.make`) is subtracted from the reward of every step with a response, so a reinforced response earns `magnitude - response_cost` and withholding costs nothing (an effort cost on the reward, unlike the `ResponseCost` schedule). `contingency.envs.tabular` provides the epsilon-greedy Q-learner used for such comparisons: `train_q(env, episodes=..., seed=..., state=..., n_states=...)` returns the table, `run_greedy(env, q, seed=...)` returns the `(times, actions, last_sr)` of one evaluation session, and `fi_state` is the default state for one operandum (responses since the last reinforcer capped at 4, and the time since it in 5-unit bins).
+## Limitations
 
-## Why not a 50-line hand-written schedule?
-
-A short hand-rolled loop usually gets the following wrong, and each one changes the data you would report:
-
-- **Variable-schedule intervals.** VI/VR values are generated with the Fleshler-Hoffman (1962) progression (the Hantula, 1991, program variant is also available), not ad-hoc `random.uniform` or exponential draws. `n` and `seed` are controllable, so a session can be replayed exactly.
-- **Changeover delay in concurrent schedules.** `Conc` routes each response to its own component, holds an arranged reinforcer until the next response on that operandum, suppresses reinforcement for `COD` time units after a changeover, and supports a fixed-ratio changeover requirement (`FRCO`) and direction-specific COD.
-- **Conformance fixtures.** 39 JSON fixtures under `conformance/` pin the exact outcome sequence of each schedule for a known event sequence. The Rust port [contingency-rs](https://github.com/OperantKit/contingency-rs) replays the same fixtures, so both runtimes are checked against one specification.
-- **Round trip with Method sections.** Because the schedule is written in contingency-dsl, [contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) turns it into a Method-section paragraph and [contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) extracts a schedule from published Method text.
-- **Input validation.** Non-monotonic time, malformed parameters, and unknown operanda raise explicit errors instead of silently producing wrong reinforcement times.
-
-[Schedule terms](docs/en/schedule-terms.md) answers the questions behind these points in a few sentences each — changeover delay (COD) in concurrent VI schedules, the Fleshler-Hoffman progression, DRL and interresponse time, resetting DRO, and when a VI interval starts — with the expression to write for each.
-
-**Measured on code written by AI agents.** We gave 20 schedule-programming requests to Claude Code (claude-opus-5-5) and Codex CLI (gpt-6.1-sol), one run each, and checked the schedule code they wrote against the contingency-dsl schedule definitions (static checks, plus a second model whose verdicts count only when the code lines it quotes exist):
-
-- VI intervals came from a Fleshler-Hoffman progression in 7 of 14 programs (Claude 7 of 7, Codex 0 of 7); the other 7 drew each interval from an exponential or uniform distribution.
-- All 6 concurrent schedules had a COD, but the review found a COD error in 2 of them: one did not record a changeover made during reinforcer delivery, and one treated the session's first response as a changeover.
-- Interval schedules held the arranged reinforcer until the next response and timed the next interval from delivery in 16 of 19 programs. Of the other 3, one discarded an available reinforcer at a component change, one could reinforce a response made before the interval had elapsed, and one only called this package's `FI`, which the reviewer could not inspect.
-
-## Check your own implementation against the fixtures
-
-`pip install contingency-py` also installs the conformance corpus and the `contingency-conformance` command. Any implementation, in any language, can be checked against the same 39 fixtures:
-
-```bash
-pip install contingency-py
-contingency-conformance list                    # fixtures, kind, schedule type, steps
-contingency-conformance run --only 'atomic/fr_*' -- python my_adapter.py
-```
-
-`contingency-conformance path` prints the fixture directory so a harness in another language can read the JSON files directly; `CONTINGENCY_CONFORMANCE_DIR` or `--dir` points the command at another copy.
-
-**Observed JSON.** For each fixture, the implementation reports one entry per fixture step:
-
-```json
-{"fixture": "atomic/fr_basic.json",
- "steps": [{"reinforced": false},
-           {"reinforced": true, "reinforcer": {"time": 5.0, "magnitude": 1.0, "label": "SR+"}}]}
-```
-
-`reinforced` must match exactly; when reinforced, `reinforcer.time` and `magnitude` must agree within 1e-9 and `label` must be equal; every `meta` key in the fixture must be present with the same value (extra keys are allowed); the number of steps must match. Write such files yourself and compare them with `contingency-conformance check observed/*.json`, or let `run` drive an adapter.
-
-**Adapter for `run -- CMD`.** `run` starts CMD once per fixture, writes the fixture JSON to its stdin, and reads the observed JSON from its stdout (`fixture` may be omitted):
-
-```python
-# my_adapter.py — a hand-written FR schedule checked against the fixtures
-import json
-import sys
-
-
-class MyFR:
-    def __init__(self, n):
-        self.n, self.count = n, 0
-
-    def step(self, now, event):  # event: None or {"time", "operandum"}
-        if event is None:
-            return None
-        self.count += 1
-        if self.count < self.n:
-            return None
-        self.count = 0
-        return {"time": event["time"], "magnitude": 1.0, "label": "SR+"}
-
-
-def observe(fixture):
-    schedule = MyFR(fixture["schedule"]["params"]["n"])
-    steps = []
-    for step in fixture["steps"]:
-        sr = schedule.step(step["now"], step["event"])
-        steps.append({"reinforced": True, "reinforcer": sr} if sr else {"reinforced": False})
-    return {"implementation": "my-fr", "steps": steps}
-
-
-if __name__ == "__main__":
-    json.dump(observe(json.load(sys.stdin)), sys.stdout)
-```
-
-This adapter implements FR only and passes `atomic/fr_basic.json`; without `--only`, the other 38 fixtures are reported as `ERROR` because the adapter cannot build their schedules. To cover them, build each schedule `type` in `observe`. The 12 compound fixtures (Alternative, Chained, Concurrent, Conjunctive, Interpolate, Mixed, Multiple, Overlay, SecondOrder, Tandem), the 2 wrapper fixtures (Timeout, ResponseCost), the Percentile fixture, the 3 aversive-control fixtures (Sidman, DiscriminatedAvoidance, Escape), and the 2 trial-based fixtures (MatchingToSample, GoNoGo) also require `meta` on some steps, such as `current_component`, `alternative_winner`, `cod_suppressed`, `timeout_active`, `in_probe`, `net_magnitude`, `phase`, `aversive_event`, or `trial_outcome`; the fixture files show which keys each step expects.
-
-`contingency-conformance replay-python` is the same adapter for this package's own runtime; `contingency-conformance run -- contingency-conformance replay-python` passes all 39 fixtures.
-
-**Seeded fixtures.** Eight fixtures (seeded VR, VI, VT, RR, RI, RT, MatchingToSample, GoNoGo) are pinned by Python's `random.Random(seed)`. `--stochastic` chooses how they are judged:
-
-- `count` (default): the number of reinforcers must lie within 0.5-1.5 times the recorded number, and the first reinforcer must not precede the first step. Use this when your implementation has its own random number generator.
-- `strict`: judged like the deterministic fixtures. Use this when you reproduce Python's generator.
-- `skip`: not checked.
-
-In the two trial-based fixtures the draw decides which comparison is correct (MatchingToSample) and which trials are Go (GoNoGo), so with a different generator the same fixed responses earn a different number of reinforcers and `count` can fail a correct implementation. Unless you reproduce Python's generator, run them with `--stochastic skip` or check them with `strict` after porting the generator.
-
-Output is one `PASS` / `FAIL` / `ERROR` / `SKIP` line per fixture with the first mismatch (step, field, expected, observed), then a summary; `--json` gives the same as JSON. The exit code is 0 when nothing failed, 1 when a fixture failed or the adapter crashed, and 2 for input errors (corpus not found, unknown fixture, unreadable file).
+- Not on PyPI yet, and the API can still change (development status: alpha).
+- This is a library, not a session program: it has no clock of its own. Your program calls `step` with the current time; timing accuracy depends on that program and on the hardware.
+- Eight fixtures (seeded VR, VI, VT, RR, RI, RT, matching-to-sample, go/no-go) are pinned to Python's `random.Random(seed)`. An implementation with another random number generator can match them only approximately.
+- The virtual and Gymnasium subjects are models. They show that the program delivers the schedule you wrote, not what an animal will do.
 
 ## Replayed against MED-PC session records
 
@@ -198,28 +134,26 @@ The Swift original has FR, CRF, EXT, FI, FT, VI, VR, VT, Alternative and Concurr
 
 These are recorded, not fixed: neither implementation is changed to match the other.
 
-## Public API
+## Development
 
-```python
-from contingency import Schedule, Observation, Reinforcer
-from contingency.schedules import FR, VR, FI, VI, FT, VT, CRF, EXT, DRO
-from contingency.schedules import Concurrent, Multiple, Chained, Tandem, Alternative
-from contingency.builder import ScheduleBuilder
-from contingency.bridge import from_dsl
+```bash
+git clone https://github.com/OperantKit/contingency-py && cd contingency-py
+python -m venv .venv
+.venv/bin/python -m pip install --no-deps git+https://github.com/OperantKit/contingency-dsl-py -e .
+.venv/bin/python -m pip install pytest pytest-cov hypothesis gymnasium numpy
+.venv/bin/pytest
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for the code of conduct.
 
 ## Support
 
-- Report bugs, request features, and ask usage questions in the [issue tracker](https://github.com/OperantKit/contingency-py/issues). For a bug, include the schedule expression (or the code that builds the schedule), the response/event sequence that reproduces it, the expected and observed outcomes, and the versions of Python, contingency-py, and contingency-dsl-py.
-- The project is maintained by a single developer on a best-effort basis. There is no guaranteed response time, but every issue is read.
-- See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute changes and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for the code of conduct.
+Report bugs, request features, and ask usage questions in the [issue tracker](https://github.com/OperantKit/contingency-py/issues). For a bug, include the schedule expression (or the code that builds the schedule), the response sequence that reproduces it, the expected and observed outcomes, and the versions of Python, contingency-py, and contingency-dsl-py. The project is maintained by a single developer on a best-effort basis; there is no guaranteed response time, but every issue is read.
 
 ## References
 
 - Fleshler, M., & Hoffman, H. S. (1962). A progression for generating variable-interval schedules. *Journal of the Experimental Analysis of Behavior*, 5(4), 529-530. https://doi.org/10.1901/jeab.1962.5-529
 - Hantula, D. A. (1991). A simple BASIC program to generate values for variable-interval schedules of reinforcement. *Journal of Applied Behavior Analysis*, 24(4), 799-801. https://doi.org/10.1901/jaba.1991.24-799
-- Catania, A. C. (1966). Concurrent operants. In W. K. Honig (Ed.), *Operant behavior: Areas of research and application* (pp. 213-270). Appleton-Century-Crofts.
-- Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*. Appleton-Century-Crofts.
 - McCutcheon, J. (2022). *Progressive ratio in protein-restricted vs. non-restricted rats* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.5409201
 - Sosa, R., Mata-Luévanos, J., Tapia-de-Jesús, A., Saavedra, P., & Buenrostro-Jáuregui, M. (2026). *Longitudinal association between different indices of behavioral inhibition* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19164959
 

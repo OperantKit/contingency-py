@@ -2,40 +2,29 @@
 
 :gb: [English README](README.md)
 
-オペラント随伴性のための Python 製強化スケジュールエンジン。
+contingency-py は、強化子をいつ提示するかを決める Python のライブラリです。`FR 5`・`VI 60-s`・`Conc(VI 30-s, VI 60-s, COD=2-s)` のような強化スケジュールと、起きた反応を順に渡すと、ステップごとに強化子を提示するかどうかを返します。実験箱の制御プログラム、シミュレーション、授業でのデモ、別の実装を検査するときの基準として使えます。[OperantKit](https://github.com/OperantKit) の Python 版スケジュールエンジンで、セッション全体の実行（開始・終了の条件、記録）はこの上に載る [session-runner](https://github.com/OperantKit/session-runner) が受け持ちます。
 
-[`contingency-dsl`](https://github.com/OperantKit/contingency-dsl) の AST ノードを実行可能な `Schedule` ランタイムオブジェクトへ橋渡しする。セッション / コンテキスト / 再燃の扱いは含まない純粋ライブラリ — それらは [`experiment-core`](https://github.com/OperantKit/experiment-core) に置かれる。
+- **変動スケジュールの値は Fleshler–Hoffman (1962) の数列で作ります。** 値の個数と乱数の種を指定できるので、セッションを厳密に再現できます。
+- **並立スケジュールは切替遅延（COD）を扱います。** COD は、オペランダム（レバーやキー）を切り替えた直後に反応を強化しない時間のことです。設定済みの強化子は、そのオペランダムへの次の反応まで保持します。
+- **39 個の適合性 fixture が、各スケジュールの結果を既知の反応系列に対して固定しています。** Rust 版エンジン [contingency-rs](https://github.com/OperantKit/contingency-rs) も同じ fixture を再生します。自作の実装をこれに照らして検算することもできます。
 
-## スコープ
-
-- 原子的強化スケジュール: FR, VR, RR, FI, VI, RI, FT, VT, RT, CRF, EXT
-- 複合スケジュール: Concurrent (+ COD), Multiple, Chained, Tandem, Alternative
-- 分化強化: DRO (resetting, momentary), DRL, DRH
-- 累進比率 (Progressive Ratio)（arithmetic, geometric, Hantula ステップ関数）
-- Limited Hold ラッパ
-- Fleshler-Hoffman VI/VR 分布生成器 (Fleshler & Hoffman, 1962; Hantula, 1991)
-- DSL ブリッジ: `contingency.bridge.from_dsl(ast)` → `Schedule`
-- HAL (`contingency.hw`): virtual / serial / HIL bridge バックエンド
+[スケジュールの用語](docs/ja/schedule-terms.md) では、これらの点（COD、Fleshler–Hoffman の数列、DRL と反応間時間、リセット型 DRO、VI の間隔がいつ始まるか）を数文ずつ説明しています。AI のコーディングエージェント向けの案内（AI アシスタントが書いたスケジュールのコードとの比較を含む）は [AGENTS.md](AGENTS.md) にあります。
 
 ## インストール
 
+Python 3.11 以上が必要です。contingency-py はまだ PyPI に登録されていません。本体と、式を読む [contingency-dsl-py](https://github.com/OperantKit/contingency-dsl-py) を、依存の解決をせずに GitHub から入れます。
+
 ```bash
-pip install contingency-py
-pip install "contingency-py[gym]"   # 任意: Gymnasium 環境
+G=git+https://github.com/OperantKit
+pip install --no-deps $G/contingency-dsl-py $G/contingency-py
+pip install gymnasium numpy     # 任意: Gymnasium 環境を使うときだけ
 ```
 
-開発用:
+`pip check` はこれらの開発版のあいだの版の不一致を報告しますが、以下の例には影響しません。
 
-```
-mise install                                # Python 3.11
-mise exec -- python -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
-.venv/bin/pytest
-```
+## 例
 
-## 30 秒で動く例
-
-スケジュールを [contingency-dsl](https://github.com/OperantKit/contingency-dsl) で書き、`from_dsl` でコンパイルし、反応を与えて進める:
+スケジュールを [contingency-dsl](https://github.com/OperantKit/contingency-dsl) の式で書き、`from_dsl` で組み立て、反応を渡します。
 
 ```python
 from contingency_dsl import parse
@@ -55,18 +44,49 @@ for i in range(1, 1201):
     outcome = schedule.step(now, ResponseEvent(time=now, operandum=operandum))
     if outcome.reinforced:
         reinforcers[operandum] += 1
-print(reinforcers)  # {'c0': 9, 'c1': 3} — seed 固定なので毎回同じ
+print(reinforcers)  # {'c0': 16, 'c1': 9} — 種を固定しているので毎回同じ
 ```
 
-`contingency-dsl-py` は依存として一緒に入る。同じ `Schedule` オブジェクトは [session-runner](https://github.com/OperantKit/session-runner) でセッション全体の中で動かせる。
+並立スケジュールの成分は、書いた順に `c0`、`c1`、… と名付けられます。
 
-## Gymnasium 環境
+## 含まれるもの
 
-`gym` extra を入れると、`contingency.envs.ScheduleEnv` が任意の `Schedule` を強化学習エージェント向けのフリーオペラントのセッションとして動かす。1 ステップで時計が `dt`（既定 1）進み、行動 `0` は無反応、行動 `i` は `i` 番目のオペランダムへの 1 反応。報酬は強化子の magnitude。観測は被験体が知りうるものだけ（直前の強化からの経過時間と反応数、直前のステップが強化されたか、直前に反応したオペランダム）。エピソードは `max_time` で打ち切る。
+| 分野 | 内容 |
+|---|---|
+| 単一スケジュール | FR、VR、RR、FI、VI、RI、FT、VT、RT、CRF、EXT、リミテッドホールド |
+| 複合スケジュール | 並立（COD、固定比率の切替要件、方向別の COD つき）、多元、混合、連鎖、連接、選択、連言、挿入、重畳、二次スケジュール |
+| 分化強化と累進 | DRO（リセット型・瞬時型）、DRL、DRH、パーセンタイル、累進比率（等差・等比・Richardson–Roberts）、調整、連動 |
+| その他の手続き | タイムアウト、反応コスト、Sidman 型回避、弁別回避、逃避、見本合わせ、Go/No-Go |
+| 値の生成 | Fleshler–Hoffman（Fleshler & Hoffman, 1962）と Hantula (1991) の変法 |
+| スケジュールの組み立て | `contingency.bridge.from_dsl`（contingency-dsl の式から）、`contingency.builder.ScheduleBuilder`（Python の呼び出しから） |
+| ハードウェア抽象化層（`contingency.hw`） | `Apparatus` インタフェースと、仮想の装置、シリアル接続（`pyserial` が必要）、ハードウェア・イン・ザ・ループ（HIL）試験装置向けの TCP 接続 |
+| 適合性検査 | `conformance/` の 39 個の JSON fixture と `contingency-conformance` コマンド |
+| Gymnasium | `contingency.envs.ScheduleEnv` と、登録済みの 3 つの環境（任意） |
 
-import すると 4 つの ID が登録される: `contingency/FR-v0`（`n`）、`contingency/FI-v0`（`interval`）、`contingency/ConcVIVI-v0`（`mean_left`・`mean_right`・`cod`。オペランダムは `left` と `right`）、`contingency/ConcPhases-v0`（`phases`・`cod`）。`gym.make` のキーワード引数で既定値を上書きできる。
+```python
+from contingency import Schedule, Observation, Reinforcer
+from contingency.schedules import FR, VR, FI, VI, FT, VT, CRF, EXT, DRO
+from contingency.schedules import Concurrent, Multiple, Chained, Tandem, Alternative
+from contingency.builder import ScheduleBuilder
+from contingency.bridge import from_dsl
+```
 
-`ConcPhases-v0` は、再燃（resurgence）などの手続きのために、1 つのセッションで相を順に切り替える。各相は `(left, right, steps)` で、各オペランダムの VI の平均（秒。`None` は消去）と、その相が続くステップ数を表す。既定は、`left` に VI 15 s を 18000 ステップ、次に `left` を消去して `right` に VI 15 s を 12000 ステップ、最後に両方を消去して 3000 ステップ。相は観測に入らず、`info["phase"]` と `info["phase_step"]` に出る。最後の相が終わるとエピソードは終了（terminated）する。
+### 自作の実装を fixture で検算する
+
+`contingency-conformance` コマンドは、どの言語で書いたスケジュールの実装でも、39 個の fixture に照らして検算します。自作のプログラムは fixture を JSON で受け取り、どのステップが強化されたかを返します。
+
+```bash
+contingency-conformance list                    # fixture・種別・スケジュール型・step 数
+contingency-conformance run --only 'atomic/fr_*' -- python my_adapter.py
+```
+
+JSON の形式、動くアダプタの全文、乱数の種を持つ fixture の判定のしかたは [自作の実装を fixture で検算する](docs/ja/conformance-checker.md) にあります。
+
+### Gymnasium 環境
+
+`contingency.envs.ScheduleEnv` は、任意の `Schedule` を強化学習エージェント向けのフリーオペラントのセッションとして動かします。1 ステップで時計が `dt`（既定 1）進み、行動 `0` は反応しないこと、行動 `i` は `i` 番目のオペランダムへの 1 反応です。`step` が返す `reward` の値は強化子の大きさで、反応したステップでは `response_cost`（既定 0）を引きます。観測は被験体が知りうるものだけです（直前の強化からの経過時間と反応数、直前のステップが強化されたか、直前に反応したオペランダム）。import すると 4 つの ID が登録されます: `contingency/FR-v0`（`n`）、`contingency/FI-v0`（`interval`）、`contingency/ConcVIVI-v0`（`mean_left`・`mean_right`・`cod`。オペランダムは `left` と `right`）、`contingency/ConcPhases-v0`（`phases`・`cod`）。
+
+`ConcPhases-v0` は、リサージェンス（resurgence）などの手続きのために、1 つのセッションで相を順に切り替えます。各相は `(left, right, steps)` で、各オペランダムの VI の平均（秒。`None` は消去）と、その相が続くステップ数を表します。既定は、`left` に VI 15 s を 18000 ステップ、次に `left` を消去して `right` に VI 15 s を 12000 ステップ、最後に両方を消去して 3000 ステップです。相は観測に入らず、`info["phase"]` と `info["phase_step"]` に出ます。最後の相が終わるとエピソードは終了（terminated）します。
 
 ```python
 import gymnasium as gym
@@ -84,145 +104,59 @@ while True:  # 0 = no response, 1 = left, 2 = right; one step = 1 time unit
 print(n_sr)  # 21
 ```
 
-切替遅延（COD）による強化の抑止は `info["outcome_meta"]["cod_suppressed"]` に出る。`tests/test_envs_concurrent.py` では、既定の Conc VI 30 VI 60（COD 2）で 100 セッション学習した表形式の Q 学習が、学習に使っていない 10 セッションで 600 時間単位あたり平均 23.2 回の強化を得た。一様な無作為方策は 20.7 回、2 つのオペランダムから無作為に選んで必ず反応する方策は 21.1 回、学習前の同じ表は 21.5 回。
+`contingency.envs.tabular` は ε-greedy の表形式 Q 学習（`train_q`、`run_greedy`）を持ちます。`tests/test_envs_concurrent.py` では、既定の Conc VI 30 VI 60（COD 2）で 100 セッション学習した表が、学習に使っていない 10 セッションで 600 時間単位あたり平均 23.2 回の強化を得ました。一様な無作為方策は 20.7 回、2 つのオペランダムから無作為に選ぶ方策（必ず反応する）は 21.1 回、学習前の同じ表は 21.5 回でした。
 
-`response_cost`（既定 0。`gym.make` にも渡せる）は反応したステップの報酬から引かれる。強化された反応は `magnitude - response_cost` を得て、反応しないステップは費用 0（報酬に掛かる労力の費用で、`ResponseCost` スケジュールとは別物）。`contingency.envs.tabular` はこうした比較に使う ε-greedy の表形式 Q 学習を持つ。`train_q(env, episodes=..., seed=..., state=..., n_states=...)` が表を返し、`run_greedy(env, q, seed=...)` が評価 1 セッションの `(times, actions, last_sr)` を返す。既定の状態 `fi_state` は 1 オペランダム用で、直前の強化からの反応数（4 で頭打ち）と経過時間（5 単位ごとの帯）の組。
+## 制限
 
-## 自作の 50 行では足りない理由
-
-短い自作ループは次の点を誤りやすく、どれも報告するデータを変えてしまう:
-
-- **変動スケジュールの値.** VI/VR の値は Fleshler-Hoffman (1962) の数列で生成する（Hantula, 1991 のプログラム版も選べる）。場当たりの `random.uniform` や指数分布の抽選ではない。`n` と `seed` を指定できるので、セッションを厳密に再現できる。
-- **並立スケジュールの切替遅延 (COD).** `Conc` は各反応を対応する成分にだけ渡し、設定済みの強化子をそのオペランダムへの次の反応まで保持し、切替後 `COD` 時間単位は強化を抑止する。固定比率の切替要件 (`FRCO`) と方向別の COD にも対応する。
-- **適合性 fixture.** `conformance/` の 39 個の JSON fixture が、既知の反応系列に対する各スケジュールの結果系列を厳密に固定している。Rust 版 [contingency-rs](https://github.com/OperantKit/contingency-rs) も同じ fixture を再生するので、2 つの実行系が 1 つの仕様に照らして検査される。
-- **Method 節との往復変換.** スケジュールを contingency-dsl で書くので、[contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) で Method 節の段落に変換でき、[contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) で論文の Method 本文からスケジュールを抽出できる。
-- **入力の検査.** 時刻の逆行・不正なパラメータ・未知のオペランダムは明示的なエラーになり、誤った強化時刻を黙って出すことはない。
-
-[スケジュールの用語](docs/ja/schedule-terms.md) では、これらの点の背景にある問い（並立 VI の切替遅延 (COD)、Fleshler-Hoffman の数列、DRL と反応間時間、リセット型 DRO、VI の間隔がいつ始まるか）に数文ずつ答え、それぞれの書き方を示している。
-
-**AI エージェントが書いたコードでの実測.** スケジュールを組む 20 件の依頼を Claude Code（claude-opus-5-5）と Codex CLI（gpt-6.1-sol）に 1 回ずつ与え、書かれたスケジュールのコードを contingency-dsl のスケジュール定義に照らして検査した（静的検査と、別モデルによる判定。判定は引用したコード行が実在するときだけ数える）:
-
-- VI の間隔を Fleshler-Hoffman の数列で作ったのは 14 本中 7 本（Claude 7 本中 7 本、Codex 7 本中 0 本）。残りの 7 本は間隔を 1 つずつ指数分布か一様分布から抽選していた。
-- 並立スケジュール 6 本はすべて COD を持っていたが、判定で 2 本に COD の誤りが見つかった（強化子の提示中の切替を記録しない、セッション最初の反応を切替として扱う）。
-- 間隔スケジュールで、設定済みの強化子を次の反応まで保持し、次の間隔を提示から数えたのは 19 本中 16 本。残りの 3 本は、成分の切替で利用可能な強化子を捨てる、間隔の経過前の反応を強化しうる、このパッケージの `FI` を呼ぶだけで判定器が中身を見られない、の 3 つ。
-
-## 自作の実装を fixture で検算する
-
-`pip install contingency-py` で、適合性 fixture と `contingency-conformance` コマンドも入る。どの言語の実装でも、同じ 39 個の fixture に照らして検算できる。
-
-```bash
-pip install contingency-py
-contingency-conformance list                    # fixture・種別・スケジュール型・step 数
-contingency-conformance run --only 'atomic/fr_*' -- python my_adapter.py
-```
-
-`contingency-conformance path` は fixture のディレクトリを表示するので、他言語の検査器はそこから JSON を直接読める。`CONTINGENCY_CONFORMANCE_DIR` か `--dir` で別の写しを指定できる。
-
-**観測 JSON.** 実装は fixture ごとに、fixture の step 1 つにつき 1 要素を返す。
-
-```json
-{"fixture": "atomic/fr_basic.json",
- "steps": [{"reinforced": false},
-           {"reinforced": true, "reinforcer": {"time": 5.0, "magnitude": 1.0, "label": "SR+"}}]}
-```
-
-`reinforced` は完全一致。強化された step では `reinforcer.time` と `magnitude` の差が 1e-9 以内で、`label` が等しいこと。fixture の `meta` にあるキーはすべて同じ値で存在すること（観測側に余分なキーがあってもよい）。step 数も一致すること。このファイルを自分で書いて `contingency-conformance check observed/*.json` で比べるか、`run` にアダプタを起動させる。
-
-**`run -- CMD` 用のアダプタ.** `run` は fixture ごとに CMD を 1 回起動し、fixture の JSON を標準入力に渡して、標準出力の観測 JSON を受け取る（`fixture` は省略してよい）。
-
-```python
-# my_adapter.py — 手書きの FR スケジュールを fixture で検算する
-import json
-import sys
-
-
-class MyFR:
-    def __init__(self, n):
-        self.n, self.count = n, 0
-
-    def step(self, now, event):  # event: None か {"time", "operandum"}
-        if event is None:
-            return None
-        self.count += 1
-        if self.count < self.n:
-            return None
-        self.count = 0
-        return {"time": event["time"], "magnitude": 1.0, "label": "SR+"}
-
-
-def observe(fixture):
-    schedule = MyFR(fixture["schedule"]["params"]["n"])
-    steps = []
-    for step in fixture["steps"]:
-        sr = schedule.step(step["now"], step["event"])
-        steps.append({"reinforced": True, "reinforcer": sr} if sr else {"reinforced": False})
-    return {"implementation": "my-fr", "steps": steps}
-
-
-if __name__ == "__main__":
-    json.dump(observe(json.load(sys.stdin)), sys.stdout)
-```
-
-このアダプタは FR だけを実装しているので、合格するのは `atomic/fr_basic.json` だけで、`--only` を外すと、他の 38 本はアダプタがスケジュールを組み立てられず `ERROR` になる。他も通すには `observe` で各スケジュール `type` を組み立てる。合成スケジュールの 12 本（Alternative・Chained・Concurrent・Conjunctive・Interpolate・Mixed・Multiple・Overlay・SecondOrder・Tandem）と包み型の 2 本（Timeout・ResponseCost）、Percentile の 1 本、嫌悪制御の 3 本（Sidman・DiscriminatedAvoidance・Escape）、試行型の 2 本（MatchingToSample・GoNoGo）は一部の step で `meta`（`current_component`・`alternative_winner`・`cod_suppressed`・`timeout_active`・`in_probe`・`net_magnitude`・`phase`・`aversive_event`・`trial_outcome` など）も求める。どの step にどのキーが要るかは fixture ファイルに書いてある。
-
-`contingency-conformance replay-python` は本パッケージの実行系に対する同じアダプタで、`contingency-conformance run -- contingency-conformance replay-python` は 39 本すべてに合格する。
-
-**乱数の種を持つ fixture.** 8 本（種付きの VR・VI・VT・RR・RI・RT・MatchingToSample・GoNoGo）は Python の `random.Random(seed)` で固定されている。`--stochastic` で判定のしかたを選ぶ。
-
-- `count`（既定）: 強化の回数が記録値の 0.5〜1.5 倍に入り、最初の強化が最初の step より前でないこと。独自の乱数生成器を持つ実装向け。
-- `strict`: 決定的 fixture と同じ判定。Python の乱数生成器を再現した実装向け。
-- `skip`: 判定しない。
-
-試行型の 2 本では、どの比較刺激が正解か（MatchingToSample）、どの試行が Go か（GoNoGo）を乱数が決める。生成器が違うと、同じ固定の反応で得る強化の回数が変わり、正しい実装でも `count` で落ちうる。Python の生成器を再現しない限り、この 2 本は `--stochastic skip` で流すか、生成器を移植してから `strict` で確かめる。
-
-出力は fixture ごとに `PASS` / `FAIL` / `ERROR` / `SKIP` の 1 行と最初の不一致（step・項目・期待値・観測値）、最後に集計。`--json` で同じ内容を JSON で出す。終了コードは、不合格が無ければ 0、不合格かアダプタの異常終了があれば 1、入力の誤り（fixture が見つからない・未知の fixture・読めないファイル）なら 2。
+- まだ PyPI に登録されておらず、API は変わることがあります（開発段階: alpha）。
+- これはライブラリであって、セッションを動かすプログラムではありません。自前の時計を持たず、呼び出す側のプログラムが現在時刻を付けて `step` を呼びます。時間の精度はそのプログラムとハードウェアで決まります。
+- 8 本の fixture（種付きの VR・VI・VT・RR・RI・RT・見本合わせ・Go/No-Go）は Python の `random.Random(seed)` に合わせて固定されています。別の乱数生成器を使う実装は、これらと近似的にしか一致しません。
+- 仮想被験体と Gymnasium の被験体はモデルです。書いたスケジュールどおりにプログラムが強化子を提示することは示しますが、動物がどう振る舞うかは示しません。
 
 ## MED-PC の記録で再生した結果
 
-`tests/test_apparatus_replay.py` は、公開されたセッションで MED-PC の装置が記録した反応を `DRL` と `ProgressiveRatio` にそのまま渡し、どの反応が強化されるかを比べる。データ全体 — DRL 10 s の 928 セッション・強化 30,578 件（Sosa et al., 2026）と、比率が 1, 4, 7, … と増える累進比率の 273 セッション・強化 3,979 件（McCutcheon, 2022）— で、装置のプログラムと同じく IRT の計時を DRL の開始時点から始め、強化後 4 s（累進比率では 5.1 s）の反応を除くと、記録された強化のうち DRL で 99.30%、累進比率で 99.75% を engine も同じ反応で強化した。食い違いはすべて計時の分解能によるもので、DRL では 10 s の境界から ±70 ms 以内の反応 192 件とそれに続く反応 93 件、累進比率では 5.1 s のタイムアウトの境界にあった反応とそれに続く反応の計 20 件。テストはこのうち 4 セッションを fixture として持つ。
+`tests/test_apparatus_replay.py` は、公開されたセッションで MED-PC の装置が記録した反応を `DRL` と `ProgressiveRatio` にそのまま渡し、どの反応が強化されるかを比べます。データ全体 — DRL 10 s の 928 セッション・強化 30,578 件（Sosa et al., 2026）と、比率が 1, 4, 7, … と増える累進比率の 273 セッション・強化 3,979 件（McCutcheon, 2022）— で、装置のプログラムと同じく IRT（反応間時間）の計時を DRL の開始時点から始め、強化後 4 s（累進比率では 5.1 s）の反応を除くと、記録された強化のうち DRL で 99.30%、累進比率で 99.75% を、このパッケージも同じ反応で強化しました。食い違いはすべて計時の分解能によるもので、DRL では 10 s の境界から ±70 ms 以内の反応 192 件とそれに続く反応 93 件、累進比率では 5.1 s のタイムアウトの境界にあった反応とそれに続く反応の計 20 件です。テストはこのうち 4 セッションを fixture として持っています。
 
 ## Swift 原典との違い
 
-本パッケージは Swift のライブラリ [OperantKit](https://github.com/YutoMizutani/OperantKit) の移植である。`tests/test_legacy_swift_parity.py` は手元の Swift 原典をビルドし、小さなドライバ（`tools/legacy-swift/`）で上の fixture に通す。Swift のツールチェーンが要り、原典の場所を渡さない限り skip される。
+本パッケージは Swift のライブラリ [OperantKit](https://github.com/YutoMizutani/OperantKit) の移植です。`tests/test_legacy_swift_parity.py` は手元の Swift 原典をビルドし、小さなドライバ（`tools/legacy-swift/`）で上の fixture に通します。Swift のツールチェーンが必要で、原典の場所を渡さない限り skip されます。
 
 ```bash
 OPERANTKIT_LEGACY_DIR=/path/to/OperantKit .venv/bin/pytest -q tests/test_legacy_swift_parity.py
 ```
 
-Swift 原典にあるのは FR・CRF・EXT・FI・FT・VI・VR・VT・Alternative・Concurrent（切り替え遅延なし）。乱数生成器に種を与えられないので、VI・VR・VT は本パッケージが引く値の列をテストが注入する。FR・CRF・EXT・FI・FT は fixture と step ごとに一致する。既知の違い:
+Swift 原典にあるのは FR・CRF・EXT・FI・FT・VI・VR・VT・Alternative・Concurrent（切替遅延なし）です。乱数生成器に種を与えられないので、VI・VR・VT は本パッケージが引く値の列をテストが注入します。FR・CRF・EXT・FI・FT は fixture と step ごとに一致します。既知の違い:
 
-- **VI・VR・VT**: Swift 原典は値の列の最初の値を繰り返す。`Parameter.nextOrder()` が `mutating` でないため、列の位置が進まない。この 1 関数だけを `mutating` にすると（`tools/legacy-swift/nextorder-control.patch`、一時コピーにだけ当てる）3 本とも完全に一致する。
-- **Alternative(FR 5, FT 10 s)**: 5 秒に FR が強化した後、Swift は次の FT の間隔を強化の時点（5 秒）から測って 15 秒に強化する。本パッケージは FT を次の step（6 秒）から測り直す。
-- **Hantula (1991) の生成器**: 最小値が 0 に丸まるとき（たとえばテストした `v = 10, n = 12`）、Swift の `hantula1991` は 0 を残す。`generate_intervals_hantula1991` はそれを 1 に置き換えるので、合計が 1 多い。
-- **Fleshler-Hoffman の生成器**（VR 5・`n = 12` と、VI の `(10, 12)`・`(60, 20)`・`(30000, 12)` で確認）: 比率の列は多重集合として一致する。Swift は丸めの過不足を無作為な位置に足すので、他のパラメータでは多重集合が変わりうる。Swift の間隔の生成器は整数を返す。Fleshler-Hoffman の数列を丸め、丸めの余りを無作為な位置の 1 要素に足したものである。`generate_intervals` は小数のまま返す。
+- **VI・VR・VT**: Swift 原典は値の列の最初の値を繰り返します。`Parameter.nextOrder()` が `mutating` でないため、列の位置が進みません。この 1 関数だけを `mutating` にすると（`tools/legacy-swift/nextorder-control.patch`、一時コピーにだけ当てます）3 本とも完全に一致します。
+- **Alternative(FR 5, FT 10 s)**: 5 秒に FR が強化した後、Swift は次の FT の間隔を強化の時点（5 秒）から測って 15 秒に強化します。本パッケージは FT を次の step（6 秒）から測り直します。
+- **Hantula (1991) の生成器**: 最小値が 0 に丸まるとき（たとえばテストした `v = 10, n = 12`）、Swift の `hantula1991` は 0 を残します。`generate_intervals_hantula1991` はそれを 1 に置き換えるので、合計が 1 多くなります。
+- **Fleshler-Hoffman の生成器**（VR 5・`n = 12` と、VI の `(10, 12)`・`(60, 20)`・`(30000, 12)` で確認）: 比率の列は多重集合として一致します。Swift は丸めの過不足を無作為な位置に足すので、他のパラメータでは多重集合が変わることがあります。Swift の間隔の生成器は整数を返します。Fleshler-Hoffman の数列を丸め、丸めの余りを無作為な位置の 1 要素に足したものです。`generate_intervals` は小数のまま返します。
 
-これらは記録であって修正ではない。どちらの実装も相手に合わせて変えていない。
+これらは記録であって修正ではありません。どちらの実装も相手に合わせて変えていません。
 
-## 公開 API
+## 開発
 
-```python
-from contingency import Schedule, Observation, Reinforcer
-from contingency.schedules import FR, VR, FI, VI, FT, VT, CRF, EXT, DRO
-from contingency.schedules import Concurrent, Multiple, Chained, Tandem, Alternative
-from contingency.builder import ScheduleBuilder
-from contingency.bridge import from_dsl
+```bash
+git clone https://github.com/OperantKit/contingency-py && cd contingency-py
+python -m venv .venv
+.venv/bin/python -m pip install --no-deps git+https://github.com/OperantKit/contingency-dsl-py -e .
+.venv/bin/python -m pip install pytest pytest-cov hypothesis gymnasium numpy
+.venv/bin/pytest
 ```
+
+変更の送り方は [CONTRIBUTING.md](CONTRIBUTING.md) を、行動規範は [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) を参照してください。
 
 ## サポート
 
-- 不具合の報告・機能の要望・使い方の質問は [issue tracker](https://github.com/OperantKit/contingency-py/issues) に書いてください。不具合の報告には、スケジュールの式（またはスケジュールを作るコード）、再現する反応・イベントの列、期待した結果と実際の結果、Python・contingency-py・contingency-dsl-py の版を添えてください。
-- 開発者 1 名が手の空いたときに対応しています。返信の期日は約束できませんが、issue はすべて読みます。
-- 変更の送り方は [CONTRIBUTING.md](CONTRIBUTING.md) を、行動規範は [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) を参照してください。
+不具合の報告・機能の要望・使い方の質問は [issue tracker](https://github.com/OperantKit/contingency-py/issues) に書いてください。不具合の報告には、スケジュールの式（またはスケジュールを作るコード）、再現する反応の列、期待した結果と実際の結果、Python・contingency-py・contingency-dsl-py の版を添えてください。開発者 1 名が手の空いたときに対応しています。返信の期日は約束できませんが、issue はすべて読みます。
 
 ## 参考文献
 
 - Fleshler, M., & Hoffman, H. S. (1962). A progression for generating variable-interval schedules. *Journal of the Experimental Analysis of Behavior*, 5(4), 529-530. https://doi.org/10.1901/jeab.1962.5-529
 - Hantula, D. A. (1991). A simple BASIC program to generate values for variable-interval schedules of reinforcement. *Journal of Applied Behavior Analysis*, 24(4), 799-801. https://doi.org/10.1901/jaba.1991.24-799
-- Catania, A. C. (1966). Concurrent operants. In W. K. Honig (Ed.), *Operant behavior: Areas of research and application* (pp. 213-270). Appleton-Century-Crofts.
-- Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*. Appleton-Century-Crofts.
 - McCutcheon, J. (2022). *Progressive ratio in protein-restricted vs. non-restricted rats* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.5409201
 - Sosa, R., Mata-Luévanos, J., Tapia-de-Jesús, A., Saavedra, P., & Buenrostro-Jáuregui, M. (2026). *Longitudinal association between different indices of behavioral inhibition* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19164959
 
 ## ライセンス
 
-MIT. [LICENSE](LICENSE) を参照。
+MIT です。[LICENSE](LICENSE) を参照してください。
