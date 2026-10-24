@@ -64,11 +64,13 @@ print(reinforcers)  # {'c0': 9, 'c1': 3} — identical on every run (seeded)
 
 With the `gym` extra, `contingency.envs.ScheduleEnv` runs any `Schedule` as a free-operant session for reinforcement-learning agents. Each step advances the clock by `dt` (default 1); action `0` withholds responding and action `i` emits one response on the `i`-th operandum. The reward is the reinforcer's magnitude. The observation holds only what a subject could know: time and responses since the last reinforcer, whether the last step was reinforced, and the last operandum responded on. The episode is truncated at `max_time`.
 
-Three IDs are registered on import: `contingency/FR-v0` (`n`), `contingency/FI-v0` (`interval`) and `contingency/ConcVIVI-v0` (`mean_left`, `mean_right`, `cod`; operanda `left` and `right`). Keyword arguments to `gym.make` override the defaults.
+Four IDs are registered on import: `contingency/FR-v0` (`n`), `contingency/FI-v0` (`interval`), `contingency/ConcVIVI-v0` (`mean_left`, `mean_right`, `cod`; operanda `left` and `right`) and `contingency/ConcPhases-v0` (`phases`, `cod`). Keyword arguments to `gym.make` override the defaults.
+
+`ConcPhases-v0` runs phases one after another in one session, for procedures such as resurgence. Each phase is `(left, right, steps)`: the VI mean in seconds on each operandum (`None` = extinction) and the number of steps it lasts. The default is VI 15 s on `left` for 18000 steps, then `left` in extinction with VI 15 s on `right` for 12000 steps, then both in extinction for 3000 steps. The phase is not in the observation; `info["phase"]` and `info["phase_step"]` report it, and the episode terminates when the last phase ends.
 
 ```python
 import gymnasium as gym
-import contingency.envs  # registers contingency/FR-v0, FI-v0 and ConcVIVI-v0
+import contingency.envs  # registers contingency/FR-v0, FI-v0, ConcVIVI-v0, ConcPhases-v0
 
 env = gym.make("contingency/ConcVIVI-v0", mean_left=30.0, mean_right=60.0, cod=2.0)
 obs, info = env.reset(seed=0)

@@ -64,11 +64,13 @@ print(reinforcers)  # {'c0': 9, 'c1': 3} — seed 固定なので毎回同じ
 
 `gym` extra を入れると、`contingency.envs.ScheduleEnv` が任意の `Schedule` を強化学習エージェント向けのフリーオペラントのセッションとして動かす。1 ステップで時計が `dt`（既定 1）進み、行動 `0` は無反応、行動 `i` は `i` 番目のオペランダムへの 1 反応。報酬は強化子の magnitude。観測は被験体が知りうるものだけ（直前の強化からの経過時間と反応数、直前のステップが強化されたか、直前に反応したオペランダム）。エピソードは `max_time` で打ち切る。
 
-import すると 3 つの ID が登録される: `contingency/FR-v0`（`n`）、`contingency/FI-v0`（`interval`）、`contingency/ConcVIVI-v0`（`mean_left`・`mean_right`・`cod`。オペランダムは `left` と `right`）。`gym.make` のキーワード引数で既定値を上書きできる。
+import すると 4 つの ID が登録される: `contingency/FR-v0`（`n`）、`contingency/FI-v0`（`interval`）、`contingency/ConcVIVI-v0`（`mean_left`・`mean_right`・`cod`。オペランダムは `left` と `right`）、`contingency/ConcPhases-v0`（`phases`・`cod`）。`gym.make` のキーワード引数で既定値を上書きできる。
+
+`ConcPhases-v0` は、再燃（resurgence）などの手続きのために、1 つのセッションで相を順に切り替える。各相は `(left, right, steps)` で、各オペランダムの VI の平均（秒。`None` は消去）と、その相が続くステップ数を表す。既定は、`left` に VI 15 s を 18000 ステップ、次に `left` を消去して `right` に VI 15 s を 12000 ステップ、最後に両方を消去して 3000 ステップ。相は観測に入らず、`info["phase"]` と `info["phase_step"]` に出る。最後の相が終わるとエピソードは終了（terminated）する。
 
 ```python
 import gymnasium as gym
-import contingency.envs  # registers contingency/FR-v0, FI-v0 and ConcVIVI-v0
+import contingency.envs  # registers contingency/FR-v0, FI-v0, ConcVIVI-v0, ConcPhases-v0
 
 env = gym.make("contingency/ConcVIVI-v0", mean_left=30.0, mean_right=60.0, cod=2.0)
 obs, info = env.reset(seed=0)
