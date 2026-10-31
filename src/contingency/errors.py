@@ -6,6 +6,7 @@ __all__ = [
     "ContingencyError",
     "ScheduleConfigError",
     "ScheduleStateError",
+    "SpecUnrepresentableError",
     "HardwareError",
     "NotConnectedError",
 ]
@@ -17,6 +18,15 @@ class ContingencyError(Exception):
 
 class ScheduleConfigError(ContingencyError, ValueError):
     """Raised when a schedule is constructed with invalid parameters."""
+
+
+class SpecUnrepresentableError(ScheduleConfigError):
+    """Raised when a DSL construct has no form in the schedule spec.
+
+    :func:`contingency.bridge.to_spec` raises it instead of dropping a
+    construct that would change the contingency (for example a
+    directional COD, ``PUNISH``, ``BO``, or ``Lag``).
+    """
 
 
 class ScheduleStateError(ContingencyError, RuntimeError):
