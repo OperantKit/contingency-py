@@ -117,6 +117,10 @@ one, so an explicit inner seed can repeat a seed the outer sequence also
 hands out. Without the annotation seeds stay ``None``.
 Other annotations and param declarations are ignored.
 
+:func:`to_spec` (in :mod:`contingency.bridge.spec`) translates the same
+AST to a JSON schedule spec instead, so that
+``build_schedule_from_spec(to_spec(ast))`` behaves like ``from_dsl(ast)``.
+
 References
 ----------
 Catania, A. C. (1966). Concurrent performances: Reinforcement
@@ -183,7 +187,7 @@ from contingency.schedules import (
     geometric,
 )
 
-__all__ = ["from_dsl"]
+__all__ = ["from_dsl", "to_spec"]
 
 
 # --- Time unit resolution --------------------------------------------------
@@ -1151,3 +1155,7 @@ def _build_go_nogo(
         false_alarm=false_alarm,
         seed=_next_seed(),
     )
+
+
+# Imported last: ``contingency.bridge.spec`` reuses the helpers above.
+from contingency.bridge.spec import to_spec  # noqa: E402

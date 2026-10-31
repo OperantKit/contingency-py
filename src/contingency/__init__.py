@@ -5,7 +5,7 @@ Bridges contingency-dsl AST nodes into executable Schedule runtime objects.
 
 from __future__ import annotations
 
-from contingency.bridge import from_dsl
+from contingency.bridge import from_dsl, to_spec
 from contingency.builder import ScheduleBuilder
 from contingency.entities import Observation, Outcome, Reinforcer, ResponseEvent
 from contingency.errors import (
@@ -14,6 +14,7 @@ from contingency.errors import (
     NotConnectedError,
     ScheduleConfigError,
     ScheduleStateError,
+    SpecUnrepresentableError,
 )
 from contingency.hw import (
     Apparatus,
@@ -36,12 +37,14 @@ __all__ = [
     "NotConnectedError",
     "ScheduleConfigError",
     "ScheduleStateError",
+    "SpecUnrepresentableError",
     "Apparatus",
     "ApparatusInfo",
     "ApparatusStatus",
     "HilBridgeApparatus",
     "VirtualApparatus",
     "from_dsl",
+    "to_spec",
     "__version__",
 ]
 
