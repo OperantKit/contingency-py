@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import dataclasses
+import random
+
 import pytest
 
-from contingency.entities import ResponseEvent
+from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.schedules import FT, GoNoGo, MatchingToSample
 from contingency.schedules.ratio import FR
+from contingency.schedules.trial_based import TrialType, trial_types_from_relations
 
 # ---------------------------------------------------------------------------
 # MatchingToSample
@@ -378,3 +382,247 @@ class TestMTSAuxiliary:
         mts.step(0.0)
         o = mts.step(2.0)
         assert o.meta["trial_outcome"] == "incorrect"
+
+
+# ---------------------------------------------------------------------------
+# MatchingToSample with trial types (stimulus relations and probe trials)
+# ---------------------------------------------------------------------------
+
+AB = {"A1": "B1", "A2": "B2", "A3": "B3"}
+BA = {"B1": "A1", "B2": "A2", "B3": "A3"}
+
+
+class _SpySchedule:
+    """Records every ``step`` call and always delivers a reinforcer."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[float, ResponseEvent | None]] = []
+
+    def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        self.calls.append((now, event))
+        return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
+
+    def reset(self) -> None:
+        self.calls.clear()
+
+
+def _operandum_for(mts: MatchingToSample, name: str) -> str:
+    return f"choice_{mts.current_comparisons.index(name)}"
+
+
+def _run_trials(
+    mts: MatchingToSample, n_trials: int, *, choose_correct: bool = True
+) -> list[Outcome]:
+    """Run ``n_trials`` trials (sample_duration=0, iti=1), one per time unit."""
+    outcomes = []
+    for t in range(n_trials):
+        mts.step(float(t))
+        tt = mts.current_trial_type
+        assert tt is not None
+        name = tt.correct if choose_correct else next(
+            c for c in tt.comparisons if c != tt.correct
+        )
+        op = _operandum_for(mts, name)
+        outcomes.append(mts.step(float(t), ResponseEvent(time=float(t), operandum=op)))
+    return outcomes
+
+
+class TestTrialTypesFromRelations:
+    def test_builds_one_trial_type_per_relation(self) -> None:
+        types = trial_types_from_relations(AB)
+        assert types == (
+            TrialType("A1", "B1", ("B1", "B2", "B3")),
+            TrialType("A2", "B2", ("B1", "B2", "B3")),
+            TrialType("A3", "B3", ("B1", "B2", "B3")),
+        )
+
+    def test_duplicate_value_rejected(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            trial_types_from_relations({"A1": "B1", "A2": "B1"})
+
+    def test_trial_type_is_frozen(self) -> None:
+        tt = TrialType("A1", "B1", ("B1", "B2"))
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            tt.sample = "A2"  # type: ignore[misc]
+
+
+class TestMTSTrialTypes:
+    def _mts(self, **kwargs: object) -> MatchingToSample:
+        params: dict[str, object] = {
+            "n_comparisons": 3,
+            "sample_duration": 0,
+            "choice_timeout": 5,
+            "iti": 1,
+            "trial_types": trial_types_from_relations(AB),
+            "seed": 7,
+        }
+        params.update(kwargs)
+        return MatchingToSample(**params)  # type: ignore[arg-type]
+
+    def test_sample_and_correct_follow_relations(self) -> None:
+        mts = self._mts()
+        samples = []
+        for t in range(6):
+            mts.step(float(t))
+            sample = mts.current_sample
+            assert sample is not None
+            samples.append(sample)
+            assert mts.current_trial_type is not None
+            assert sorted(mts.current_comparisons) == ["B1", "B2", "B3"]
+            correct_idx = int(mts.correct_operandum.removeprefix("choice_"))
+            assert mts.current_comparisons[correct_idx] == AB[sample]
+            assert mts.is_probe_trial is False
+            o = mts.step(
+                float(t), ResponseEvent(time=float(t), operandum=mts.correct_operandum)
+            )
+            assert o.reinforced
+            assert o.meta["trial_outcome"] == "correct"
+        # Each block of 3 trials presents every sample exactly once.
+        assert sorted(samples[:3]) == ["A1", "A2", "A3"]
+        assert sorted(samples[3:]) == ["A1", "A2", "A3"]
+
+    def test_rng_calls_are_block_shuffle_then_position_shuffle(self) -> None:
+        types = trial_types_from_relations(AB)
+        mts = self._mts()
+        rng = random.Random(7)
+        expected = []
+        for _ in range(2):
+            order = list(range(len(types)))
+            rng.shuffle(order)
+            for i in order:
+                positions = list(types[i].comparisons)
+                rng.shuffle(positions)
+                expected.append((types[i].sample, tuple(positions)))
+        observed = []
+        for t in range(6):
+            mts.step(float(t))
+            observed.append((mts.current_sample, mts.current_comparisons))
+            mts.step(float(t), ResponseEvent(time=float(t), operandum="choice_0"))
+        assert observed == expected
+
+    def test_meta_reports_sample_comparisons_correct_probe_choice(self) -> None:
+        mts = self._mts()
+        o0 = mts.step(0.0)
+        assert o0.meta["sample"] == mts.current_sample
+        assert o0.meta["comparisons"] == mts.current_comparisons
+        assert o0.meta["correct"] == AB[mts.current_sample or ""]
+        assert o0.meta["probe"] is False
+        assert "choice" not in o0.meta
+        chosen = mts.current_comparisons[1]
+        o = mts.step(0.0, ResponseEvent(time=0.0, operandum="choice_1"))
+        assert o.meta["choice"] == chosen
+        assert o.meta["sample"] == o0.meta["sample"]
+        assert o.meta["trial_outcome"] == (
+            "correct" if chosen == o0.meta["correct"] else "incorrect"
+        )
+        # Timeout: the settled trial reports choice=None.
+        mts.step(1.0)
+        timeout = mts.step(7.0)
+        assert timeout.meta["trial_outcome"] == "incorrect"
+        assert timeout.meta["choice"] is None
+
+    def test_probe_trials_are_not_consequated(self) -> None:
+        consequence = _SpySchedule()
+        incorrect = _SpySchedule()
+        mts = self._mts(
+            trial_types=trial_types_from_relations(AB),
+            probe_trial_types=trial_types_from_relations(BA),
+            consequence=consequence,
+            incorrect=incorrect,
+        )
+        probes = {"correct": 0, "incorrect": 0}
+        for t in range(12):
+            mts.step(float(t))
+            tt = mts.current_trial_type
+            assert tt is not None
+            choose_correct = t % 2 == 0
+            name = tt.correct if choose_correct else next(
+                c for c in tt.comparisons if c != tt.correct
+            )
+            n_before = len(consequence.calls) + len(incorrect.calls)
+            o = mts.step(
+                float(t), ResponseEvent(time=float(t), operandum=_operandum_for(mts, name))
+            )
+            assert o.meta["trial_outcome"] == ("correct" if choose_correct else "incorrect")
+            if o.meta["probe"]:
+                assert mts.is_probe_trial
+                assert tt.sample.startswith("B")
+                assert not o.reinforced
+                assert o.reinforcer is None
+                assert len(consequence.calls) + len(incorrect.calls) == n_before
+                probes[str(o.meta["trial_outcome"])] += 1
+            else:
+                assert tt.sample.startswith("A")
+                assert len(consequence.calls) + len(incorrect.calls) == n_before + 1
+        assert probes["correct"] > 0 and probes["incorrect"] > 0
+
+    def test_probe_timeout_does_not_fire_incorrect(self) -> None:
+        incorrect = _SpySchedule()
+        mts = self._mts(
+            trial_types=[TrialType("A1", "B1", ("B1", "B2", "B3"))],
+            probe_trial_types=[TrialType("B1", "A1", ("A1", "A2", "A3"))],
+            incorrect=incorrect,
+            choice_timeout=1.0,
+        )
+        t = 0.0
+        seen_probe_timeout = False
+        for _ in range(6):
+            mts.step(t)
+            probe = mts.is_probe_trial
+            n_before = len(incorrect.calls)
+            o = mts.step(t + 1.5)  # times the choice out
+            assert o.meta["trial_outcome"] == "incorrect"
+            assert o.meta["choice"] is None
+            if probe:
+                seen_probe_timeout = True
+                assert not o.reinforced
+                assert len(incorrect.calls) == n_before
+            else:
+                assert len(incorrect.calls) == n_before + 1
+            t += 2.0  # timeout boundary at t+1, ITI ends (next trial) at t+2
+        assert seen_probe_timeout
+
+    def test_reset_reproduces_sample_sequence(self) -> None:
+        mts = self._mts(probe_trial_types=trial_types_from_relations(BA))
+        first_sample = mts.current_sample
+        _run_trials(mts, 9)
+        mts.reset()
+        assert mts.current_sample == first_sample
+        seq_a = [str(o.meta["sample"]) for o in _run_trials(mts, 9)]
+        mts.reset()
+        seq_b = [str(o.meta["sample"]) for o in _run_trials(mts, 9)]
+        assert seq_a == seq_b
+        assert sorted(seq_a[:6]) == ["A1", "A2", "A3", "B1", "B2", "B3"]
+
+    def test_correct_not_in_comparisons_rejected(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            self._mts(trial_types=[TrialType("A1", "B9", ("B1", "B2", "B3"))])
+
+    def test_comparison_count_mismatch_rejected(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            self._mts(trial_types=[TrialType("A1", "B1", ("B1", "B2"))])
+
+    def test_duplicate_comparisons_rejected(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            self._mts(trial_types=[TrialType("A1", "B1", ("B1", "B1", "B2"))])
+
+    def test_empty_trial_types_rejected(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            self._mts(trial_types=[])
+
+    def test_probe_without_trial_types_rejected(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            self._mts(trial_types=None, probe_trial_types=trial_types_from_relations(BA))
+
+    def test_probe_trial_type_validated(self) -> None:
+        with pytest.raises(ScheduleConfigError):
+            self._mts(probe_trial_types=[TrialType("B1", "A9", ("A1", "A2", "A3"))])
+
+    def test_default_mode_meta_unchanged(self) -> None:
+        mts = MatchingToSample(n_comparisons=2, sample_duration=0, seed=7)
+        o = mts.step(0.0, ResponseEvent(time=0.0, operandum=mts.correct_operandum))
+        assert set(o.meta) == {"phase", "trial_index", "trial_outcome"}
+        assert mts.current_trial_type is None
+        assert mts.current_sample is None
+        assert mts.current_comparisons == ()
+        assert mts.is_probe_trial is False

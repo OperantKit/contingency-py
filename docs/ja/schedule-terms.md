@@ -34,6 +34,12 @@ VI スケジュールでは、現在の間隔が経過した後の最初の反�
 
 operantkit での書き方: `VI60s`。
 
+## Matching to sample and probe trials（見本合わせとプローブ試行）
+
+見本合わせでは、見本刺激を提示した後に被験体が比較刺激の中から 1 つを選び、見本と関係づけられた比較刺激を選ぶと強化されます。試行型は見本と正しい比較刺激の組で、1 ブロックではすべての試行型を無作為な順に 1 回ずつ提示し、比較刺激の位置も毎試行入れ替えて、位置から正答が分からないようにします。刺激等価性のテストでは、訓練していない関係（A から B を訓練した後の B から A など）のプローブ試行を加えます。プローブ試行も正誤は記録しますが、どちらを選んでも結果は提示しないので、プローブでの成績がその試行自体の強化から生じたものにはなりません。
+
+operantkit での書き方: `contingency.schedules` の `MatchingToSample(n_comparisons=3, trial_types=trial_types_from_relations({"A1": "B1", "A2": "B2", "A3": "B3"}), probe_trial_types=trial_types_from_relations({"B1": "A1", "B2": "A2", "B3": "A3"}))`。各 outcome の `meta` に `sample`・`comparisons`・`correct`・`probe` が出て、試行が決着すると `choice` も出る。
+
 ## 実行できる確認
 
 ```python

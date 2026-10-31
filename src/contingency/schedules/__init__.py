@@ -34,7 +34,12 @@ from contingency.schedules.second_order import SecondOrder
 from contingency.schedules.sequence import Chained, Multiple, Tandem
 from contingency.schedules.time_based import EXT, FT, RT, VT
 from contingency.schedules.timeout import Timeout
-from contingency.schedules.trial_based import GoNoGo, MatchingToSample
+from contingency.schedules.trial_based import (
+    GoNoGo,
+    MatchingToSample,
+    TrialType,
+    trial_types_from_relations,
+)
 
 __all__ = [
     "FR",
@@ -76,4 +81,6 @@ __all__ = [
     "Escape",
     "MatchingToSample",
     "GoNoGo",
+    "TrialType",
+    "trial_types_from_relations",
 ]

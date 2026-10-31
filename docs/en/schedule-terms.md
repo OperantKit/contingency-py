@@ -34,6 +34,12 @@ In a VI schedule, the first response after the current interval has elapsed is r
 
 In operantkit: `VI60s`.
 
+## Matching to sample and probe trials
+
+In matching to sample, a sample stimulus is presented and the subject then chooses among comparison stimuli; choosing the comparison related to the sample is reinforced. Each trial type pairs a sample with its correct comparison, and a block presents every trial type once in random order, with the comparisons placed at shuffled positions so that position does not predict the correct choice. Tests for stimulus equivalence add probe trials for relations that were never trained, such as B to A after training A to B. Probe trials are scored as correct or incorrect but no consequence follows either choice, so the probe result does not come from reinforcement on the probe itself.
+
+In operantkit: `MatchingToSample(n_comparisons=3, trial_types=trial_types_from_relations({"A1": "B1", "A2": "B2", "A3": "B3"}), probe_trial_types=trial_types_from_relations({"B1": "A1", "B2": "A2", "B3": "A3"}))` from `contingency.schedules`; each outcome's `meta` reports `sample`, `comparisons`, `correct`, `probe` and, once the trial is settled, `choice`.
+
 ## Runnable check
 
 ```python

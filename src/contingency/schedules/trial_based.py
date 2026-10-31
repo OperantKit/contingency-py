@@ -52,13 +52,15 @@ Psychophysics. *Journal of the Experimental Analysis of Behavior*,
 from __future__ import annotations
 
 import random
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Literal
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
 
-__all__ = ["MatchingToSample", "GoNoGo"]
+__all__ = ["MatchingToSample", "GoNoGo", "TrialType", "trial_types_from_relations"]
 
 _TIME_TOL = 1e-9
 
@@ -99,6 +101,75 @@ def _require_positive(name: str, value: float) -> float:
     return float(value)
 
 
+@dataclass(frozen=True)
+class TrialType:
+    """One matching-to-sample trial type.
+
+    Parameters
+    ----------
+    sample:
+        Name of the sample stimulus.
+    correct:
+        Name of the comparison stimulus whose selection is correct.
+    comparisons:
+        Names of all comparison stimuli presented on the trial; it must
+        contain ``correct``. Their positions (``choice_0`` ...) are
+        shuffled at the start of each trial.
+    """
+
+    sample: str
+    correct: str
+    comparisons: tuple[str, ...]
+
+
+def trial_types_from_relations(relations: Mapping[str, str]) -> tuple[TrialType, ...]:
+    """Build one :class:`TrialType` per ``sample -> correct`` relation.
+
+    Every trial type presents the same comparisons: the values of
+    ``relations`` in insertion order. ``{"A1": "B1", "A2": "B2"}`` gives
+    ``TrialType("A1", "B1", ("B1", "B2"))`` and
+    ``TrialType("A2", "B2", ("B1", "B2"))``.
+
+    Raises
+    ------
+    ScheduleConfigError
+        If two samples share a correct comparison.
+    """
+    comparisons = tuple(relations.values())
+    if len(set(comparisons)) != len(comparisons):
+        raise ScheduleConfigError(
+            f"relations must map each sample to a distinct comparison, got {dict(relations)!r}"
+        )
+    return tuple(
+        TrialType(sample=sample, correct=correct, comparisons=comparisons)
+        for sample, correct in relations.items()
+    )
+
+
+def _validate_trial_types(
+    name: str, trial_types: Sequence[TrialType], n_comparisons: int
+) -> tuple[TrialType, ...]:
+    result = tuple(trial_types)
+    for tt in result:
+        if not isinstance(tt, TrialType):
+            raise ScheduleConfigError(
+                f"{name} must contain TrialType values, got {type(tt).__name__}"
+            )
+        comparisons = tuple(tt.comparisons)
+        if len(comparisons) != n_comparisons:
+            raise ScheduleConfigError(
+                f"{name}: {tt!r} has {len(comparisons)} comparisons, "
+                f"n_comparisons is {n_comparisons}"
+            )
+        if len(set(comparisons)) != len(comparisons):
+            raise ScheduleConfigError(f"{name}: {tt!r} repeats a comparison")
+        if tt.correct not in comparisons:
+            raise ScheduleConfigError(
+                f"{name}: correct {tt.correct!r} is not among the comparisons of {tt!r}"
+            )
+    return result
+
+
 class MatchingToSample:
     """Matching-to-sample (MTS) discrete-trial schedule.
 
@@ -109,7 +180,8 @@ class MatchingToSample:
     2. **Choice phase** (up to ``choice_timeout`` seconds): ``n_comparisons``
        comparison stimuli are available as operanda ``choice_0`` ...
        ``choice_{N-1}``. Exactly one is designated correct (sampled
-       uniformly at random at trial start). Choosing the correct
+       uniformly at random at trial start, or set by the trial type when
+       ``trial_types`` is given). Choosing the correct
        comparison fires the nested ``consequence`` schedule; any other
        choice fires ``incorrect``. If no response occurs before the
        timeout, the trial is scored as incorrect.
@@ -138,6 +210,22 @@ class MatchingToSample:
     seed:
         Optional RNG seed for reproducible sample/correct-comparison
         selection.
+    trial_types:
+        Optional trial types (see :func:`trial_types_from_relations`).
+        When given, each block presents every trial type in
+        ``trial_types + probe_trial_types`` once, in an order shuffled at
+        the start of the block, and the comparisons of each trial are
+        shuffled over the positions ``choice_0`` ... ``choice_{N-1}``.
+        The RNG is used only for these two shuffles. Outcome ``meta``
+        then also reports ``sample``, ``comparisons`` (in position
+        order), ``correct`` and ``probe``, and the outcome of a settled
+        trial reports ``choice`` (the chosen comparison, ``None`` on
+        timeout).
+    probe_trial_types:
+        Optional trial types presented without consequences: neither
+        ``consequence`` nor ``incorrect`` is stepped and the outcome is
+        never reinforced, while ``trial_outcome`` is still scored as
+        ``"correct"`` or ``"incorrect"``. Requires ``trial_types``.
 
     References
     ----------
@@ -162,6 +250,12 @@ class MatchingToSample:
         "_correct_operandum",
         "_last_now",
         "_pending_outcome_label",
+        "_trial_types",
+        "_n_baseline_types",
+        "_block_order",
+        "_block_pos",
+        "_current_type_index",
+        "_current_positions",
     )
 
     def __init__(
@@ -173,6 +267,8 @@ class MatchingToSample:
         incorrect: Schedule | None = None,
         iti: float = 1.0,
         seed: int | None = None,
+        trial_types: Sequence[TrialType] | None = None,
+        probe_trial_types: Sequence[TrialType] | None = None,
     ) -> None:
         if isinstance(n_comparisons, bool) or not isinstance(n_comparisons, int):
             raise ScheduleConfigError(
@@ -190,6 +286,24 @@ class MatchingToSample:
         self._iti: float = _require_nonnegative("iti", iti)
         self._consequence: Schedule | None = consequence
         self._incorrect: Schedule | None = incorrect
+        if trial_types is None:
+            if probe_trial_types is not None:
+                raise ScheduleConfigError("probe_trial_types requires trial_types")
+            self._trial_types: tuple[TrialType, ...] | None = None
+            self._n_baseline_types: int = 0
+        else:
+            baseline = _validate_trial_types("trial_types", trial_types, n_comparisons)
+            if not baseline:
+                raise ScheduleConfigError("trial_types must not be empty")
+            probes = _validate_trial_types(
+                "probe_trial_types", probe_trial_types or (), n_comparisons
+            )
+            self._trial_types = baseline + probes
+            self._n_baseline_types = len(baseline)
+        self._block_order: list[int] = []
+        self._block_pos: int = 0
+        self._current_type_index: int | None = None
+        self._current_positions: tuple[str, ...] = ()
         self._seed: int | None = seed
         self._rng: random.Random = random.Random(seed)
         self._phase: Literal["sample", "choice", "iti"] = "sample"
@@ -221,11 +335,72 @@ class MatchingToSample:
     def iti(self) -> float:
         return self._iti
 
+    @property
+    def current_trial_type(self) -> TrialType | None:
+        """Trial type of the current trial; ``None`` without ``trial_types``."""
+        if self._trial_types is None or self._current_type_index is None:
+            return None
+        return self._trial_types[self._current_type_index]
+
+    @property
+    def current_sample(self) -> str | None:
+        tt = self.current_trial_type
+        return None if tt is None else tt.sample
+
+    @property
+    def current_comparisons(self) -> tuple[str, ...]:
+        """Comparisons of the current trial in position order (``choice_0`` first)."""
+        return self._current_positions
+
+    @property
+    def is_probe_trial(self) -> bool:
+        return (
+            self._current_type_index is not None
+            and self._current_type_index >= self._n_baseline_types
+        )
+
     # -- state helpers ------------------------------------------------------
 
     def _pick_correct_operandum(self) -> str:
-        idx = self._rng.randrange(self._n_comparisons)
-        return f"choice_{idx}"
+        if self._trial_types is None:
+            idx = self._rng.randrange(self._n_comparisons)
+            return f"choice_{idx}"
+        if self._block_pos >= len(self._block_order):
+            order = list(range(len(self._trial_types)))
+            self._rng.shuffle(order)
+            self._block_order = order
+            self._block_pos = 0
+        type_index = self._block_order[self._block_pos]
+        self._block_pos += 1
+        tt = self._trial_types[type_index]
+        positions = list(tt.comparisons)
+        self._rng.shuffle(positions)
+        self._current_type_index = type_index
+        self._current_positions = tuple(positions)
+        return f"choice_{positions.index(tt.correct)}"
+
+    def _choice_name(self, operandum: str) -> str | None:
+        suffix = operandum.removeprefix("choice_")
+        if suffix == operandum or not suffix.isdigit():
+            return None
+        idx = int(suffix)
+        if idx >= len(self._current_positions):
+            return None
+        return self._current_positions[idx]
+
+    def _meta(self, trial_outcome: str | None) -> dict[str, object]:
+        meta: dict[str, object] = {
+            "phase": self._phase,
+            "trial_index": self._trial_index,
+            "trial_outcome": trial_outcome,
+        }
+        tt = self.current_trial_type
+        if tt is not None:
+            meta["sample"] = tt.sample
+            meta["comparisons"] = self._current_positions
+            meta["correct"] = tt.correct
+            meta["probe"] = self.is_probe_trial
+        return meta
 
     def _begin_trial(self, now: float) -> None:
         self._phase = "sample" if self._sample_duration > 0 else "choice"
@@ -301,11 +476,7 @@ class MatchingToSample:
     # -- outcome helpers ----------------------------------------------------
 
     def _phase_only_outcome(self) -> Outcome:
-        meta: dict[str, object] = {
-            "phase": self._phase,
-            "trial_index": self._trial_index,
-            "trial_outcome": self._pending_outcome_label,
-        }
+        meta = self._meta(self._pending_outcome_label)
         # The pending label only reports once per transition.
         self._pending_outcome_label = None
         return Outcome(meta=meta)
@@ -319,35 +490,22 @@ class MatchingToSample:
         # label to avoid a duplicate report on the next tick.
         self._enter_iti(now, outcome_label=label)
         self._pending_outcome_label = None
+        meta = self._meta(label)
+        if self._trial_types is not None:
+            meta["choice"] = self._choice_name(op)
+            if self.is_probe_trial:
+                # Probe trials are scored but never consequated.
+                return Outcome(meta=meta)
         # Deliver consequence through the nested schedule (or default CRF).
         consequence_schedule = (
             self._consequence if correct else self._incorrect
         )
         if correct and consequence_schedule is None:
             reinforcer = Reinforcer(time=now)
-            return Outcome(
-                reinforced=True,
-                reinforcer=reinforcer,
-                meta={
-                    "phase": self._phase,
-                    "trial_index": self._trial_index,
-                    "trial_outcome": label,
-                },
-            )
+            return Outcome(reinforced=True, reinforcer=reinforcer, meta=meta)
         if consequence_schedule is None:
-            return Outcome(
-                meta={
-                    "phase": self._phase,
-                    "trial_index": self._trial_index,
-                    "trial_outcome": label,
-                }
-            )
+            return Outcome(meta=meta)
         sub_outcome = consequence_schedule.step(now, event)
-        meta: dict[str, object] = {
-            "phase": self._phase,
-            "trial_index": self._trial_index,
-            "trial_outcome": label,
-        }
         # Preserve nested meta non-destructively under a reserved key.
         if sub_outcome.meta:
             meta["inner_meta"] = dict(sub_outcome.meta)
@@ -360,14 +518,17 @@ class MatchingToSample:
     def _incorrect_outcome(self, now: float) -> Outcome:
         # Timed-out choice: fire the ``incorrect`` consequence (if any)
         # with no response event — the subject did not emit one.
-        if self._incorrect is None:
+        if self._trial_types is not None:
+            self._pending_outcome_label = None
+            meta = self._meta("incorrect")
+            meta["choice"] = None
+            if self.is_probe_trial or self._incorrect is None:
+                return Outcome(meta=meta)
+        elif self._incorrect is None:
             return self._phase_only_outcome()
+        else:
+            meta = self._meta("incorrect")
         sub_outcome = self._incorrect.step(now, None)
-        meta: dict[str, object] = {
-            "phase": self._phase,
-            "trial_index": self._trial_index,
-            "trial_outcome": "incorrect",
-        }
         self._pending_outcome_label = None
         if sub_outcome.meta:
             meta["inner_meta"] = dict(sub_outcome.meta)
@@ -384,6 +545,10 @@ class MatchingToSample:
         self._phase = "sample" if self._sample_duration > 0 else "choice"
         self._phase_started = None
         self._trial_index = 0
+        self._block_order = []
+        self._block_pos = 0
+        self._current_type_index = None
+        self._current_positions = ()
         self._correct_operandum = self._pick_correct_operandum()
         self._last_now = None
         self._pending_outcome_label = None
