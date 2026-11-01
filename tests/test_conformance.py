@@ -85,3 +85,28 @@ def test_conformance_fixture(fixture_path: Path) -> None:
                     f"{fixture_path.name} step {i}: meta[{k!r}] "
                     f"expected {v!r} got {got!r}"
                 )
+
+
+_GOOD_TT = {"sample": "A1", "correct": "B1", "comparisons": ["B1", "B2", "B3"]}
+
+
+@pytest.mark.parametrize(
+    ("trial_types", "message"),
+    [
+        ("A1", "trial_types must be a list"),
+        ([["A1", "B1"]], r"trial_types\[0\] must be an object"),
+        ([{"sample": "A1", "correct": "B1"}], r"trial_types\[0\] is missing comparisons"),
+        ([{**_GOOD_TT, "comparisons": "B1B"}], "must be a list of strings"),
+        ([{**_GOOD_TT, "sample": None}], "sample and correct must be strings"),
+    ],
+    ids=["not-list", "item-not-object", "missing-key", "comparisons-str", "sample-none"],
+)
+def test_mts_trial_types_spec_rejects_bad_shape(trial_types: Any, message: str) -> None:
+    from contingency.errors import ScheduleConfigError
+
+    spec = {
+        "type": "MatchingToSample",
+        "params": {"n_comparisons": 3, "seed": 3, "trial_types": trial_types},
+    }
+    with pytest.raises(ScheduleConfigError, match=message):
+        build_schedule_from_spec(spec)

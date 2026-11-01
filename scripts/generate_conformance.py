@@ -1072,6 +1072,54 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         mts.add(now=t, event=None)
     fixtures.append((CONFORMANCE_DIR / "trial" / "mts_n2_seed7.json", mts))
 
+    mts_ab = [
+        {"sample": f"A{i}", "correct": f"B{i}", "comparisons": ["B1", "B2", "B3"]}
+        for i in (1, 2, 3)
+    ]
+    mts_ba = [
+        {"sample": f"B{i}", "correct": f"A{i}", "comparisons": ["A1", "A2", "A3"]}
+        for i in (1, 2, 3)
+    ]
+    mts_tt = FixtureSpec(
+        name="mts-trialtypes-seed3",
+        description=(
+            "MatchingToSample(n_comparisons=3, sample_duration=0, "
+            "choice_timeout=2, iti=1, seed=3) with three AB baseline trial "
+            "types (A1->B1, A2->B2, A3->B3) and three BA probe trial types "
+            "(B1->A1, B2->A2, B3->A3). Python's Mersenne Twister with seed 3 "
+            "orders the six-trial block A1, A3, B1, B3, B2, A2 and shuffles "
+            "each trial's comparisons. One choice per trial at 2k+0.5: "
+            "baseline A1 correct (reinforced), baseline A3 incorrect, probe "
+            "B1 correct (not reinforced), probe B3 incorrect, probe B2 "
+            "correct (not reinforced), baseline A2 correct (reinforced). "
+            "Each ITI ends at 2k+1.5, which starts the next trial."
+        ),
+        schedule={
+            "type": "MatchingToSample",
+            "params": {
+                "n_comparisons": 3,
+                "sample_duration": 0.0,
+                "choice_timeout": 2.0,
+                "iti": 1.0,
+                "consequence": None,
+                "incorrect": None,
+                "seed": 3,
+                "trial_types": mts_ab,
+                "probe_trial_types": mts_ba,
+            },
+        },
+    )
+    for k, op in enumerate(
+        ["choice_1", "choice_0", "choice_0", "choice_0", "choice_1", "choice_1"]
+    ):
+        t = 2.0 * k
+        mts_tt.add(now=t, event=None)
+        mts_tt.add(now=t + 0.5, event={"time": t + 0.5, "operandum": op})
+    mts_tt.add(now=12.0, event=None)
+    fixtures.append(
+        (CONFORMANCE_DIR / "trial" / "mts_trialtypes_seed3.json", mts_tt)
+    )
+
     gonogo = FixtureSpec(
         name="gonogo-p05-seed1",
         description=(

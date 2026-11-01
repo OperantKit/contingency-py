@@ -260,6 +260,13 @@
       "type": "MatchingToSample"
     },
     {
+      "kind": "stochastic",
+      "path": "trial/mts_trialtypes_seed3.json",
+      "sha256": "0de91b35401e9133fa19becf9626ffc657785936e683c855403cbab3b3c5d58b",
+      "steps": 13,
+      "type": "MatchingToSample"
+    },
+    {
       "kind": "deterministic",
       "path": "wrapper/response_cost_fr2.json",
       "sha256": "89fc6164cc09fbcd637fb6a38e2b82074ad15bf635b19a0e9a7e180bb81b9499",

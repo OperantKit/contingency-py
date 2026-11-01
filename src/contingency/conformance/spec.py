@@ -12,6 +12,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
+from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
 from contingency.schedules import (
     DRH,
@@ -49,6 +50,7 @@ from contingency.schedules import (
     Sidman,
     Tandem,
     Timeout,
+    TrialType,
     arithmetic,
     geometric,
     richardson_roberts,
@@ -59,6 +61,33 @@ __all__ = ["build_schedule_from_spec"]
 
 def _optional_spec(spec: dict[str, Any] | None) -> Schedule | None:
     return build_schedule_from_spec(spec) if spec is not None else None
+
+
+def _trial_type_from_spec(key: str, index: int, t: Any) -> TrialType:
+    where = f"{key}[{index}]"
+    if not isinstance(t, dict):
+        raise ScheduleConfigError(f"{where} must be an object, got {t!r}")
+    missing = [k for k in ("sample", "correct", "comparisons") if k not in t]
+    if missing:
+        raise ScheduleConfigError(f"{where} is missing {', '.join(missing)}")
+    sample, correct, comparisons = t["sample"], t["correct"], t["comparisons"]
+    if not isinstance(sample, str) or not isinstance(correct, str):
+        raise ScheduleConfigError(f"{where}: sample and correct must be strings")
+    if not isinstance(comparisons, list | tuple) or not all(
+        isinstance(c, str) for c in comparisons
+    ):
+        raise ScheduleConfigError(f"{where}.comparisons must be a list of strings")
+    return TrialType(sample=sample, correct=correct, comparisons=tuple(comparisons))
+
+
+def _optional_trial_types(
+    specs: Any, key: str = "trial_types"
+) -> tuple[TrialType, ...] | None:
+    if specs is None:
+        return None
+    if not isinstance(specs, list | tuple):
+        raise ScheduleConfigError(f"{key} must be a list, got {specs!r}")
+    return tuple(_trial_type_from_spec(key, i, t) for i, t in enumerate(specs))
 
 
 def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
@@ -255,6 +284,10 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
             incorrect=_optional_spec(params.get("incorrect")),
             iti=float(params.get("iti", 1.0)),
             seed=params.get("seed"),
+            trial_types=_optional_trial_types(params.get("trial_types")),
+            probe_trial_types=_optional_trial_types(
+                params.get("probe_trial_types"), "probe_trial_types"
+            ),
         )
     if stype == "GoNoGo":
         return GoNoGo(

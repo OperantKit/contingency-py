@@ -1,0 +1,298 @@
+{
+  "description": "MatchingToSample(n_comparisons=3, sample_duration=0, choice_timeout=2, iti=1, seed=3) with three AB baseline trial types (A1->B1, A2->B2, A3->B3) and three BA probe trial types (B1->A1, B2->A2, B3->A3). Python's Mersenne Twister with seed 3 orders the six-trial block A1, A3, B1, B3, B2, A2 and shuffles each trial's comparisons. One choice per trial at 2k+0.5: baseline A1 correct (reinforced), baseline A3 incorrect, probe B1 correct (not reinforced), probe B3 incorrect, probe B2 correct (not reinforced), baseline A2 correct (reinforced). Each ITI ends at 2k+1.5, which starts the next trial.",
+  "name": "mts-trialtypes-seed3",
+  "schedule": {
+    "params": {
+      "choice_timeout": 2.0,
+      "consequence": null,
+      "incorrect": null,
+      "iti": 1.0,
+      "n_comparisons": 3,
+      "probe_trial_types": [
+        {
+          "comparisons": [
+            "A1",
+            "A2",
+            "A3"
+          ],
+          "correct": "A1",
+          "sample": "B1"
+        },
+        {
+          "comparisons": [
+            "A1",
+            "A2",
+            "A3"
+          ],
+          "correct": "A2",
+          "sample": "B2"
+        },
+        {
+          "comparisons": [
+            "A1",
+            "A2",
+            "A3"
+          ],
+          "correct": "A3",
+          "sample": "B3"
+        }
+      ],
+      "sample_duration": 0.0,
+      "seed": 3,
+      "trial_types": [
+        {
+          "comparisons": [
+            "B1",
+            "B2",
+            "B3"
+          ],
+          "correct": "B1",
+          "sample": "A1"
+        },
+        {
+          "comparisons": [
+            "B1",
+            "B2",
+            "B3"
+          ],
+          "correct": "B2",
+          "sample": "A2"
+        },
+        {
+          "comparisons": [
+            "B1",
+            "B2",
+            "B3"
+          ],
+          "correct": "B3",
+          "sample": "A3"
+        }
+      ]
+    },
+    "type": "MatchingToSample"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "correct": "B1",
+          "phase": "choice",
+          "probe": false,
+          "sample": "A1",
+          "trial_index": 0
+        },
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "choice_1",
+        "time": 0.5
+      },
+      "expect": {
+        "meta": {
+          "choice": "B1",
+          "correct": "B1",
+          "phase": "iti",
+          "probe": false,
+          "sample": "A1",
+          "trial_index": 0,
+          "trial_outcome": "correct"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 0.5
+        }
+      },
+      "now": 0.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "correct": "B3",
+          "phase": "choice",
+          "probe": false,
+          "sample": "A3",
+          "trial_index": 1
+        },
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "choice_0",
+        "time": 2.5
+      },
+      "expect": {
+        "meta": {
+          "choice": "B2",
+          "correct": "B3",
+          "phase": "iti",
+          "probe": false,
+          "sample": "A3",
+          "trial_index": 1,
+          "trial_outcome": "incorrect"
+        },
+        "reinforced": false
+      },
+      "now": 2.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "correct": "A1",
+          "phase": "choice",
+          "probe": true,
+          "sample": "B1",
+          "trial_index": 2
+        },
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "choice_0",
+        "time": 4.5
+      },
+      "expect": {
+        "meta": {
+          "choice": "A1",
+          "correct": "A1",
+          "phase": "iti",
+          "probe": true,
+          "sample": "B1",
+          "trial_index": 2,
+          "trial_outcome": "correct"
+        },
+        "reinforced": false
+      },
+      "now": 4.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "correct": "A3",
+          "phase": "choice",
+          "probe": true,
+          "sample": "B3",
+          "trial_index": 3
+        },
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "choice_0",
+        "time": 6.5
+      },
+      "expect": {
+        "meta": {
+          "choice": "A2",
+          "correct": "A3",
+          "phase": "iti",
+          "probe": true,
+          "sample": "B3",
+          "trial_index": 3,
+          "trial_outcome": "incorrect"
+        },
+        "reinforced": false
+      },
+      "now": 6.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "correct": "A2",
+          "phase": "choice",
+          "probe": true,
+          "sample": "B2",
+          "trial_index": 4
+        },
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "choice_1",
+        "time": 8.5
+      },
+      "expect": {
+        "meta": {
+          "choice": "A2",
+          "correct": "A2",
+          "phase": "iti",
+          "probe": true,
+          "sample": "B2",
+          "trial_index": 4,
+          "trial_outcome": "correct"
+        },
+        "reinforced": false
+      },
+      "now": 8.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "correct": "B2",
+          "phase": "choice",
+          "probe": false,
+          "sample": "A2",
+          "trial_index": 5
+        },
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "choice_1",
+        "time": 10.5
+      },
+      "expect": {
+        "meta": {
+          "choice": "B2",
+          "correct": "B2",
+          "phase": "iti",
+          "probe": false,
+          "sample": "A2",
+          "trial_index": 5,
+          "trial_outcome": "correct"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 10.5
+        }
+      },
+      "now": 10.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "correct": "A3",
+          "phase": "choice",
+          "probe": true,
+          "sample": "B3",
+          "trial_index": 6
+        },
+        "reinforced": false
+      },
+      "now": 12.0
+    }
+  ]
+}
