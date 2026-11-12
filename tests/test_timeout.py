@@ -108,7 +108,7 @@ def test_timeout_tick_without_event_propagates_to_inner_when_not_in_timeout() ->
 def test_timeout_non_monotonic_time_raises() -> None:
     s = Timeout(FR(1), duration=5.0)
     s.step(2.0, None)
-    with pytest.raises(ScheduleStateError, match="Non-monotonic"):
+    with pytest.raises(ScheduleStateError, match="(?i)non-monotonic"):
         s.step(1.0, None)
 
 

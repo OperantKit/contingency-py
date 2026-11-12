@@ -38,9 +38,12 @@ application* (pp. 160-212). Appleton-Century-Crofts.
 
 from __future__ import annotations
 
+from typing import Any
+
 from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules._rust import engine_name, rust_compound, specs_of
 
 __all__ = ["SecondOrder"]
 
@@ -105,6 +108,7 @@ class SecondOrder:
         "_unit",
         "_last_now",
         "_unit_completions",
+        "_rust",
     )
 
     def __init__(self, overall: Schedule, unit: Schedule) -> None:
@@ -127,6 +131,7 @@ class SecondOrder:
         self._unit: Schedule = unit
         self._last_now: float | None = None
         self._unit_completions: int = 0
+        self._rust: Any = rust_compound(self._rust_spec(), needs_state=True)
 
     # --- Properties -------------------------------------------------------
 
@@ -143,11 +148,26 @@ class SecondOrder:
     @property
     def unit_completions(self) -> int:
         """Cumulative unit completions since construction or last :meth:`reset`."""
+        if self._rust is not None:
+            return int(self._rust.state()["unit_completions"])
         return self._unit_completions
 
     # --- Schedule protocol -----------------------------------------------
 
+    def _rust_spec(self) -> dict[str, Any] | None:
+        specs = specs_of([self._overall, self._unit])
+        if specs is None:
+            return None
+        return {"type": "SecondOrder", "params": {"overall": specs[0], "unit": specs[1]}}
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -188,6 +208,12 @@ class SecondOrder:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in (self._overall, self._unit):
+                component.reset()
+            self._rust = rust_compound(self._rust_spec(), needs_state=True)
+            if self._rust is not None:
+                return
         self._overall.reset()
         self._unit.reset()
         self._last_now = None

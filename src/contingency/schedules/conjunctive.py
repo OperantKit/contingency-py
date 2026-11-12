@@ -53,9 +53,12 @@ Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*
 
 from __future__ import annotations
 
+from typing import Any
+
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules._rust import engine_name, rust_compound, specs_of
 
 __all__ = ["Conjunctive"]
 
@@ -102,7 +105,7 @@ class Conjunctive:
     reinforcement* (pp. 508-509). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_first", "_second", "_last_now")
+    __slots__ = ("_first", "_second", "_last_now", "_rust")
 
     def __init__(self, first: Schedule, second: Schedule) -> None:
         if not isinstance(first, Schedule):
@@ -118,6 +121,7 @@ class Conjunctive:
         self._first: Schedule = first
         self._second: Schedule = second
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec())
 
     @property
     def first(self) -> Schedule:
@@ -129,7 +133,20 @@ class Conjunctive:
         """The second component schedule."""
         return self._second
 
+    def _rust_spec(self) -> dict[str, Any] | None:
+        specs = specs_of([self._first, self._second])
+        if specs is None:
+            return None
+        return {"type": "Conjunctive", "params": {"first": specs[0], "second": specs[1]}}
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -148,6 +165,12 @@ class Conjunctive:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in (self._first, self._second):
+                component.reset()
+            self._rust = rust_compound(self._rust_spec())
+            if self._rust is not None:
+                return
         self._first.reset()
         self._second.reset()
         self._last_now = None

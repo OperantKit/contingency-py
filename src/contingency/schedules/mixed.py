@@ -36,10 +36,12 @@ Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules._rust import engine_name, rust_compound, specs_of
 from contingency.schedules.sequence import _ComponentClocks
 
 __all__ = ["Mixed"]
@@ -113,13 +115,14 @@ class Mixed:
     reinforcement* (pp. 623-626). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_components", "_active", "_last_now", "_clocks")
+    __slots__ = ("_components", "_active", "_last_now", "_clocks", "_rust")
 
     def __init__(self, components: Sequence[Schedule]) -> None:
         self._components: list[Schedule] = _validate_components(components)
         self._active: int = 0
         self._last_now: float | None = None
         self._clocks = _ComponentClocks(len(self._components))
+        self._rust: Any = rust_compound(self._rust_spec(), needs_state=True)
 
     @property
     def n_components(self) -> int:
@@ -129,9 +132,25 @@ class Mixed:
     @property
     def active_index(self) -> int:
         """Index of the currently active component."""
+        if self._rust is not None:
+            return int(self._rust.state()["active_index"])
         return self._active
 
+    def _rust_spec(self) -> dict[str, Any] | None:
+        specs = specs_of(self._components)
+        if specs is None:
+            return None
+        params: dict[str, Any] = {"components": specs}
+        return {"type": "Mixed", "params": params}
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -156,6 +175,12 @@ class Mixed:
         return Outcome(meta=meta)
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in self._components:
+                component.reset()
+            self._rust = rust_compound(self._rust_spec(), needs_state=True)
+            if self._rust is not None:
+                return
         self._active = 0
         self._last_now = None
         self._clocks.reset()

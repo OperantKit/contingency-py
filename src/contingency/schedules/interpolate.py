@@ -26,9 +26,12 @@ https://doi.org/10.1901/jeab.1968.11-s327
 
 from __future__ import annotations
 
+from typing import Any
+
 from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules._rust import engine_name, rust_compound, specs_of
 
 __all__ = ["Interpolate"]
 
@@ -100,6 +103,7 @@ class Interpolate:
         "_first_probe_at",
         "_anchor",
         "_last_now",
+        "_rust",
     )
 
     def __init__(
@@ -166,6 +170,7 @@ class Interpolate:
         self._first_probe_at: float = float(first_probe_at)
         self._anchor: float | None = None
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec())
 
     @property
     def base(self) -> Schedule:
@@ -198,7 +203,29 @@ class Interpolate:
         frac = t - (int(t // self._interval)) * self._interval
         return frac < self._probe_duration - _TIME_TOL
 
+    def _rust_spec(self) -> dict[str, Any] | None:
+        specs = specs_of([self._base, self._probe])
+        if specs is None:
+            return None
+        return {
+            "type": "Interpolate",
+            "params": {
+                "base": specs[0],
+                "probe": specs[1],
+                "interval": self._interval,
+                "probe_duration": self._probe_duration,
+                "first_probe_at": self._first_probe_at,
+            },
+        }
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         if self._anchor is None:
@@ -218,6 +245,12 @@ class Interpolate:
         )
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in (self._base, self._probe):
+                component.reset()
+            self._rust = rust_compound(self._rust_spec())
+            if self._rust is not None:
+                return
         self._base.reset()
         self._probe.reset()
         self._anchor = None

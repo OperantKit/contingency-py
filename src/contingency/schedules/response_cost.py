@@ -32,9 +32,12 @@ behavior. *Journal of the Experimental Analysis of Behavior*, 5(2),
 
 from __future__ import annotations
 
+from typing import Any
+
 from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules._rust import engine_name, rust_compound, specs_of
 
 __all__ = ["ResponseCost"]
 
@@ -98,6 +101,7 @@ class ResponseCost:
         "_initial_balance",
         "_balance",
         "_last_now",
+        "_rust",
     )
 
     def __init__(
@@ -136,6 +140,7 @@ class ResponseCost:
         )
         self._balance: float | None = self._initial_balance
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), needs_state=True)
 
     @property
     def amount(self) -> float:
@@ -147,9 +152,28 @@ class ResponseCost:
 
     @property
     def balance(self) -> float | None:
+        if self._rust is not None:
+            balance = self._rust.state().get("balance")
+            return None if balance is None else float(balance)
         return self._balance
 
+    def _rust_spec(self) -> dict[str, Any] | None:
+        specs = specs_of([self._inner])
+        if specs is None:
+            return None
+        params: dict[str, Any] = {"inner": specs[0], "amount": self._amount, "unit": self._unit}
+        if self._initial_balance is not None:
+            params["initial_balance"] = self._initial_balance
+        return {"type": "ResponseCost", "params": params}
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -171,6 +195,12 @@ class ResponseCost:
         return self._inner.step(now, event)
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in (self._inner,):
+                component.reset()
+            self._rust = rust_compound(self._rust_spec(), needs_state=True)
+            if self._rust is not None:
+                return
         self._inner.reset()
         self._balance = self._initial_balance
         self._last_now = None

@@ -25,6 +25,13 @@ Known differences from the Python engine
   from the same spec and replays the steps since the last
   :meth:`~RustSchedule.reset`, so it costs time and memory in proportion
   to those steps.
+* A compound schedule class run on the Rust engine (``Multiple``,
+  ``Concurrent``, ``Timeout`` and the rest) steps Rust copies of its
+  components built from their specs, not the component objects. Stepping
+  a component object separately, or sharing one component object
+  between two compounds, does not affect the compound, and attributes
+  that return the component objects (``components``, ``first``,
+  ``base``, ``unit`` and the like) show them as built.
 """
 
 from __future__ import annotations
@@ -128,6 +135,19 @@ class RustSchedule:
         except (ValueError, RuntimeError) as exc:
             raise _translate(exc) from exc
         return None if probed is None else bool(probed)
+
+    def state(self) -> dict[str, Any]:
+        """The observable state after the last step (``Schedule::state``).
+
+        Empty for schedules without one. Compound schedules with a
+        position report ``active_index``, ``unit_completions``,
+        ``in_timeout`` or ``balance``.
+        """
+        return dict(self._inner.state())
+
+    def has_state(self) -> bool:
+        """Whether the installed ``contingency_core`` offers :meth:`state`."""
+        return hasattr(self._inner, "state")
 
     def reset(self) -> None:
         try:

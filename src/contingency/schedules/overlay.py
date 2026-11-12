@@ -30,9 +30,12 @@ Appleton-Century-Crofts.
 
 from __future__ import annotations
 
+from typing import Any
+
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules._rust import engine_name, rust_compound, specs_of
 
 __all__ = ["Overlay"]
 
@@ -90,7 +93,7 @@ class Overlay:
     (pp. 380-447). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_base", "_punisher", "_last_now")
+    __slots__ = ("_base", "_punisher", "_last_now", "_rust")
 
     def __init__(self, base: Schedule, punisher: Schedule) -> None:
         if not isinstance(base, Schedule):
@@ -106,6 +109,7 @@ class Overlay:
         self._base: Schedule = base
         self._punisher: Schedule = punisher
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec())
 
     @property
     def base(self) -> Schedule:
@@ -117,7 +121,20 @@ class Overlay:
         """The punishment schedule."""
         return self._punisher
 
+    def _rust_spec(self) -> dict[str, Any] | None:
+        specs = specs_of([self._base, self._punisher])
+        if specs is None:
+            return None
+        return {"type": "Overlay", "params": {"base": specs[0], "punisher": specs[1]}}
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -175,6 +192,12 @@ class Overlay:
         )
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in (self._base, self._punisher):
+                component.reset()
+            self._rust = rust_compound(self._rust_spec())
+            if self._rust is not None:
+                return
         self._base.reset()
         self._punisher.reset()
         self._last_now = None

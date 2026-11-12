@@ -117,7 +117,7 @@ def test_response_cost_reset_with_unlimited_balance_stays_unlimited() -> None:
 def test_response_cost_non_monotonic_time_raises() -> None:
     s = ResponseCost(FR(1), amount=1.0)
     s.step(2.0, None)
-    with pytest.raises(ScheduleStateError, match="Non-monotonic"):
+    with pytest.raises(ScheduleStateError, match="(?i)non-monotonic"):
         s.step(1.0, None)
 
 

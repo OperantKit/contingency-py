@@ -67,10 +67,12 @@ https://doi.org/10.1901/jeab.1961.4-267
 from __future__ import annotations
 
 import copy
+from typing import Any
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules._rust import engine_name, rust_compound, specs_of
 from contingency.schedules.interval import FI, RI, VI
 from contingency.schedules.ratio import FR, RR, VR
 
@@ -180,6 +182,7 @@ class Concurrent:
         "_consecutive_new_count",
         "_last_now",
         "_pending",
+        "_rust",
     )
 
     def __init__(
@@ -302,6 +305,7 @@ class Concurrent:
         # Reinforcers held by the compound (components outside
         # ``_HOLD_IN_COMPONENT``), per operandum, oldest first.
         self._pending: dict[str, list[Reinforcer]] = {}
+        self._rust: Any = rust_compound(self._rust_spec())
 
     @property
     def components(self) -> dict[str, Schedule]:
@@ -515,7 +519,38 @@ class Concurrent:
             return False
         return (now - self._switch_time) < self._active_cod - _TIME_TOL
 
+    def _rust_spec(self) -> dict[str, Any] | None:
+        if specs_of([*self._components.values(), *(self._punish or {}).values()]) is None:
+            return None
+        keys = list(self._components)
+        specs = specs_of([self._components[k] for k in keys])
+        if specs is None:
+            return None
+        params: dict[str, Any] = {
+            "components": dict(zip(keys, specs, strict=True)),
+            "cod": self._cod,
+            "frco": self._frco,
+        }
+        if self._cod_directional is not None:
+            params["cod_directional"] = [
+                {"from": a, "to": b, "cod": cod} for (a, b), cod in self._cod_directional.items()
+            ]
+        if self._punish is not None:
+            pkeys = list(self._punish)
+            pspecs = specs_of([self._punish[k] for k in pkeys])
+            if pspecs is None:
+                return None
+            params["punish"] = dict(zip(pkeys, pspecs, strict=True))
+        return {"type": "Concurrent", "params": params}
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -643,6 +678,12 @@ class Concurrent:
         return outcome
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in [*self._components.values(), *(self._punish or {}).values()]:
+                component.reset()
+            self._rust = rust_compound(self._rust_spec())
+            if self._rust is not None:
+                return
         for component in self._components.values():
             component.reset()
         if self._punish is not None:

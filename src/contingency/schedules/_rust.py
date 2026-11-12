@@ -16,7 +16,16 @@ from typing import Any
 
 from contingency.errors import ScheduleConfigError
 
-__all__ = ["rust_or_none", "engine_name", "random_source", "fresh_seed", "rust_reset"]
+__all__ = [
+    "rust_or_none",
+    "engine_name",
+    "random_source",
+    "fresh_seed",
+    "rust_reset",
+    "spec_of",
+    "specs_of",
+    "rust_compound",
+]
 
 
 # Private source of fresh seeds, so that drawing one does not advance the
@@ -89,3 +98,51 @@ def rust_reset(rust: Any, seed: int | None) -> Any:
         return rust
     spec = rust._spec
     return rust_or_none({"type": spec["type"], "params": {**spec["params"], "seed": fresh_seed()}})
+
+
+def spec_of(schedule: Any) -> dict[str, Any] | None:
+    """The spec a schedule of this package runs on Rust with, else ``None``.
+
+    ``None`` for a schedule that runs in Python, including any object
+    outside this package that implements the ``Schedule`` protocol.
+    ``None`` too for a schedule already stepped since its last reset:
+    its spec describes the schedule as built, not where it stands now.
+    """
+    rust = getattr(schedule, "_rust", None)
+    if rust is None or getattr(rust, "_history", None):
+        return None
+    spec = getattr(rust, "_spec", None)
+    return spec if isinstance(spec, dict) else None
+
+
+def specs_of(schedules: Any) -> list[dict[str, Any]] | None:
+    """The specs of ``schedules``, or ``None`` when any runs in Python.
+
+    ``None`` also when the same object appears twice: the Rust engine
+    would run two independent copies of it, where Python steps the one
+    object twice.
+    """
+    schedules = list(schedules)
+    if len({id(s) for s in schedules}) != len(schedules):
+        return None
+    specs = [spec_of(s) for s in schedules]
+    if any(s is None for s in specs):
+        return None
+    return specs  # type: ignore[return-value]
+
+
+def rust_compound(spec: dict[str, Any] | None, *, needs_state: bool = False) -> Any:
+    """Build a compound schedule on Rust from its spec, or ``None``.
+
+    ``spec`` is ``None`` when a component runs in Python: then the
+    compound runs in Python too. With ``needs_state`` the compound reads
+    its position (``active_index`` and the like) from
+    ``Schedule.state()``; a ``contingency_core`` too old to have it keeps
+    the compound in Python.
+    """
+    if spec is None:
+        return None
+    rust = rust_or_none(spec)
+    if rust is not None and needs_state and not rust.has_state():
+        return None
+    return rust

@@ -26,9 +26,12 @@ Bulletin*, 64(6), 428-441. https://doi.org/10.1037/h0022657
 
 from __future__ import annotations
 
+from typing import Any
+
 from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules._rust import engine_name, rust_compound, specs_of
 
 __all__ = ["Timeout"]
 
@@ -83,6 +86,7 @@ class Timeout:
         "_reset_on_response",
         "_timeout_ends",
         "_last_now",
+        "_rust",
     )
 
     def __init__(
@@ -104,6 +108,7 @@ class Timeout:
         self._reset_on_response: bool = bool(reset_on_response)
         self._timeout_ends: float | None = None
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), needs_state=True)
 
     @property
     def duration(self) -> float:
@@ -116,9 +121,31 @@ class Timeout:
     @property
     def in_timeout(self) -> bool:
         """Whether the wrapper is currently in a timeout window."""
+        if self._rust is not None:
+            return bool(self._rust.state()["in_timeout"])
         return self._timeout_ends is not None
 
+    def _rust_spec(self) -> dict[str, Any] | None:
+        specs = specs_of([self._inner])
+        if specs is None:
+            return None
+        return {
+            "type": "Timeout",
+            "params": {
+                "inner": specs[0],
+                "duration": self._duration,
+                "reset_on_response": self._reset_on_response,
+            },
+        }
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -151,6 +178,12 @@ class Timeout:
         return outcome
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in (self._inner,):
+                component.reset()
+            self._rust = rust_compound(self._rust_spec(), needs_state=True)
+            if self._rust is not None:
+                return
         self._inner.reset()
         self._timeout_ends = None
         self._last_now = None
