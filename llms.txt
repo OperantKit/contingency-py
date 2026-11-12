@@ -2,7 +2,7 @@
 
 > Python reinforcement schedule engine: compiles contingency-dsl schedules (FR, VR, FI, VI, FT, VT, CRF, EXT, DRO/DRL/DRH, progressive ratio, concurrent with COD, multiple, chained, tandem, alternative, and more) into deterministic, testable state machines.
 
-contingency-py is part of OperantKit, a set of Python/Rust packages for designing and running operant and respondent conditioning experiments (reinforcement schedules, session recording, analysis). Use it instead of hand-writing schedule logic: variable schedules use the Fleshler-Hoffman (1962) progression with a controllable seed, concurrent schedules implement the changeover delay, and 22 conformance fixtures pin the exact outcome of each schedule.
+contingency-py is part of OperantKit, a set of Python/Rust packages for designing and running operant and respondent conditioning experiments (reinforcement schedules, session recording, analysis). Use it instead of hand-writing schedule logic: variable schedules use the Fleshler-Hoffman (1962) progression with a controllable seed, concurrent schedules implement the changeover delay, and the conformance fixtures shared with contingency-rs pin the exact outcome of each schedule.
 
 ## Install
 
