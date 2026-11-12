@@ -127,10 +127,10 @@ AST to a JSON schedule spec instead, so that
 
 References
 ----------
-Catania, A. C. (1966). Concurrent performances: Reinforcement
+Catania, A. C. (1963). Concurrent performances: Reinforcement
 interaction and response independence. *Journal of the Experimental
-Analysis of Behavior*, 9(3), 253-263.
-https://doi.org/10.1901/jeab.1966.9-253
+Analysis of Behavior*, 6(2), 253-263.
+https://doi.org/10.1901/jeab.1963.6-253
 
 Ferster, C. B., & Skinner, B. F. (1957). *Schedules of reinforcement*.
 Appleton-Century-Crofts.
