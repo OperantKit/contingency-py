@@ -1212,6 +1212,48 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "trial" / "mts_trialtypes_seed3.json", mts_tt)
     )
 
+    mts_corr = FixtureSpec(
+        name="mts-n2-seed7-correction1",
+        description=(
+            "MatchingToSample(n_comparisons=2, choice_timeout=3, iti=1, seed=7, "
+            "correction bounded limit 1): an incorrect baseline trial is "
+            "repeated once after the ITI with the same correct operandum and "
+            "no draw from the RNG, so the drawn sequence is the one of "
+            "mts-n2-seed7 (choice_1, choice_0, choice_1). Trial 0 (choice_1): "
+            "choice_0 at t=0.5 is incorrect. Trial 1 repeats it "
+            "(correction_trial true); choice_0 at t=2 is incorrect again and "
+            "the limit is used up. Trial 2 draws choice_0; choice_1 at t=3.5 "
+            "is incorrect. Trial 3 repeats it; choice_0 at t=5 is correct "
+            "(default CRF). Trial 4 draws choice_1 at t=6 and the tick at "
+            "t=9.5 times it out as incorrect. Trial 5 repeats it from t=10 "
+            "(seen at the tick at t=10.5); choice_1 at t=11 is correct."
+        ),
+        schedule={
+            "type": "MatchingToSample",
+            "params": {
+                "n_comparisons": 2,
+                "sample_duration": 0.0,
+                "choice_timeout": 3.0,
+                "iti": 1.0,
+                "consequence": None,
+                "incorrect": None,
+                "seed": 7,
+                "correction": {"mode": "bounded", "limit": 1},
+            },
+        },
+    )
+    mts_corr.add(now=0.0, event=None)
+    for t, op in [(0.5, "choice_0"), (2.0, "choice_0"), (3.5, "choice_1"), (5.0, "choice_0")]:
+        mts_corr.add(now=t, event={"time": t, "operandum": op})
+        mts_corr.add(now=t + 1.0, event=None)
+    for t in [9.5, 10.5]:
+        mts_corr.add(now=t, event=None)
+    mts_corr.add(now=11.0, event={"time": 11.0, "operandum": "choice_1"})
+    mts_corr.add(now=12.0, event=None)
+    fixtures.append(
+        (CONFORMANCE_DIR / "trial" / "mts_n2_seed7_correction1.json", mts_corr)
+    )
+
     gonogo = FixtureSpec(
         name="gonogo-p05-seed1",
         description=(

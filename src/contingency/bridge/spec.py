@@ -72,8 +72,8 @@ These raise :class:`SpecUnrepresentableError` (a
 
 Errors that :func:`from_dsl` raises (unresolved ``IdentifierRef``,
 malformed values, ``@algorithm`` misuse, and constructs the runtime does
-not run: program-level ``RD`` or ``BO`` greater than zero, ``MTS`` with
-``correction``, ``GoNoGo`` with ``LH`` in either form, ``MTS`` /
+not run: program-level ``RD`` or ``BO`` greater than zero, ``GoNoGo``
+with ``LH`` in either form, ``MTS`` /
 ``GoNoGo`` with more than one ``LH``) are raised here too, as
 :class:`ScheduleConfigError`.
 """
@@ -89,18 +89,19 @@ from contingency.bridge import (
     _aversive_magnitude,
     _aversive_time_param,
     _check_go_nogo_params,
-    _check_mts_params,
     _check_program_blackout,
     _fleshler_hoffman_kwargs,
     _fold_trial_based_lh,
     _is_zero_param,
     _lag_params,
+    _mts_correction,
     _next_seed,
     _scaled_time,
     _trial_based_time,
 )
 from contingency.bridge.program_decls import apply_program_decls
 from contingency.errors import ScheduleConfigError, SpecUnrepresentableError
+from contingency.schedules.trial_based import _correction_spec
 
 __all__ = ["to_spec"]
 
@@ -572,7 +573,7 @@ def _trial_based_spec(node: Any, recurse: Any, time_unit_seconds: float) -> Spec
                 "declaration-form MTS(samples=...) describes trial structure, "
                 "not a running schedule, and has no spec form"
             )
-        _check_mts_params(params)
+        correction = _correction_spec(_mts_correction(params))
         comparisons = params.get("comparisons")
         if comparisons is None:
             raise ScheduleConfigError("MTS requires a 'comparisons' parameter")
@@ -590,6 +591,7 @@ def _trial_based_spec(node: Any, recurse: Any, time_unit_seconds: float) -> Spec
             incorrect=incorrect,
             iti=iti,
             seed=_next_seed(),
+            **({"correction": correction} if correction is not None else {}),
         )
 
     if trial_type == "GoNoGo":

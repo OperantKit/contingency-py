@@ -2,7 +2,7 @@
 
 [English](../en/conformance-checker.md)
 
-contingency-py を入れると（[README](../../README.ja.md) の「インストール」を参照）、適合性 fixture と `contingency-conformance` コマンドも入ります。強化スケジュールの実装であれば、どの言語で書いたものでも、同じ 43 個の fixture に照らして検算できます。
+contingency-py を入れると（[README](../../README.ja.md) の「インストール」を参照）、適合性 fixture と `contingency-conformance` コマンドも入ります。強化スケジュールの実装であれば、どの言語で書いたものでも、同じ 44 個の fixture に照らして検算できます。
 
 ```bash
 contingency-conformance list                    # fixture・種別・スケジュール型・step 数
@@ -60,9 +60,9 @@ if __name__ == "__main__":
     json.dump(observe(json.load(sys.stdin)), sys.stdout)
 ```
 
-このアダプタは FR だけを実装しているので、合格するのは `atomic/fr_basic.json` だけです。`--only` を外すと、他の 42 本はアダプタがスケジュールを組み立てられず `ERROR` になります。他も通すには `observe` で各スケジュールの `type` を組み立てます。複合スケジュールの 12 本（Alternative・Chained・Concurrent・Conjunctive・Interpolate・Mixed・Multiple・Overlay・SecondOrder・Tandem）、包み型の 2 本（Timeout・ResponseCost）、Percentile の 1 本、嫌悪制御の 3 本（Sidman・DiscriminatedAvoidance・Escape）、試行型の 2 本（MatchingToSample・GoNoGo）は、一部の step で `meta`（`current_component`・`alternative_winner`・`cod_suppressed`・`timeout_active`・`in_probe`・`net_magnitude`・`phase`・`aversive_event`・`trial_outcome` など）も求めます。どの step にどのキーが要るかは fixture ファイルに書いてあります。
+このアダプタは FR だけを実装しているので、合格するのは `atomic/fr_basic.json` だけです。`--only` を外すと、他の 43 本はアダプタがスケジュールを組み立てられず `ERROR` になります。他も通すには `observe` で各スケジュールの `type` を組み立てます。複合スケジュールの 12 本（Alternative・Chained・Concurrent・Conjunctive・Interpolate・Mixed・Multiple・Overlay・SecondOrder・Tandem）、包み型の 2 本（Timeout・ResponseCost）、Percentile の 1 本、嫌悪制御の 3 本（Sidman・DiscriminatedAvoidance・Escape）、試行型の 4 本（MatchingToSample・GoNoGo）は、一部の step で `meta`（`current_component`・`alternative_winner`・`cod_suppressed`・`timeout_active`・`in_probe`・`net_magnitude`・`phase`・`aversive_event`・`trial_outcome`・`correction_trial` など）も求めます。どの step にどのキーが要るかは fixture ファイルに書いてあります。
 
-`contingency-conformance replay-python` は本パッケージの実行系に対する同じ役目のアダプタで、`contingency-conformance run -- contingency-conformance replay-python` は 43 本すべてに合格します。
+`contingency-conformance replay-python` は本パッケージの実行系に対する同じ役目のアダプタで、`contingency-conformance run -- contingency-conformance replay-python` は 44 本すべてに合格します。
 
 ## 乱数の種を持つ fixture
 

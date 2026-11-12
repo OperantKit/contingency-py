@@ -59,6 +59,26 @@ from contingency.schedules import (
 __all__ = ["build_schedule_from_spec"]
 
 
+def _correction_from_spec(raw: Any) -> bool | int:
+    """``MatchingToSample.correction`` from its spec form (absent = disabled)."""
+    if raw is None:
+        return False
+    if isinstance(raw, dict):
+        mode = raw.get("mode")
+        keys = set(raw)
+        if mode in ("disabled", "unlimited") and keys == {"mode"}:
+            return bool(mode == "unlimited")
+        limit = raw.get("limit")
+        if (
+            mode == "bounded"
+            and keys == {"mode", "limit"}
+            and isinstance(limit, int)
+            and not isinstance(limit, bool)
+        ):
+            return limit
+    raise ScheduleConfigError(f"MatchingToSample: unsupported correction {raw!r}")
+
+
 def _optional_spec(spec: dict[str, Any] | None) -> Schedule | None:
     return build_schedule_from_spec(spec) if spec is not None else None
 
@@ -321,6 +341,7 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
             probe_trial_types=_optional_trial_types(
                 params.get("probe_trial_types"), "probe_trial_types"
             ),
+            correction=_correction_from_spec(params.get("correction")),
         )
     if stype == "GoNoGo":
         return GoNoGo(

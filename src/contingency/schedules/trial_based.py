@@ -59,7 +59,13 @@ from typing import Any, Literal
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
-from contingency.schedules._rust import engine_name, fresh_seed, rust_compound, specs_of
+from contingency.schedules._rust import (
+    engine_name,
+    fresh_seed,
+    rust_compound,
+    rust_or_none,
+    specs_of,
+)
 
 __all__ = ["MatchingToSample", "GoNoGo", "TrialType", "trial_types_from_relations"]
 
@@ -191,6 +197,34 @@ def _python_meta(outcome: Outcome) -> Outcome:
     return Outcome(reinforced=outcome.reinforced, reinforcer=outcome.reinforcer, meta=meta)
 
 
+_CORRECTION_LIMIT_MAX = 2**32 - 1
+
+
+def _check_correction(correction: bool | int | None) -> bool | int:
+    """Normalise ``MatchingToSample(correction=...)``."""
+    if correction is None or isinstance(correction, bool):
+        return bool(correction)
+    if not isinstance(correction, int):
+        raise ScheduleConfigError(
+            "correction must be None, a bool or an int >= 1, "
+            f"got {type(correction).__name__}"
+        )
+    if not 1 <= correction <= _CORRECTION_LIMIT_MAX:
+        raise ScheduleConfigError(
+            f"correction limit must be in [1, {_CORRECTION_LIMIT_MAX}], got {correction}"
+        )
+    return correction
+
+
+def _correction_spec(correction: bool | int) -> dict[str, Any] | None:
+    """Spec form of a normalised correction; ``None`` when disabled."""
+    if correction is False:
+        return None
+    if correction is True:
+        return {"mode": "unlimited"}
+    return {"mode": "bounded", "limit": correction}
+
+
 def _trial_types_spec(types: Sequence[TrialType]) -> list[dict[str, Any]]:
     return [
         {"sample": t.sample, "correct": t.correct, "comparisons": list(t.comparisons)}
@@ -267,6 +301,16 @@ class MatchingToSample:
         ``consequence`` nor ``incorrect`` is stepped and the outcome is
         never reinforced, while ``trial_outcome`` is still scored as
         ``"correct"`` or ``"incorrect"``. Requires ``trial_types``.
+    correction:
+        Correction procedure. ``None`` or ``False`` (default): none.
+        ``True``: a baseline trial that ends incorrect (a wrong choice or
+        a timeout) is presented again, after the ITI, until it is
+        answered correctly. An ``int`` ``N >= 1``: at most ``N`` repeats,
+        then the next trial is drawn. A repeated trial keeps the correct
+        operandum, the sample and the comparison positions, and draws
+        nothing from the RNG. Probe trials are not repeated. With
+        correction active, outcome ``meta`` also reports
+        ``correction_trial`` (whether the current trial is a repeat).
 
     References
     ----------
@@ -298,6 +342,10 @@ class MatchingToSample:
         "_block_pos",
         "_current_type_index",
         "_current_positions",
+        "_correction",
+        "_repeats_done",
+        "_repeat_next",
+        "_on_correction_trial",
     )
 
     def __init__(
@@ -311,6 +359,7 @@ class MatchingToSample:
         seed: int | None = None,
         trial_types: Sequence[TrialType] | None = None,
         probe_trial_types: Sequence[TrialType] | None = None,
+        correction: bool | int | None = None,
     ) -> None:
         if isinstance(n_comparisons, bool) or not isinstance(n_comparisons, int):
             raise ScheduleConfigError(
@@ -356,8 +405,29 @@ class MatchingToSample:
         self._correct_operandum: str = self._pick_correct_operandum()
         self._last_now: float | None = None
         self._pending_outcome_label: str | None = None
-        self._rust: Any = rust_compound(self._rust_spec(), state_key="phase")
+        self._correction: bool | int = _check_correction(correction)
+        self._repeats_done: int = 0
+        self._repeat_next: bool = False
+        self._on_correction_trial: bool = False
+        self._rust: Any = self._build_rust()
 
+    def _build_rust(self) -> Any:
+        """The Rust engine for this schedule, or ``None`` to run in Python.
+
+        A ``contingency_core`` that predates correction trials reads
+        past the unknown ``correction`` key and would run the schedule
+        without them; with correction active the engine must report
+        ``correction_trial``, or the schedule stays in Python.
+        """
+        spec = self._rust_spec()
+        rust = rust_compound(spec, state_key="phase")
+        if rust is None or self._correction is False:
+            return rust
+        assert spec is not None
+        probe = rust_or_none(spec)
+        if probe is None or "correction_trial" not in probe.step(0.0, None).meta:
+            return None
+        return rust
 
     def _rust_spec(self) -> dict[str, Any] | None:
         params: dict[str, Any] = {
@@ -376,6 +446,9 @@ class MatchingToSample:
             params["trial_types"] = _trial_types_spec(self._trial_types[:n])
             if len(self._trial_types) > n:
                 params["probe_trial_types"] = _trial_types_spec(self._trial_types[n:])
+        correction_spec = _correction_spec(self._correction)
+        if correction_spec is not None:
+            params["correction"] = correction_spec
         return {"type": "MatchingToSample", "params": params}
 
     def _type_index_now(self) -> int | None:
@@ -416,6 +489,15 @@ class MatchingToSample:
     @property
     def iti(self) -> float:
         return self._iti
+
+    @property
+    def correction(self) -> bool | int:
+        """``False`` (none), ``True`` (until correct) or the repeat limit."""
+        return self._correction
+
+    @property
+    def choice_timeout(self) -> float:
+        return self._choice_timeout
 
     @property
     def current_trial_type(self) -> TrialType | None:
@@ -483,12 +565,35 @@ class MatchingToSample:
             meta["comparisons"] = self._current_positions
             meta["correct"] = tt.correct
             meta["probe"] = self.is_probe_trial
+        if self._correction is not False:
+            meta["correction_trial"] = self._on_correction_trial
         return meta
+
+    def _settle_correction(self, outcome_label: str) -> None:
+        """Decide, when a trial ends, whether the next trial repeats it."""
+        wants_repeat = outcome_label == "incorrect" and not self.is_probe_trial
+        if self._correction is False:
+            allowed = False
+        elif self._correction is True:
+            allowed = True
+        else:
+            allowed = self._repeats_done < self._correction
+        if wants_repeat and allowed:
+            self._repeat_next = True
+            self._repeats_done += 1
+        else:
+            self._repeat_next = False
+            self._repeats_done = 0
 
     def _begin_trial(self, now: float) -> None:
         self._phase = "sample" if self._sample_duration > 0 else "choice"
         self._phase_started = now
-        self._correct_operandum = self._pick_correct_operandum()
+        self._on_correction_trial = self._repeat_next
+        self._repeat_next = False
+        if not self._on_correction_trial:
+            # A correction trial keeps the correct operandum, trial type
+            # and comparison positions of the trial it repeats.
+            self._correct_operandum = self._pick_correct_operandum()
 
     def _enter_choice(self, now: float) -> None:
         self._phase = "choice"
@@ -498,6 +603,7 @@ class MatchingToSample:
         self._phase = "iti"
         self._phase_started = now
         self._pending_outcome_label = outcome_label
+        self._settle_correction(outcome_label)
 
     def _finish_iti(self, now: float) -> None:
         self._trial_index += 1
@@ -630,7 +736,7 @@ class MatchingToSample:
             for component in (self._consequence, self._incorrect):
                 if component is not None:
                     component.reset()
-            self._rust = rust_compound(self._rust_spec(), state_key="phase")
+            self._rust = self._build_rust()
             if self._rust is not None:
                 return
         self._rng = random.Random(self._seed)
@@ -644,6 +750,9 @@ class MatchingToSample:
         self._correct_operandum = self._pick_correct_operandum()
         self._last_now = None
         self._pending_outcome_label = None
+        self._repeats_done = 0
+        self._repeat_next = False
+        self._on_correction_trial = False
         if self._consequence is not None:
             self._consequence.reset()
         if self._incorrect is not None:

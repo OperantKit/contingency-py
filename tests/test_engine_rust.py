@@ -218,6 +218,8 @@ DSL_PROGRAMS = [
     "Escape(SafeDuration=2s, MaxShock=3s)",
     "MTS(comparisons=3, consequence=VR2, incorrect=RT5s, ITI=1s)",
     "MTS(comparisons=3, consequence=VR2, incorrect=RT5s, ITI=1s) LH3s",
+    "MTS(comparisons=3, consequence=CRF, incorrect=RT5s, ITI=1s, correction=2)",
+    "MTS(comparisons=2, consequence=VR2, incorrect=FT1s, ITI=1s, correction=true)",
     "GoNoGo(responseWindow=5s, consequence=CRF, ITI=10s)",
     "LH = 2s\nFI5s",
     "LH = 1s\nMult(VI10s, FR3)",

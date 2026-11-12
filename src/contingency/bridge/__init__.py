@@ -190,6 +190,7 @@ from contingency.schedules import (
     arithmetic,
     geometric,
 )
+from contingency.schedules.trial_based import _check_correction
 
 __all__ = ["from_dsl", "to_spec"]
 
@@ -1256,14 +1257,25 @@ def _fold_trial_based_lh(node: Any) -> Any | None:
     return dataclasses.replace(inner, params=params)
 
 
-def _check_mts_params(params: dict[str, Any]) -> None:
-    """Reject MTS parameters the runtime does not run."""
+def _mts_correction(params: dict[str, Any]) -> bool | int:
+    """``MatchingToSample(correction=...)`` from the AST ``correction`` param.
+
+    The AST holds ``{"mode": "disabled" | "unlimited"}`` or
+    ``{"mode": "bounded", "limit": N}``; absent means disabled.
+    """
     correction = params.get("correction")
-    if correction is not None and correction.get("mode") != "disabled":
-        raise ScheduleConfigError(
-            "MTS correction trials: the runtime has no correction procedure; "
-            "running it would silently drop the correction trials"
-        )
+    if correction is None:
+        return False
+    mode = correction.get("mode") if isinstance(correction, dict) else None
+    if mode == "disabled":
+        return False
+    if mode == "unlimited":
+        return True
+    if mode == "bounded":
+        limit = correction.get("limit")
+        if isinstance(limit, int) and not isinstance(limit, bool):
+            return _check_correction(limit)
+    raise ScheduleConfigError(f"MTS correction: unsupported value {correction!r}")
 
 
 def _check_go_nogo_params(params: dict[str, Any]) -> None:
@@ -1278,7 +1290,7 @@ def _check_go_nogo_params(params: dict[str, Any]) -> None:
 def _build_mts(
     params: dict[str, Any], time_unit_seconds: float
 ) -> MatchingToSample:
-    _check_mts_params(params)
+    correction = _mts_correction(params)
     comparisons = params.get("comparisons")
     if comparisons is None:
         raise ScheduleConfigError(
@@ -1312,6 +1324,7 @@ def _build_mts(
         incorrect=incorrect,
         iti=iti_seconds,
         seed=_next_seed(),
+        correction=correction,
     )
 
 

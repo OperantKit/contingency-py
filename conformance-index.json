@@ -282,6 +282,13 @@
     },
     {
       "kind": "stochastic",
+      "path": "trial/mts_n2_seed7_correction1.json",
+      "sha256": "65b16627b4b4ea6f1499e0cd3933fd74e43a51e0ae5d4fcaf531c5a624f62737",
+      "steps": 13,
+      "type": "MatchingToSample"
+    },
+    {
+      "kind": "stochastic",
       "path": "trial/mts_trialtypes_seed3.json",
       "sha256": "0de91b35401e9133fa19becf9626ffc657785936e683c855403cbab3b3c5d58b",
       "steps": 13,

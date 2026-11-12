@@ -133,7 +133,6 @@ def test_program_bo_without_mult_or_mix_is_accepted() -> None:
         ("RD = 1s\nFR5", "RD"),
         ("RD = 500ms\nConc(VI30s, VI60s)", "RD"),
         ("BO = 5s\nMult(FR2, FR3)", "BO"),
-        ("MTS(comparisons=3, consequence=CRF, ITI=5s, correction=true)", "correction"),
         ("GoNoGo(responseWindow=2s, consequence=CRF, ITI=1s, LH=1s)", "LH"),
     ],
 )
