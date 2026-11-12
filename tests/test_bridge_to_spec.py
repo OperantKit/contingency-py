@@ -189,6 +189,11 @@ _EQUIVALENT_SOURCES = [
     "Conc(VI30s, VI60s, COD=1s)",
     "Conc(VI30s, VI60s, COD=2s, FRCO=5)",
     "Conc(VI10s, VI20s, VI30s, COD=500ms)",
+    "Conc(VR5, VR5, COD(1->2)=2s, COD(2->1)=1s)",
+    "Conc(VI10s, VI20s, COD=1s, COD(1->2)=3s)",
+    "Conc(VI10s, VI20s, VI30s, COD(1->3)=2s, COD(3->1)=500ms)",
+    "Conc(VI30s, VI60s, COD=2s, PUNISH(1)=VI30s)",
+    "Conc(FR3, FR5, PUNISH(1)=FR2, PUNISH(2)=FT5s)",
     "Alt(FR3, FT5s)",
     "Alt(FR3, FR5, FR7)",
     "Conj(FR3, FI5s)",
@@ -362,6 +367,39 @@ def test_to_spec_time_unit_seconds_remaps_like_from_dsl() -> None:
             },
         ),
         (
+            "Conc(FR3, FR5, COD=1s, COD(1->2)=3s, COD(2->1)=500ms)",
+            {
+                "type": "Concurrent",
+                "params": {
+                    "components": {
+                        "c0": {"type": "FR", "params": {"n": 3}},
+                        "c1": {"type": "FR", "params": {"n": 5}},
+                    },
+                    "cod": 1.0,
+                    "frco": 0,
+                    "cod_directional": [
+                        {"from": "c0", "to": "c1", "cod": 3.0},
+                        {"from": "c1", "to": "c0", "cod": 0.5},
+                    ],
+                },
+            },
+        ),
+        (
+            "Conc(FR3, FR5, PUNISH(2)=FR2)",
+            {
+                "type": "Concurrent",
+                "params": {
+                    "components": {
+                        "c0": {"type": "FR", "params": {"n": 3}},
+                        "c1": {"type": "FR", "params": {"n": 5}},
+                    },
+                    "cod": 0.0,
+                    "frco": 0,
+                    "punish": {"c1": {"type": "FR", "params": {"n": 2}}},
+                },
+            },
+        ),
+        (
             "Mult(FR2, FR3)",
             {
                 "type": "Multiple",
@@ -414,8 +452,7 @@ def test_to_spec_shape(source: str, expected: dict[str, Any]) -> None:
     [
         ("COD = 2s\nConc(FR1, FR1)", "COD"),
         ("LH = 2s\nFI5s", "analyze"),
-        ("Conc(VR5, VR5, COD(1->2)=2s, COD(2->1)=1s)", "directional COD"),
-        ("Conc(VI30s, VI60s, COD=2s, PUNISH(1)=VI30s)", "PUNISH"),
+        ("Conc(FR3, FR5, BO=5s)", "BO"),
         ("Mult(FR3, FR5, BO=5s)", "BO"),
         ("Mix(FR3, FR5, BO=5s)", "BO"),
         ("Overlay(FR5, FR10, target=changeover)", "target"),
@@ -431,6 +468,32 @@ def test_to_spec_shape(source: str, expected: dict[str, Any]) -> None:
 def test_to_spec_rejects_unrepresentable(source: str, match: str) -> None:
     with pytest.raises(SpecUnrepresentableError, match=match):
         to_spec(_parse(source))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "source",
+    ["Conc(FR3, FR5, PUNISH(1->2)=FR1)", "Conc(FR3, FR5, PUNISH(changeover)=FR1)"],
+)
+def test_to_spec_rejects_punish_forms_from_dsl_rejects(source: str) -> None:
+    """Only the per-component PUNISH form has a runtime, as in from_dsl."""
+    ast = _parse(source)
+    with pytest.raises(ScheduleConfigError, match="PUNISH") as from_dsl_error:
+        from_dsl(ast)
+    with pytest.raises(ScheduleConfigError, match="PUNISH") as to_spec_error:
+        to_spec(ast)
+    assert type(to_spec_error.value) is type(from_dsl_error.value)
+
+
+@pytest.mark.unit
+def test_to_spec_repeated_directional_cod_keeps_the_last_value() -> None:
+    """Without analyze(), a repeated COD(a->b) is last-wins, as in from_dsl."""
+    ast = _parse("Conc(FR3, FR5, COD(1->2)=2s, COD(2->1)=1s, COD(1->2)=3s)")
+    spec = _assert_equivalent(ast)
+    assert spec["params"]["cod_directional"] == [
+        {"from": "c0", "to": "c1", "cod": 3.0},
+        {"from": "c1", "to": "c0", "cod": 1.0},
+    ]
 
 
 @pytest.mark.unit
@@ -548,6 +611,11 @@ _FIXTURE_DSL: dict[str, tuple[str, tuple[str, ...]]] = {
     "compound/chained_fr2_fr3.json": ("Chain(FR2, FR3)", ()),
     "compound/concurrent_cod.json": ("Conc(FR3, FR3, COD=1s)", ("left", "right")),
     "compound/concurrent_cod_tick.json": ("Conc(FT5s, FI3s, COD=2s)", ("a", "b")),
+    "compound/concurrent_cod_directional.json": (
+        "Conc(FR2, FR2, COD=1s, COD(1->2)=3s)",
+        ("left", "right"),
+    ),
+    "compound/concurrent_punish.json": ("Conc(FR3, FR3, PUNISH(1)=FR2)", ("left", "right")),
     "compound/conjunctive_fr3_fi5.json": ("Conj(FR3, FI5s)", ()),
     "compound/mixed_fr2_fr3.json": ("Mix(FR2, FR3)", ()),
     "compound/multiple_fr_fr.json": ("Mult(FR2, FR3)", ()),
@@ -582,6 +650,9 @@ def _canonical(spec: Any, rename: dict[str, str]) -> Any:
     if not isinstance(spec, dict):
         return float(spec) if isinstance(spec, int) and not isinstance(spec, bool) else spec
     if "type" not in spec:
+        if set(spec) == {"from", "to", "cod"}:  # a cod_directional entry
+            return {**spec, "from": rename.get(spec["from"], spec["from"]),
+                    "to": rename.get(spec["to"], spec["to"]), "cod": float(spec["cod"])}
         return {rename.get(k, k): _canonical(v, rename) for k, v in spec.items()}
     params = {**_SPEC_DEFAULTS.get(spec["type"], {}), **spec.get("params", {})}
     return {

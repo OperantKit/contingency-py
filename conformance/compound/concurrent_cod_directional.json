@@ -1,0 +1,151 @@
+{
+  "description": "Concurrent FR(2)/FR(2) with COD=1.0 and a directional COD of 3.0 for left -> right: a switch to right holds the ratio completed 1.5 s after it, still holds it at 2.5 s, and pays it on the first right response after 3 s; a switch back to left uses the base COD of 1 s.",
+  "name": "concurrent-fr2-fr2-cod1-left-to-right-cod3",
+  "schedule": {
+    "params": {
+      "cod": 1.0,
+      "cod_directional": [
+        {
+          "cod": 3.0,
+          "from": "left",
+          "to": "right"
+        }
+      ],
+      "components": {
+        "left": {
+          "params": {
+            "n": 2
+          },
+          "type": "FR"
+        },
+        "right": {
+          "params": {
+            "n": 2
+          },
+          "type": "FR"
+        }
+      },
+      "frco": 0
+    },
+    "type": "Concurrent"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "left",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 2.0
+        }
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 4.5
+      },
+      "expect": {
+        "meta": {
+          "cod_suppressed": true,
+          "operandum": "right"
+        },
+        "reinforced": false
+      },
+      "now": 4.5
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 5.5
+      },
+      "expect": {
+        "meta": {
+          "cod_suppressed": true,
+          "operandum": "right"
+        },
+        "reinforced": false
+      },
+      "now": 5.5
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 6.5
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 6.5
+        }
+      },
+      "now": 6.5
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 7.5
+      },
+      "expect": {
+        "meta": {
+          "cod_suppressed": true,
+          "operandum": "left"
+        },
+        "reinforced": false
+      },
+      "now": 7.5
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 8.5
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 8.5
+        }
+      },
+      "now": 8.5
+    }
+  ]
+}

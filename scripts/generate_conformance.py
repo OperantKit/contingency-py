@@ -462,6 +462,73 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "compound" / "concurrent_cod_tick.json", conc_cod_tick)
     )
 
+    conc_cod_dir = FixtureSpec(
+        name="concurrent-fr2-fr2-cod1-left-to-right-cod3",
+        description=(
+            "Concurrent FR(2)/FR(2) with COD=1.0 and a directional COD of "
+            "3.0 for left -> right: a switch to right holds the ratio "
+            "completed 1.5 s after it, still holds it at 2.5 s, and pays it "
+            "on the first right response after 3 s; a switch back to left "
+            "uses the base COD of 1 s."
+        ),
+        schedule={
+            "type": "Concurrent",
+            "params": {
+                "components": {
+                    "left": {"type": "FR", "params": {"n": 2}},
+                    "right": {"type": "FR", "params": {"n": 2}},
+                },
+                "cod": 1.0,
+                "frco": 0,
+                "cod_directional": [{"from": "left", "to": "right", "cod": 3.0}],
+            },
+        },
+    )
+    for t in [1.0, 2.0]:  # FR2 on left -> reinforced at 2.0
+        conc_cod_dir.add(now=t, event={"time": t, "operandum": "left"})
+    # left -> right at 3.0: the 3 s directional COD applies.
+    for t in [3.0, 4.5, 5.5]:  # ratio completes at 4.5 (held), still held at 5.5
+        conc_cod_dir.add(now=t, event={"time": t, "operandum": "right"})
+    conc_cod_dir.add(now=6.5, event={"time": 6.5, "operandum": "right"})  # paid
+    # right -> left at 7.0: no directional entry, so the base 1 s COD.
+    for t in [7.0, 7.5, 8.5]:  # completes at 7.5 (held), paid at 8.5
+        conc_cod_dir.add(now=t, event={"time": t, "operandum": "left"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "concurrent_cod_directional.json", conc_cod_dir)
+    )
+
+    conc_punish = FixtureSpec(
+        name="concurrent-fr3-fr3-punish-left-fr2",
+        description=(
+            "Concurrent FR(3)/FR(3) with an FR(2) punisher on left: every "
+            "second left response delivers an SR- of magnitude -1; on a "
+            "response where both the FR(3) and the punisher complete, the "
+            "net magnitude is returned. Right responses reach neither the "
+            "left punisher nor its count."
+        ),
+        schedule={
+            "type": "Concurrent",
+            "params": {
+                "components": {
+                    "left": {"type": "FR", "params": {"n": 3}},
+                    "right": {"type": "FR", "params": {"n": 3}},
+                },
+                "cod": 0.0,
+                "frco": 0,
+                "punish": {"left": {"type": "FR", "params": {"n": 2}}},
+            },
+        },
+    )
+    for t in [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]:
+        conc_punish.add(now=t, event={"time": t, "operandum": "left"})
+    for t in [7.0, 8.0, 9.0]:
+        conc_punish.add(now=t, event={"time": t, "operandum": "right"})
+    conc_punish.add(now=10.0, event={"time": 10.0, "operandum": "left"})
+    conc_punish.add(now=11.0, event={"time": 11.0, "operandum": "left"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "concurrent_punish.json", conc_punish)
+    )
+
     # --- Compound: Chained --------------------------------------------
 
     chained = FixtureSpec(

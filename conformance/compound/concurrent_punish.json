@@ -1,0 +1,196 @@
+{
+  "description": "Concurrent FR(3)/FR(3) with an FR(2) punisher on left: every second left response delivers an SR- of magnitude -1; on a response where both the FR(3) and the punisher complete, the net magnitude is returned. Right responses reach neither the left punisher nor its count.",
+  "name": "concurrent-fr3-fr3-punish-left-fr2",
+  "schedule": {
+    "params": {
+      "cod": 0.0,
+      "components": {
+        "left": {
+          "params": {
+            "n": 3
+          },
+          "type": "FR"
+        },
+        "right": {
+          "params": {
+            "n": 3
+          },
+          "type": "FR"
+        }
+      },
+      "frco": 0,
+      "punish": {
+        "left": {
+          "params": {
+            "n": 2
+          },
+          "type": "FR"
+        }
+      }
+    },
+    "type": "Concurrent"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "left",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 2.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": false,
+          "operandum": "left",
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 2.0
+        }
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 3.0
+        }
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 4.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": false,
+          "operandum": "left",
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 4.0
+        }
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 5.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 6.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": true,
+          "net_magnitude": 0.0,
+          "operandum": "left",
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR0",
+          "magnitude": 0.0,
+          "time": 6.0
+        }
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 8.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 9.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 9.0
+        }
+      },
+      "now": 9.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 10.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 10.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 11.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": false,
+          "operandum": "left",
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 11.0
+        }
+      },
+      "now": 11.0
+    }
+  ]
+}

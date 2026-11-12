@@ -27,6 +27,8 @@ conformance/
 ├── compound/
 │   ├── concurrent_cod.json
 │   ├── concurrent_cod_tick.json
+│   ├── concurrent_cod_directional.json
+│   ├── concurrent_punish.json
 │   ├── chained_fr2_fr3.json
 │   ├── chained_fr2_fi5.json
 │   ├── multiple_fr_fr.json
@@ -121,6 +123,13 @@ Supported types:
   responses and ticks.
 - Trial-based: `MatchingToSample`, `GoNoGo` (seeded). Comparison
   stimuli are operanda `choice_0` … `choice_{N-1}`.
+
+`Concurrent` takes `components` (an object of operandum name to spec),
+`cod` and `frco`, and two optional keys: `cod_directional`, an array of
+`{"from": <operandum>, "to": <operandum>, "cod": <time>}` objects that
+override `cod` for a changeover in that direction (a repeated pair is
+rejected), and `punish`, an object of operandum name to the spec of a
+punishment schedule run on that operandum's responses.
 
 `meta.phase` means different things in the two groups. The aversive
 schedules report the phase in which the step's event happened (an

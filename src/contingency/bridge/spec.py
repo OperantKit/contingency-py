@@ -27,6 +27,12 @@ Spec conventions
 * ``Percentile.target`` is lower-case ``"irt"``.
 * ``Concurrent`` keys are ``c0``, ``c1``, ...; ``Multiple`` / ``Chained``
   stimuli are ``s0``, ``s1``, ...
+* ``Conc`` directional COD ``COD(a->b)=x`` is written as
+  ``cod_directional: [{"from": "c<a-1>", "to": "c<b-1>", "cod": x}, ...]``
+  in source order; per-component ``PUNISH(k)=S`` is written as
+  ``punish: {"c<k-1>": <spec of S>}``. Both keys are left out when the
+  DSL has none. The ``PUNISH`` directional and changeover forms are
+  rejected, as by :func:`from_dsl`.
 
 Lossy mappings kept from :func:`from_dsl`
 -----------------------------------------
@@ -49,8 +55,8 @@ These raise :class:`SpecUnrepresentableError` (a
 * program-level parameter declarations (``LH``, ``COD``, ``FRCO``,
   ``BO``, ``RD``) — run ``contingency_dsl.analyze()`` to apply ``LH``,
   and write ``COD`` / ``FRCO`` on the ``Conc`` itself;
-* ``Conc`` with a directional ``COD(a->b)`` or any ``PUNISH`` form;
-* ``Mult`` / ``Mix`` with ``BO``; ``Overlay`` with ``target=``;
+* ``Mult`` / ``Mix`` / ``Conc`` with ``BO`` (the runtime has no blackout);
+  ``Overlay`` with ``target=``;
 * any other combinator parameter the spec has no key for;
 * ``Lag``;
 * ``Pctl`` with a target other than ``IRT``;
@@ -261,7 +267,7 @@ def _atomic_spec(node: Any, t: Any) -> Spec:
 
 
 _COMPOUND_PARAMS: dict[str, frozenset[str]] = {
-    "Conc": frozenset({"COD", "FRCO"}),
+    "Conc": frozenset({"COD", "FRCO", "PUNISH"}),
     "Interpolate": frozenset({"count", "onset"}),
     "Interp": frozenset({"count", "onset"}),
 }
@@ -284,13 +290,21 @@ def _compound_spec(node: Any, recurse: Any, t: Any) -> Spec:
     if combinator is Combinator.CONC:
         cod = 0.0
         frco = 0
+        cod_directional: list[dict[str, Any]] | None = None
         if "COD" in params:
             cod_value = params["COD"]
             if isinstance(cod_value, DirectionalCOD):
-                if cod_value.directional:
-                    raise SpecUnrepresentableError("directional COD (COD(a->b)) has no spec form")
                 if cod_value.base is not None:
                     cod = t(cod_value.base.value, cod_value.base.time_unit)
+                # A repeated pair keeps its first position and its last
+                # value, as the dict that from_dsl builds does.
+                pairs: dict[tuple[str, str], float] = {}
+                for entry in cod_value.directional:
+                    pair = (_conc_operandum(entry.from_ref), _conc_operandum(entry.to_ref))
+                    pairs[pair] = t(entry.value, entry.time_unit)
+                cod_directional = [
+                    {"from": a, "to": b, "cod": cod_ab} for (a, b), cod_ab in pairs.items()
+                ] or None
             elif isinstance(cod_value, CompoundParam):
                 cod = t(cod_value.value, cod_value.time_unit)
             else:
@@ -309,6 +323,8 @@ def _compound_spec(node: Any, recurse: Any, t: Any) -> Spec:
             components={f"c{i}": c for i, c in enumerate(components)},
             cod=cod,
             frco=frco,
+            cod_directional=cod_directional,
+            punish=_conc_punish(params.get("PUNISH"), recurse),
         )
 
     if combinator in (Combinator.ALT, Combinator.CONJ):
@@ -368,6 +384,39 @@ def _compound_spec(node: Any, recurse: Any, t: Any) -> Spec:
         )
 
     raise ScheduleConfigError(f"combinator {combinator.value!r} is not yet supported by the bridge")
+
+
+def _conc_operandum(ref: int | str) -> str:
+    """A 1-indexed component number or a name, as from_dsl resolves it."""
+    if isinstance(ref, int):
+        return f"c{ref - 1}"
+    return str(ref)
+
+
+def _conc_punish(value: Any, recurse: Any) -> dict[str, Spec] | None:
+    """The per-component ``PUNISH(k)=S`` form, the one from_dsl runs."""
+    from contingency_dsl.ast import PunishParam
+
+    if value is None:
+        return None
+    if isinstance(value, PunishParam):
+        forms = dict(value.payload)
+    elif isinstance(value, dict):
+        forms = value
+    else:
+        raise ScheduleConfigError(f"unsupported PUNISH parameter value: {type(value).__name__}")
+    unsupported = [k for k in forms if k != "component"]
+    if unsupported:
+        raise ScheduleConfigError(
+            f"PUNISH form(s) {unsupported!r} are not yet supported by the bridge "
+            "(only the component form is wired); directional and changeover "
+            "punishment are deferred"
+        )
+    punish = {
+        _conc_operandum(entry["component"]): recurse(entry["schedule"])
+        for entry in forms.get("component", [])
+    }
+    return punish or None
 
 
 def _modifier_spec(node: Any, recurse: Any, t: Any) -> Spec:

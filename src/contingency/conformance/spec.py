@@ -90,6 +90,38 @@ def _optional_trial_types(
     return tuple(_trial_type_from_spec(key, i, t) for i, t in enumerate(specs))
 
 
+def _cod_directional_from_spec(entries: Any) -> dict[tuple[str, str], float] | None:
+    """``[{"from", "to", "cod"}, ...]`` -> ``{(from, to): cod}``."""
+    if entries is None:
+        return None
+    if not isinstance(entries, list | tuple):
+        raise ScheduleConfigError(f"cod_directional must be a list, got {entries!r}")
+    out: dict[tuple[str, str], float] = {}
+    for i, entry in enumerate(entries):
+        where = f"cod_directional[{i}]"
+        if not isinstance(entry, dict) or set(entry) != {"from", "to", "cod"}:
+            raise ScheduleConfigError(f"{where} must be an object with from, to and cod")
+        from_op, to_op = entry["from"], entry["to"]
+        if not isinstance(from_op, str) or not isinstance(to_op, str):
+            raise ScheduleConfigError(f"{where}: from and to must be strings")
+        if (from_op, to_op) in out:
+            raise ScheduleConfigError(f"{where}: duplicate pair ({from_op!r}, {to_op!r})")
+        cod = entry["cod"]
+        if isinstance(cod, bool) or not isinstance(cod, int | float):
+            raise ScheduleConfigError(f"{where}.cod must be a number, got {cod!r}")
+        out[(from_op, to_op)] = float(cod)
+    return out
+
+
+def _punish_from_spec(specs: Any) -> dict[str, Schedule] | None:
+    """``{operandum: spec}`` -> ``{operandum: Schedule}``."""
+    if specs is None:
+        return None
+    if not isinstance(specs, dict):
+        raise ScheduleConfigError(f"punish must be an object, got {specs!r}")
+    return {op: build_schedule_from_spec(s) for op, s in specs.items()}
+
+
 def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
     """Instantiate a Schedule from a JSON-serialisable spec.
 
@@ -173,6 +205,8 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
             comp_map,
             cod=float(params.get("cod", 0.0)),
             frco=int(params.get("frco", 0)),
+            cod_directional=_cod_directional_from_spec(params.get("cod_directional")),
+            punish=_punish_from_spec(params.get("punish")),
         )
     if stype == "Alternative":
         first = build_schedule_from_spec(params["first"])
