@@ -44,7 +44,8 @@ Lossy mappings kept from :func:`from_dsl`
   dropped; the runtime terminates the warning stimulus on a response and
   delivers a punctate shock on timeout.
 * ``MTS``: ``mts_type`` is dropped; the runtime does not distinguish
-  identity from arbitrary matching.
+  identity from arbitrary matching. A postfix ``LH`` (``MTS(...) LH10s``)
+  is written as the keyword form ``MTS(..., LH=10s)``: the choice window.
 
 Program-level declarations
 --------------------------
@@ -73,7 +74,8 @@ These raise :class:`SpecUnrepresentableError` (a
 Errors that :func:`from_dsl` raises (unresolved ``IdentifierRef``,
 malformed values, ``@algorithm`` misuse, and constructs the runtime does
 not run: program-level ``RD`` or ``BO`` greater than zero, ``MTS`` with
-``correction``, ``GoNoGo`` with ``LH``) are raised here too, as
+``correction``, ``GoNoGo`` with ``LH`` in either form, ``MTS`` /
+``GoNoGo`` with more than one ``LH``) are raised here too, as
 :class:`ScheduleConfigError`.
 """
 
@@ -91,6 +93,7 @@ from contingency.bridge import (
     _check_mts_params,
     _check_program_blackout,
     _fleshler_hoffman_kwargs,
+    _fold_trial_based_lh,
     _is_zero_param,
     _next_seed,
     _scaled_time,
@@ -184,6 +187,9 @@ def to_spec(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Spec:
         return _modifier_spec(ast_node, recurse, t)
 
     if isinstance(ast_node, DSLLimitedHold):
+        folded = _fold_trial_based_lh(ast_node)
+        if folded is not None:
+            return recurse(folded)
         return _spec(
             "LimitedHold",
             inner=recurse(ast_node.inner),

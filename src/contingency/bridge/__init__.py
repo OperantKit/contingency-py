@@ -75,9 +75,13 @@ Modifier:
     ``Tand``; this bridge only sees ``Repeat`` on the pre-expansion
     path, but still handles it for robustness. If the caller passes
     an analyzed program the ``Tand`` path is taken instead.)
-  * ``Pctl`` -> :class:`ScheduleConfigError` (deferred feature).
+  * ``Pctl(IRT, ...)`` -> :class:`Percentile`; any other target ->
+    :class:`ScheduleConfigError` (response events carry only a time and
+    an operandum, so there is nothing else to rank).
 
 ``LimitedHold`` -> :class:`LimitedHold` wrapping ``from_dsl(inner)``.
+A postfix ``LH`` on ``MTS`` / ``GoNoGo`` is read as the keyword
+``LH=``: ``MTS(...) LH10s`` is ``MTS(..., LH=10s)``.
 
 ``TimeoutWrapped`` -> :class:`Timeout` wrapping ``from_dsl(inner)`` with
 ``duration`` scaled to runtime seconds via the DSL's ``duration_unit``
@@ -442,6 +446,9 @@ def from_dsl(
         return _from_modifier(ast_node, time_unit_seconds)
 
     if isinstance(ast_node, DSLLimitedHold):
+        folded = _fold_trial_based_lh(ast_node)
+        if folded is not None:
+            return from_dsl(folded, time_unit_seconds=time_unit_seconds)
         inner = from_dsl(ast_node.inner, time_unit_seconds=time_unit_seconds)
         hold = _scaled_time(
             ast_node.hold_duration, ast_node.time_unit, time_unit_seconds
@@ -969,6 +976,13 @@ def _from_pctl(node: Any) -> Percentile:
         raise ScheduleConfigError("Pctl requires a target dimension")
     if node.pctl_rank is None:
         raise ScheduleConfigError("Pctl requires a rank")
+    if str(node.pctl_target).lower() != "irt":
+        # Response events carry only a time and an operandum, so the
+        # runtime has nothing but the IRT to rank.
+        raise ScheduleConfigError(
+            f"Pctl target {node.pctl_target!r} is not runnable; "
+            "only IRT is supported"
+        )
     # The DSL parser defaults window to 20 and dir to "below" when either
     # is omitted; be tolerant if a hand-built Modifier leaves them as None.
     window = 20 if node.pctl_window is None else int(node.pctl_window)
@@ -1181,6 +1195,38 @@ def _bridge_nested_schedule(
     if raw is None:
         return None
     return from_dsl(raw, time_unit_seconds=time_unit_seconds)
+
+
+def _fold_trial_based_lh(node: Any) -> Any | None:
+    """Fold a postfix ``LH`` on ``MTS`` / ``GoNoGo`` into the keyword form.
+
+    ``MTS(...) LH10s`` parses as ``LimitedHold(inner=TrialBased)``; it
+    means the same as ``MTS(..., LH=10s)``. Return the ``TrialBased``
+    node with ``limitedHold`` / ``limitedHoldUnit`` set, or ``None``
+    when the inner node is not trial-based. A trial-based node that
+    already has an ``LH`` (keyword or another postfix) is rejected.
+    """
+    import dataclasses
+
+    from contingency_dsl.ast import LimitedHold as DSLLimitedHold
+    from contingency_dsl.ast import TrialBased
+
+    inner = node.inner
+    if isinstance(inner, DSLLimitedHold):
+        inner = _fold_trial_based_lh(inner)
+    if not isinstance(inner, TrialBased):
+        return None
+    if "limitedHold" in inner.params:
+        raise ScheduleConfigError(
+            f"{inner.trial_type} has more than one LH "
+            "(keyword LH= and postfix LH, or two postfix LH); write one"
+        )
+    params = {
+        **inner.params,
+        "limitedHold": float(node.hold_duration),
+        "limitedHoldUnit": node.time_unit,
+    }
+    return dataclasses.replace(inner, params=params)
 
 
 def _check_mts_params(params: dict[str, Any]) -> None:

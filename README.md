@@ -60,7 +60,7 @@ The components of a concurrent schedule are named `c0`, `c1`, … in the order t
 | Differential and progressive | DRO (resetting, momentary), DRL, DRH, percentile, progressive ratio (arithmetic, geometric, Richardson–Roberts), adjusting, interlocking |
 | Other procedures | Timeout, response cost, Sidman avoidance, discriminated avoidance, escape, matching-to-sample, go/no-go |
 | Value generators | Fleshler–Hoffman (Fleshler & Hoffman, 1962) and the Hantula (1991) variant |
-| Building schedules | `contingency.bridge.from_dsl` (from a contingency-dsl expression; combinator parameters the runtime does not read, such as `BO` greater than zero, raise `ScheduleConfigError` instead of being dropped), `contingency.builder.ScheduleBuilder` (from Python calls) |
+| Building schedules | `contingency.bridge.from_dsl` (from a contingency-dsl expression; combinator parameters the runtime does not read, such as `BO` greater than zero, raise `ScheduleConfigError` instead of being dropped, as does `Pctl` with a target other than `IRT`; a postfix `LH` on `MTS`, as in `MTS(...) LH10s`, is the choice window, the same as `MTS(..., LH=10s)`), `contingency.builder.ScheduleBuilder` (from Python calls) |
 | Hardware abstraction layer (`contingency.hw`) | An `Apparatus` interface with a virtual backend, a serial backend (needs `pyserial`), and a TCP backend for a hardware-in-the-loop (HIL) test rig |
 | Conformance | 39 JSON fixtures in `conformance/` and the `contingency-conformance` command |
 | Gymnasium | `contingency.envs.ScheduleEnv` and six registered environments (optional) |

@@ -142,10 +142,10 @@ class Percentile:
         Which response dimension to track. Accepted values:
         ``"irt"`` / ``"IRT"``, ``"force"``, ``"latency"``,
         ``"duration"``, ``"rate"``, ``"location"``, ``"amplitude"``.
-        Only ``"irt"`` / ``"IRT"`` are executable in this version;
-        other targets are accepted at construction (so a DSL program
-        can round-trip through the bridge) but raise
-        :class:`ScheduleConfigError` on the first :meth:`step` call.
+        Only ``"irt"`` / ``"IRT"`` are executable; other targets are
+        accepted at construction but raise :class:`ScheduleConfigError`
+        on the first :meth:`step` call. :func:`contingency.bridge.from_dsl`
+        rejects them before constructing the schedule.
     rank:
         Percentile rank threshold, an integer in ``[0, 100]``.
     window:

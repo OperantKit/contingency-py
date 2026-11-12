@@ -60,7 +60,7 @@ print(reinforcers)  # {'c0': 16, 'c1': 9} — 種を固定しているので毎�
 | 分化強化と累進 | DRO（リセット型・瞬時型）、DRL、DRH、パーセンタイル、累進比率（等差・等比・Richardson–Roberts）、調整、連動 |
 | その他の手続き | タイムアウト、反応コスト、Sidman 型回避、弁別回避、逃避、見本合わせ、Go/No-Go |
 | 値の生成 | Fleshler–Hoffman（Fleshler & Hoffman, 1962）と Hantula (1991) の変法 |
-| スケジュールの組み立て | `contingency.bridge.from_dsl`（contingency-dsl の式から。実行側が読まない組み合わせ子の引数 — 0 より大きい `BO` など — は捨てずに `ScheduleConfigError` にする）、`contingency.builder.ScheduleBuilder`（Python の呼び出しから） |
+| スケジュールの組み立て | `contingency.bridge.from_dsl`（contingency-dsl の式から。実行側が読まない組み合わせ子の引数 — 0 より大きい `BO` など — は捨てずに `ScheduleConfigError` にする。`IRT` 以外を対象にした `Pctl` も同じ。`MTS(...) LH10s` のように `MTS` の後ろに書いた `LH` は、`MTS(..., LH=10s)` と同じく選択の制限時間になる）、`contingency.builder.ScheduleBuilder`（Python の呼び出しから） |
 | ハードウェア抽象化層（`contingency.hw`） | `Apparatus` インタフェースと、仮想の装置、シリアル接続（`pyserial` が必要）、ハードウェア・イン・ザ・ループ（HIL）試験装置向けの TCP 接続 |
 | 適合性検査 | `conformance/` の 39 個の JSON fixture と `contingency-conformance` コマンド |
 | Gymnasium | `contingency.envs.ScheduleEnv` と、登録済みの 6 つの環境（任意） |

@@ -459,12 +459,10 @@ def test_bridge_pctl_irt_maps_to_percentile() -> None:
 
 
 @pytest.mark.unit
-def test_bridge_pctl_non_irt_target_still_constructs() -> None:
-    from contingency.schedules import Percentile
-
-    # The DSL parser validates target names; the bridge accepts the
-    # full target set at construction and defers the executability
-    # check to step() time.
+def test_bridge_pctl_non_irt_target_rejected_at_construction() -> None:
+    # Response events carry only a time and an operandum, so a non-IRT
+    # target has nothing to rank; the bridge rejects it when it builds
+    # the schedule rather than on the first step().
     node = contingency_dsl.ast.Modifier(
         modifier="Pctl",
         pctl_target="rate",
@@ -472,9 +470,8 @@ def test_bridge_pctl_non_irt_target_still_constructs() -> None:
         pctl_window=20,
         pctl_dir="below",
     )
-    s = from_dsl(node)
-    assert isinstance(s, Percentile)
-    assert s.target == "rate"
+    with pytest.raises(ScheduleConfigError, match="only IRT"):
+        from_dsl(node)
 
 
 @pytest.mark.unit
