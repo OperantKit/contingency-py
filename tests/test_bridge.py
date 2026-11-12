@@ -784,8 +784,8 @@ def test_bridge_conc_unsupported_frco_type_raises() -> None:
 
 
 @pytest.mark.unit
-def test_bridge_conc_punish_directional_raises_not_implemented() -> None:
-    """Directional punishment remains deferred; component form is wired."""
+def test_bridge_conc_punish_directional_from_raw_payload() -> None:
+    """A raw ``PunishParam`` payload with the directional form is wired."""
     from contingency_dsl.ast import (
         Atomic,
         Compound,
@@ -819,8 +819,9 @@ def test_bridge_conc_punish_directional_raises_not_implemented() -> None:
             )
         },
     )
-    with pytest.raises(ScheduleConfigError, match="PUNISH"):
-        from_dsl(node)
+    s = from_dsl(node)
+    assert set(s.punish_directional or {}) == {("c0", "c1")}
+    assert s.punish_changeover is None
 
 
 @pytest.mark.unit

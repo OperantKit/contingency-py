@@ -529,6 +529,76 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "compound" / "concurrent_punish.json", conc_punish)
     )
 
+    conc_punish_co = FixtureSpec(
+        name="concurrent-fr2-fr2-cod1-punish-changeover-fr2",
+        description=(
+            "Concurrent FR(2)/FR(2) with COD 1 and one FR(2) punisher shared "
+            "by every changeover direction: the punisher counts only "
+            "responses that change over, so every second changeover "
+            "(whatever its direction) delivers an SR- of magnitude -1 with "
+            "changeover_punished. Responses that stay on an operandum do not "
+            "reach the punisher."
+        ),
+        schedule={
+            "type": "Concurrent",
+            "params": {
+                "components": {
+                    "left": {"type": "FR", "params": {"n": 2}},
+                    "right": {"type": "FR", "params": {"n": 2}},
+                },
+                "cod": 1.0,
+                "frco": 0,
+                "punish_changeover": {"type": "FR", "params": {"n": 2}},
+            },
+        },
+    )
+    for t, op in [
+        (1.0, "left"), (2.0, "left"), (3.0, "right"), (3.5, "right"),
+        (4.5, "right"), (5.0, "left"), (6.5, "left"), (7.0, "right"),
+        (8.0, "left"), (8.5, "left"), (9.5, "left"),
+    ]:
+        conc_punish_co.add(now=t, event={"time": t, "operandum": op})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "concurrent_punish_changeover.json", conc_punish_co)
+    )
+
+    conc_punish_dir = FixtureSpec(
+        name="concurrent-fr3-fr3-frco2-punish-left-to-right-fr1",
+        description=(
+            "Concurrent FR(3)/FR(3) with FRCO 2 and an FR(1) punisher on the "
+            "left -> right direction only: the second consecutive right "
+            "response confirms the changeover and is punished "
+            "(changeover_punished); here it also completes the right FR(3), "
+            "so the net magnitude 0 (SR0) is returned. A single right "
+            "response between left responses is not a changeover, and "
+            "right -> left changeovers are not punished."
+        ),
+        schedule={
+            "type": "Concurrent",
+            "params": {
+                "components": {
+                    "left": {"type": "FR", "params": {"n": 3}},
+                    "right": {"type": "FR", "params": {"n": 3}},
+                },
+                "cod": 0.0,
+                "frco": 2,
+                "punish_directional": [
+                    {"from": "left", "to": "right",
+                     "schedule": {"type": "FR", "params": {"n": 1}}},
+                ],
+            },
+        },
+    )
+    for t, op in [
+        (1.0, "left"), (2.0, "right"), (3.0, "left"), (4.0, "right"),
+        (5.0, "right"), (6.0, "right"), (7.0, "left"), (8.0, "left"),
+        (9.0, "right"), (10.0, "right"),
+    ]:
+        conc_punish_dir.add(now=t, event={"time": t, "operandum": op})
+    fixtures.append(
+        (CONFORMANCE_DIR / "compound" / "concurrent_punish_directional.json", conc_punish_dir)
+    )
+
     # --- Compound: Chained --------------------------------------------
 
     chained = FixtureSpec(

@@ -390,8 +390,17 @@ def from_dsl(
         )
     if engine == "rust":
         from contingency.engine import from_spec
+        from contingency.schedules.concurrent import _rust_has_changeover_punish
 
-        return from_spec(to_spec(ast_node, time_unit_seconds=time_unit_seconds))
+        spec = to_spec(ast_node, time_unit_seconds=time_unit_seconds)
+        if _has_changeover_punish(spec) and not _rust_has_changeover_punish():
+            raise ScheduleConfigError(
+                "the installed contingency_core does not run changeover "
+                "punishment (PUNISH(changeover), PUNISH(a->b), "
+                "Overlay(..., target=changeover)) and would run the schedule "
+                "without it; use engine='python' or a newer contingency_core"
+            )
+        return from_spec(spec)
 
     # Imported lazily so that ``contingency`` remains importable even
     # when ``contingency_dsl`` is not installed; the ImportError is
@@ -571,6 +580,7 @@ def _from_special(node: Any) -> Schedule:
 #: the one that was written.
 _READ_COMPOUND_PARAMS: dict[str, frozenset[str]] = {
     "Conc": frozenset({"COD", "FRCO", "PUNISH"}),
+    "Overlay": frozenset({"target"}),
     "Interpolate": frozenset({"count", "onset"}),
     "Interp": frozenset({"count", "onset"}),
 }
@@ -701,6 +711,9 @@ def _from_compound(node: Any, time_unit_seconds: float) -> Schedule:
                 f"Overlay requires exactly 2 components (base, punisher), "
                 f"got {len(components)}"
             )
+        target = _overlay_target(node, params)
+        if target == "changeover":
+            return _changeover_overlay(components[0], components[1])
         return Overlay(components[0], components[1])
 
     if combinator in (Combinator.INTERPOLATE, Combinator.INTERP):
@@ -709,6 +722,58 @@ def _from_compound(node: Any, time_unit_seconds: float) -> Schedule:
     raise ScheduleConfigError(
         f"combinator {combinator.value!r} is not yet supported by the "
         "bridge"
+    )
+
+
+def _has_changeover_punish(spec: Any) -> bool:
+    """Whether a spec anywhere sets ``punish_changeover`` / ``punish_directional``."""
+    if isinstance(spec, dict):
+        if spec.get("type") == "Concurrent" and (
+            "punish_changeover" in spec.get("params", {})
+            or "punish_directional" in spec.get("params", {})
+        ):
+            return True
+        return any(_has_changeover_punish(v) for v in spec.values())
+    if isinstance(spec, list):
+        return any(_has_changeover_punish(v) for v in spec)
+    return False
+
+
+def _overlay_target(node: Any, params: dict[str, Any]) -> str:
+    """The ``target`` of an Overlay: ``"all"`` (also when omitted) or
+    ``"changeover"``. ``target=changeover`` requires a ``Conc`` baseline."""
+    from contingency_dsl.ast import Compound
+    from contingency_dsl.enums import Combinator
+
+    target = str(params.get("target", "all"))
+    if target not in ("all", "changeover"):
+        raise ScheduleConfigError(f"Overlay target {target!r} is not 'all' or 'changeover'")
+    if target == "changeover":
+        base = node.components[0]
+        if not (isinstance(base, Compound) and base.combinator is Combinator.CONC):
+            raise ScheduleConfigError(
+                "Overlay target=changeover requires a Conc baseline"
+            )
+    return target
+
+
+def _changeover_overlay(base: Schedule, punisher: Schedule) -> Concurrent:
+    """``Overlay(Conc(...), P, target=changeover)``: the same runtime as
+    ``Conc(..., PUNISH(changeover)=P)``."""
+    if not isinstance(base, Concurrent):
+        raise ScheduleConfigError("Overlay target=changeover requires a Conc baseline")
+    if base.punish_changeover is not None or base.punish_directional is not None:
+        raise ScheduleConfigError(
+            "Overlay target=changeover over a Conc that already punishes "
+            "changeovers (PUNISH(changeover) or PUNISH(x->y)) is ambiguous"
+        )
+    return Concurrent(
+        base.components,
+        cod=base.cod,
+        frco=base.frco,
+        cod_directional=base.cod_directional,
+        punish=base.punish,
+        punish_changeover=punisher,
     )
 
 
@@ -807,6 +872,8 @@ def _build_concurrent(
     frco = 0
     cod_directional: dict[tuple[str, str], float] | None = None
     punish: dict[str, Schedule] | None = None
+    punish_changeover: Schedule | None = None
+    punish_directional: dict[tuple[str, str], Schedule] | None = None
 
     if "COD" in params:
         cod_value = params["COD"]
@@ -855,15 +922,28 @@ def _build_concurrent(
                 f"unsupported PUNISH parameter value: "
                 f"{type(punish_value).__name__}"
             )
-        # Implemented: "component" form (punishment schedule per
-        # operandum). Directional / changeover forms are deferred.
-        unsupported = [k for k in punish_dict if k not in ("component",)]
+        unsupported = [
+            k for k in punish_dict if k not in ("component", "changeover", "directional")
+        ]
         if unsupported:
-            raise ScheduleConfigError(
-                f"PUNISH form(s) {unsupported!r} are not yet supported "
-                "by the bridge (only the component form is wired); "
-                "directional and changeover punishment are deferred"
+            raise ScheduleConfigError(f"unknown PUNISH form(s) {unsupported!r}")
+        if "changeover" in punish_dict:
+            punish_changeover = from_dsl(
+                punish_dict["changeover"], time_unit_seconds=time_unit_seconds
             )
+        directional_entries = punish_dict.get("directional", [])
+        if directional_entries:
+            punish_directional = {}
+            for entry in directional_entries:
+                pair = (
+                    _check_punish_ref(entry["from"], comp_dict, _resolve_op),
+                    _check_punish_ref(entry["to"], comp_dict, _resolve_op),
+                )
+                if pair in punish_directional:
+                    raise ScheduleConfigError(f"PUNISH({pair[0]}->{pair[1]}) set more than once")
+                punish_directional[pair] = from_dsl(
+                    entry["schedule"], time_unit_seconds=time_unit_seconds
+                )
         component_entries = punish_dict.get("component", [])
         if component_entries:
             punish = {}
@@ -881,7 +961,20 @@ def _build_concurrent(
         frco=frco,
         cod_directional=cod_directional,
         punish=punish,
+        punish_changeover=punish_changeover,
+        punish_directional=punish_directional,
     )
+
+
+def _check_punish_ref(ref: Any, comp_dict: dict[str, Schedule], resolve: Any) -> str:
+    """Resolve a ``PUNISH(x->y)`` reference and check it names a component."""
+    op = str(resolve(ref))
+    if op not in comp_dict:
+        raise ScheduleConfigError(
+            f"PUNISH direction references component {ref!r}, which the Conc "
+            f"does not have ({len(comp_dict)} components)"
+        )
+    return op
 
 
 def _from_modifier(node: Any, time_unit_seconds: float) -> Schedule:

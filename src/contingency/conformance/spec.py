@@ -142,6 +142,26 @@ def _punish_from_spec(specs: Any) -> dict[str, Schedule] | None:
     return {op: build_schedule_from_spec(s) for op, s in specs.items()}
 
 
+def _punish_directional_from_spec(entries: Any) -> dict[tuple[str, str], Schedule] | None:
+    """``[{"from", "to", "schedule"}, ...]`` -> ``{(from, to): Schedule}``."""
+    if entries is None:
+        return None
+    if not isinstance(entries, list | tuple):
+        raise ScheduleConfigError(f"punish_directional must be a list, got {entries!r}")
+    out: dict[tuple[str, str], Schedule] = {}
+    for i, entry in enumerate(entries):
+        where = f"punish_directional[{i}]"
+        if not isinstance(entry, dict) or set(entry) != {"from", "to", "schedule"}:
+            raise ScheduleConfigError(f"{where} must be an object with from, to and schedule")
+        from_op, to_op = entry["from"], entry["to"]
+        if not isinstance(from_op, str) or not isinstance(to_op, str):
+            raise ScheduleConfigError(f"{where}: from and to must be strings")
+        if (from_op, to_op) in out:
+            raise ScheduleConfigError(f"{where}: duplicate pair ({from_op!r}, {to_op!r})")
+        out[(from_op, to_op)] = build_schedule_from_spec(entry["schedule"])
+    return out
+
+
 def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
     """Instantiate a Schedule from a JSON-serialisable spec.
 
@@ -224,6 +244,12 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
             frco=int(params.get("frco", 0)),
             cod_directional=_cod_directional_from_spec(params.get("cod_directional")),
             punish=_punish_from_spec(params.get("punish")),
+            punish_changeover=(
+                None
+                if params.get("punish_changeover") is None
+                else build_schedule_from_spec(params["punish_changeover"])
+            ),
+            punish_directional=_punish_directional_from_spec(params.get("punish_directional")),
         )
     if stype == "Alternative":
         first = build_schedule_from_spec(params["first"])

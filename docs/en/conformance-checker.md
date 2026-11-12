@@ -2,7 +2,7 @@
 
 [日本語版](../ja/conformance-checker.md)
 
-Installing contingency-py (see the [README](../../README.md#installation)) also installs the conformance corpus and the `contingency-conformance` command. Any implementation of a reinforcement schedule, in any language, can be checked against the same 44 fixtures:
+Installing contingency-py (see the [README](../../README.md#installation)) also installs the conformance corpus and the `contingency-conformance` command. Any implementation of a reinforcement schedule, in any language, can be checked against the same 46 fixtures:
 
 ```bash
 contingency-conformance list                    # fixtures, kind, schedule type, steps
@@ -60,9 +60,9 @@ if __name__ == "__main__":
     json.dump(observe(json.load(sys.stdin)), sys.stdout)
 ```
 
-This adapter implements FR only and passes `atomic/fr_basic.json`; without `--only`, the other 43 fixtures are reported as `ERROR` because the adapter cannot build their schedules. To cover them, build each schedule `type` in `observe`. The 12 compound fixtures (Alternative, Chained, Concurrent, Conjunctive, Interpolate, Mixed, Multiple, Overlay, SecondOrder, Tandem), the 2 wrapper fixtures (Timeout, ResponseCost), the Percentile fixture, the 3 aversive-control fixtures (Sidman, DiscriminatedAvoidance, Escape), and the 4 trial-based fixtures (MatchingToSample, GoNoGo) also require `meta` on some steps, such as `current_component`, `alternative_winner`, `cod_suppressed`, `timeout_active`, `in_probe`, `net_magnitude`, `phase`, `aversive_event`, `trial_outcome`, or `correction_trial`; the fixture files show which keys each step expects.
+This adapter implements FR only and passes `atomic/fr_basic.json`; without `--only`, the other 45 fixtures are reported as `ERROR` because the adapter cannot build their schedules. To cover them, build each schedule `type` in `observe`. The 16 compound fixtures (Alternative, Chained, Concurrent, Conjunctive, Interpolate, Mixed, Multiple, Overlay, SecondOrder, Tandem), the 2 wrapper fixtures (Timeout, ResponseCost), the Percentile fixture, the 3 aversive-control fixtures (Sidman, DiscriminatedAvoidance, Escape), and the 4 trial-based fixtures (MatchingToSample, GoNoGo) also require `meta` on some steps, such as `current_component`, `alternative_winner`, `cod_suppressed`, `timeout_active`, `in_probe`, `net_magnitude`, `phase`, `aversive_event`, `trial_outcome`, `correction_trial`, or `changeover_punished`; the fixture files show which keys each step expects.
 
-`contingency-conformance replay-python` is the same adapter for this package's own runtime; `contingency-conformance run -- contingency-conformance replay-python` passes all 44 fixtures.
+`contingency-conformance replay-python` is the same adapter for this package's own runtime; `contingency-conformance run -- contingency-conformance replay-python` passes all 46 fixtures.
 
 ## Seeded fixtures
 

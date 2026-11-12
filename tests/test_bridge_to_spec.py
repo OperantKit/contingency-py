@@ -453,7 +453,6 @@ def test_to_spec_shape(source: str, expected: dict[str, Any]) -> None:
         ("Conc(FR3, FR5, BO=5s)", "BO"),
         ("Mult(FR3, FR5, BO=5s)", "BO"),
         ("Mix(FR3, FR5, BO=5s)", "BO"),
-        ("Overlay(FR5, FR10, target=changeover)", "target"),
         ("Pctl(latency, 50)", "latency"),
         ("Adj(delay, start=2s, step=1s)", "delay"),
         ("Adj(amount, start=2, step=1)", "amount"),
@@ -462,21 +461,6 @@ def test_to_spec_shape(source: str, expected: dict[str, Any]) -> None:
 def test_to_spec_rejects_unrepresentable(source: str, match: str) -> None:
     with pytest.raises(SpecUnrepresentableError, match=match):
         to_spec(_parse(source))
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "source",
-    ["Conc(FR3, FR5, PUNISH(1->2)=FR1)", "Conc(FR3, FR5, PUNISH(changeover)=FR1)"],
-)
-def test_to_spec_rejects_punish_forms_from_dsl_rejects(source: str) -> None:
-    """Only the per-component PUNISH form has a runtime, as in from_dsl."""
-    ast = _parse(source)
-    with pytest.raises(ScheduleConfigError, match="PUNISH") as from_dsl_error:
-        from_dsl(ast)
-    with pytest.raises(ScheduleConfigError, match="PUNISH") as to_spec_error:
-        to_spec(ast)
-    assert type(to_spec_error.value) is type(from_dsl_error.value)
 
 
 @pytest.mark.unit

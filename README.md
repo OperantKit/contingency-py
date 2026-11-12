@@ -6,7 +6,7 @@ contingency-py is a Python library that decides when a reinforcer is delivered. 
 
 - **Variable schedules use the Fleshler–Hoffman (1962) progression,** with the number of values and the seed under your control, so a session can be replayed exactly.
 - **Concurrent schedules handle the changeover delay (COD)** — the time after a switch between operanda (levers, keys) during which no response is reinforced — and hold an arranged reinforcer until the next response on its operandum.
-- **44 conformance fixtures pin the outcome of each schedule** for a known response sequence. The Rust engine [contingency-rs](https://github.com/OperantKit/contingency-rs) replays them, and you can check your own implementation against them.
+- **46 conformance fixtures pin the outcome of each schedule** for a known response sequence. The Rust engine [contingency-rs](https://github.com/OperantKit/contingency-rs) replays them, and you can check your own implementation against them.
 
 [Schedule terms](docs/en/schedule-terms.md) explains these points (COD, the Fleshler–Hoffman progression, DRL and interresponse time, resetting DRO, when a VI interval starts) in a few sentences each. Notes for AI coding agents, including a comparison with schedule code written by AI assistants, are in [AGENTS.md](AGENTS.md).
 
@@ -62,7 +62,7 @@ The components of a concurrent schedule are named `c0`, `c1`, … in the order t
 | Value generators | Fleshler–Hoffman (Fleshler & Hoffman, 1962) and the Hantula (1991) variant |
 | Building schedules | `contingency.bridge.from_dsl` (from a contingency-dsl expression; combinator parameters the runtime does not read, such as `BO` greater than zero, raise `ScheduleConfigError` instead of being dropped, as does `Pctl` with a target other than `IRT`; `MTS(..., correction=true)` repeats an incorrect trial after the ITI until it is answered correctly and `correction=N` at most `N` times, with the same sample, comparison positions and correct operandum; `Lag n` and `Lag(n, length=k)` compare units of `k` responses by the operanda they were emitted on, so on a single operandum a `Lag n` with `n >= 1` stops reinforcing from the second unit on; a postfix `LH` on `MTS`, as in `MTS(...) LH10s`, is the choice window, the same as `MTS(..., LH=10s)`), `contingency.builder.ScheduleBuilder` (from Python calls) |
 | Hardware abstraction layer (`contingency.hw`) | An `Apparatus` interface with a virtual backend, a serial backend (needs `pyserial`), and a TCP backend for a hardware-in-the-loop (HIL) test rig |
-| Conformance | 44 JSON fixtures in `conformance/` and the `contingency-conformance` command |
+| Conformance | 46 JSON fixtures in `conformance/` and the `contingency-conformance` command |
 | Gymnasium | `contingency.envs.ScheduleEnv` and six registered environments (optional) |
 
 ```python
@@ -75,7 +75,7 @@ from contingency.bridge import from_dsl
 
 ### Check your own implementation against the fixtures
 
-The `contingency-conformance` command checks any schedule implementation, in any language, against the 44 fixtures. Your program reads a fixture as JSON and writes back which steps were reinforced:
+The `contingency-conformance` command checks any schedule implementation, in any language, against the 46 fixtures. Your program reads a fixture as JSON and writes back which steps were reinforced:
 
 ```bash
 contingency-conformance list                    # fixtures, kind, schedule type, steps

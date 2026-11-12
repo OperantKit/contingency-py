@@ -1,0 +1,193 @@
+{
+  "description": "Concurrent FR(2)/FR(2) with COD 1 and one FR(2) punisher shared by every changeover direction: the punisher counts only responses that change over, so every second changeover (whatever its direction) delivers an SR- of magnitude -1 with changeover_punished. Responses that stay on an operandum do not reach the punisher.",
+  "name": "concurrent-fr2-fr2-cod1-punish-changeover-fr2",
+  "schedule": {
+    "params": {
+      "cod": 1.0,
+      "components": {
+        "left": {
+          "params": {
+            "n": 2
+          },
+          "type": "FR"
+        },
+        "right": {
+          "params": {
+            "n": 2
+          },
+          "type": "FR"
+        }
+      },
+      "frco": 0,
+      "punish_changeover": {
+        "params": {
+          "n": 2
+        },
+        "type": "FR"
+      }
+    },
+    "type": "Concurrent"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "left",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 2.0
+        }
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 3.5
+      },
+      "expect": {
+        "meta": {
+          "cod_suppressed": true,
+          "operandum": "right"
+        },
+        "reinforced": false
+      },
+      "now": 3.5
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 4.5
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 4.5
+        }
+      },
+      "now": 4.5
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 5.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": false,
+          "changeover_punished": true,
+          "operandum": "left",
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 6.5
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 6.5
+        }
+      },
+      "now": 6.5
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 7.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 8.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": false,
+          "changeover_punished": true,
+          "operandum": "left",
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 8.0
+        }
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 8.5
+      },
+      "expect": {
+        "meta": {
+          "cod_suppressed": true,
+          "operandum": "left"
+        },
+        "reinforced": false
+      },
+      "now": 8.5
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 9.5
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 9.5
+        }
+      },
+      "now": 9.5
+    }
+  ]
+}

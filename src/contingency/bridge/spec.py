@@ -30,9 +30,15 @@ Spec conventions
 * ``Conc`` directional COD ``COD(a->b)=x`` is written as
   ``cod_directional: [{"from": "c<a-1>", "to": "c<b-1>", "cod": x}, ...]``
   in source order; per-component ``PUNISH(k)=S`` is written as
-  ``punish: {"c<k-1>": <spec of S>}``. Both keys are left out when the
-  DSL has none. The ``PUNISH`` directional and changeover forms are
-  rejected, as by :func:`from_dsl`.
+  ``punish: {"c<k-1>": <spec of S>}``; ``PUNISH(changeover)=S`` as
+  ``punish_changeover: <spec of S>``; ``PUNISH(a->b)=S`` as
+  ``punish_directional: [{"from": "c<a-1>", "to": "c<b-1>", "schedule":
+  <spec of S>}, ...]`` in source order. Each key is left out when the
+  DSL has none.
+* ``Overlay(Conc(...), P, target=changeover)`` is written as the
+  ``Concurrent`` of the baseline with ``punish_changeover: <spec of P>``,
+  the same spec as ``Conc(..., PUNISH(changeover)=P)``. ``target=all``
+  is the same as no ``target``.
 
 Lossy mappings kept from :func:`from_dsl`
 -----------------------------------------
@@ -64,7 +70,7 @@ These raise :class:`SpecUnrepresentableError` (a
 
 * ``Mult`` / ``Mix`` / ``Conc`` with ``BO`` greater than zero (the runtime
   has no blackout; ``BO=0`` on ``Mult`` / ``Mix`` is written as no ``BO``);
-  ``Overlay`` with ``target=``;
+  ``Overlay`` with a ``target`` other than ``all`` / ``changeover``;
 * any other combinator parameter the spec has no key for;
 * ``Pctl`` with a target other than ``IRT``;
 * ``Adj`` with target ``delay`` or ``amount``;
@@ -283,13 +289,14 @@ def _atomic_spec(node: Any, t: Any) -> Spec:
 
 _COMPOUND_PARAMS: dict[str, frozenset[str]] = {
     "Conc": frozenset({"COD", "FRCO", "PUNISH"}),
+    "Overlay": frozenset({"target"}),
     "Interpolate": frozenset({"count", "onset"}),
     "Interp": frozenset({"count", "onset"}),
 }
 
 
 def _compound_spec(node: Any, recurse: Any, t: Any) -> Spec:
-    from contingency_dsl.ast import CompoundParam, DirectionalCOD
+    from contingency_dsl.ast import Compound, CompoundParam, DirectionalCOD
     from contingency_dsl.enums import Combinator
 
     combinator = node.combinator
@@ -336,13 +343,19 @@ def _compound_spec(node: Any, recurse: Any, t: Any) -> Spec:
                     f"unsupported FRCO parameter value: {type(frco_value).__name__}"
                 )
             frco = int(frco_value.value)
+        keys = [f"c{i}" for i in range(len(components))]
+        punish, punish_changeover, punish_directional = _conc_punish(
+            params.get("PUNISH"), recurse, keys
+        )
         return _spec(
             "Concurrent",
-            components={f"c{i}": c for i, c in enumerate(components)},
+            components=dict(zip(keys, components, strict=True)),
             cod=cod,
             frco=frco,
             cod_directional=cod_directional,
-            punish=_conc_punish(params.get("PUNISH"), recurse),
+            punish=punish,
+            punish_changeover=punish_changeover,
+            punish_directional=punish_directional,
         )
 
     if combinator in (Combinator.ALT, Combinator.CONJ):
@@ -374,7 +387,27 @@ def _compound_spec(node: Any, recurse: Any, t: Any) -> Spec:
             raise ScheduleConfigError(
                 f"Overlay requires exactly 2 components (base, punisher), got {len(components)}"
             )
-        return _spec("Overlay", base=components[0], punisher=components[1])
+        target = str(params.get("target", "all"))
+        if target not in ("all", "changeover"):
+            raise SpecUnrepresentableError(f"Overlay target {target!r} has no spec form")
+        if target == "all":
+            return _spec("Overlay", base=components[0], punisher=components[1])
+        # Overlay(Conc(...), P, target=changeover) is the runtime of
+        # Conc(..., PUNISH(changeover)=P).
+        base = components[0]
+        if not (
+            isinstance(node.components[0], Compound)
+            and node.components[0].combinator is Combinator.CONC
+        ):
+            raise ScheduleConfigError("Overlay target=changeover requires a Conc baseline")
+        base_params = dict(base["params"])
+        if "punish_changeover" in base_params or "punish_directional" in base_params:
+            raise ScheduleConfigError(
+                "Overlay target=changeover over a Conc that already punishes "
+                "changeovers (PUNISH(changeover) or PUNISH(x->y)) is ambiguous"
+            )
+        base_params["punish_changeover"] = components[1]
+        return {"type": "Concurrent", "params": base_params}
 
     if combinator in (Combinator.INTERPOLATE, Combinator.INTERP):
         if len(components) != 2:
@@ -411,30 +444,48 @@ def _conc_operandum(ref: int | str) -> str:
     return str(ref)
 
 
-def _conc_punish(value: Any, recurse: Any) -> dict[str, Spec] | None:
-    """The per-component ``PUNISH(k)=S`` form, the one from_dsl runs."""
+def _conc_punish(
+    value: Any, recurse: Any, keys: list[str]
+) -> tuple[dict[str, Spec] | None, Spec | None, list[dict[str, Any]] | None]:
+    """``PUNISH`` of a ``Conc`` as ``(punish, punish_changeover, punish_directional)``.
+
+    ``PUNISH(k)=S`` gives ``punish``, ``PUNISH(changeover)=S`` gives
+    ``punish_changeover`` and ``PUNISH(a->b)=S`` gives
+    ``punish_directional`` entries in source order.
+    """
     from contingency_dsl.ast import PunishParam
 
     if value is None:
-        return None
+        return None, None, None
     if isinstance(value, PunishParam):
         forms = dict(value.payload)
     elif isinstance(value, dict):
         forms = value
     else:
         raise ScheduleConfigError(f"unsupported PUNISH parameter value: {type(value).__name__}")
-    unsupported = [k for k in forms if k != "component"]
+    unsupported = [k for k in forms if k not in ("component", "changeover", "directional")]
     if unsupported:
-        raise ScheduleConfigError(
-            f"PUNISH form(s) {unsupported!r} are not yet supported by the bridge "
-            "(only the component form is wired); directional and changeover "
-            "punishment are deferred"
-        )
+        raise ScheduleConfigError(f"unknown PUNISH form(s) {unsupported!r}")
     punish = {
         _conc_operandum(entry["component"]): recurse(entry["schedule"])
         for entry in forms.get("component", [])
     }
-    return punish or None
+    changeover = recurse(forms["changeover"]) if "changeover" in forms else None
+    directional: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in forms.get("directional", []):
+        pair = (_conc_operandum(entry["from"]), _conc_operandum(entry["to"]))
+        for ref, op in ((entry["from"], pair[0]), (entry["to"], pair[1])):
+            if op not in keys:
+                raise ScheduleConfigError(
+                    f"PUNISH direction references component {ref!r}, which the Conc "
+                    f"does not have ({len(keys)} components)"
+                )
+        if pair in seen:
+            raise ScheduleConfigError(f"PUNISH({pair[0]}->{pair[1]}) set more than once")
+        seen.add(pair)
+        directional.append({"from": pair[0], "to": pair[1], "schedule": recurse(entry["schedule"])})
+    return punish or None, changeover, directional or None
 
 
 def _modifier_spec(node: Any, recurse: Any, t: Any) -> Spec:

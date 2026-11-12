@@ -1,0 +1,168 @@
+{
+  "description": "Concurrent FR(3)/FR(3) with FRCO 2 and an FR(1) punisher on the left -> right direction only: the second consecutive right response confirms the changeover and is punished (changeover_punished); here it also completes the right FR(3), so the net magnitude 0 (SR0) is returned. A single right response between left responses is not a changeover, and right -> left changeovers are not punished.",
+  "name": "concurrent-fr3-fr3-frco2-punish-left-to-right-fr1",
+  "schedule": {
+    "params": {
+      "cod": 0.0,
+      "components": {
+        "left": {
+          "params": {
+            "n": 3
+          },
+          "type": "FR"
+        },
+        "right": {
+          "params": {
+            "n": 3
+          },
+          "type": "FR"
+        }
+      },
+      "frco": 2,
+      "punish_directional": [
+        {
+          "from": "left",
+          "schedule": {
+            "params": {
+              "n": 1
+            },
+            "type": "FR"
+          },
+          "to": "right"
+        }
+      ]
+    },
+    "type": "Concurrent"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "left",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 2.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 2.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 4.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 5.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": true,
+          "changeover_punished": true,
+          "net_magnitude": 0.0,
+          "operandum": "right",
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR0",
+          "magnitude": 0.0,
+          "time": 5.0
+        }
+      },
+      "now": 5.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 6.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 6.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 7.0
+      },
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 7.0
+        }
+      },
+      "now": 7.0
+    },
+    {
+      "event": {
+        "operandum": "left",
+        "time": 8.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 8.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 9.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 9.0
+    },
+    {
+      "event": {
+        "operandum": "right",
+        "time": 10.0
+      },
+      "expect": {
+        "meta": {
+          "base_fired": true,
+          "changeover_punished": true,
+          "net_magnitude": 0.0,
+          "operandum": "right",
+          "punisher_fired": true
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR0",
+          "magnitude": 0.0,
+          "time": 10.0
+        }
+      },
+      "now": 10.0
+    }
+  ]
+}

@@ -156,6 +156,20 @@
     },
     {
       "kind": "deterministic",
+      "path": "compound/concurrent_punish_changeover.json",
+      "sha256": "d347bc2d6bc92651a9568065bb8846824a7102212b5775610cf9adfca6d19545",
+      "steps": 11,
+      "type": "Concurrent"
+    },
+    {
+      "kind": "deterministic",
+      "path": "compound/concurrent_punish_directional.json",
+      "sha256": "6cfcd52b6c00b986e62d5b022b5fca7f8d08250152fda6a5a662c667afb4043a",
+      "steps": 10,
+      "type": "Concurrent"
+    },
+    {
+      "kind": "deterministic",
       "path": "compound/conjunctive_fr3_fi5.json",
       "sha256": "214fcbf0329d3e04863c994b588eaf94dc783479ec6c060faaed20b2c3f96f44",
       "steps": 10,

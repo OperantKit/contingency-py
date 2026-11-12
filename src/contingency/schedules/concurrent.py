@@ -175,6 +175,8 @@ class Concurrent:
         "_cod_directional",
         "_frco",
         "_punish",
+        "_punish_changeover",
+        "_punish_directional",
         "_last_operandum",
         "_last_confirmed_operandum",
         "_switch_time",
@@ -192,6 +194,8 @@ class Concurrent:
         frco: int = 0,
         cod_directional: dict[tuple[str, str], float] | None = None,
         punish: dict[str, Schedule] | None = None,
+        punish_changeover: Schedule | None = None,
+        punish_directional: dict[tuple[str, str], Schedule] | None = None,
     ) -> None:
         if not isinstance(components, dict):
             raise ScheduleConfigError(
@@ -293,6 +297,10 @@ class Concurrent:
             if punish_validated:
                 self._punish = punish_validated
 
+        self._punish_changeover, self._punish_directional = _validate_changeover_punish(
+            self._components, punish_changeover, punish_directional
+        )
+
         self._last_operandum: str | None = None
         # Previously confirmed operandum, captured at the moment a new
         # changeover is confirmed. Used to resolve directional COD.
@@ -335,6 +343,26 @@ class Concurrent:
         if self._punish is None:
             return None
         return dict(self._punish)
+
+    @property
+    def punish_changeover(self) -> Schedule | None:
+        """The punishment schedule shared by every changeover direction, if any."""
+        return self._punish_changeover
+
+    @property
+    def punish_directional(self) -> dict[tuple[str, str], Schedule] | None:
+        """The per-``(from, to)`` changeover punishment schedules, if any."""
+        if self._punish_directional is None:
+            return None
+        return dict(self._punish_directional)
+
+    def _changeover_punishers(self) -> list[Schedule]:
+        out: list[Schedule] = []
+        if self._punish_changeover is not None:
+            out.append(self._punish_changeover)
+        if self._punish_directional is not None:
+            out.extend(self._punish_directional.values())
+        return out
 
     def _resolve_cod(self, from_op: str | None, to_op: str) -> float:
         """Return the COD to arm for a switch ``from_op -> to_op``.
@@ -520,7 +548,12 @@ class Concurrent:
         return (now - self._switch_time) < self._active_cod - _TIME_TOL
 
     def _rust_spec(self) -> dict[str, Any] | None:
-        if specs_of([*self._components.values(), *(self._punish or {}).values()]) is None:
+        nested = [
+            *self._components.values(),
+            *(self._punish or {}).values(),
+            *self._changeover_punishers(),
+        ]
+        if specs_of(nested) is None:
             return None
         keys = list(self._components)
         specs = specs_of([self._components[k] for k in keys])
@@ -541,6 +574,24 @@ class Concurrent:
             if pspecs is None:
                 return None
             params["punish"] = dict(zip(pkeys, pspecs, strict=True))
+        if self._punish_changeover is not None:
+            cspecs = specs_of([self._punish_changeover])
+            if cspecs is None:
+                return None
+            params["punish_changeover"] = cspecs[0]
+        if self._punish_directional is not None:
+            dkeys = list(self._punish_directional)
+            dspecs = specs_of([self._punish_directional[k] for k in dkeys])
+            if dspecs is None:
+                return None
+            params["punish_directional"] = [
+                {"from": a, "to": b, "schedule": spec}
+                for (a, b), spec in zip(dkeys, dspecs, strict=True)
+            ]
+        if (
+            self._punish_changeover is not None or self._punish_directional is not None
+        ) and not _rust_has_changeover_punish():
+            return None
         return {"type": "Concurrent", "params": params}
 
     @property
@@ -567,6 +618,8 @@ class Concurrent:
             if self._punish is not None:
                 for p_sched in self._punish.values():
                     p_sched.step(now, None)
+            for p_sched in self._changeover_punishers():
+                p_sched.step(now, None)
             return outcome
 
         operandum = event.operandum
@@ -581,7 +634,7 @@ class Concurrent:
         # itself covered by the COD window it opens: the changeover
         # response is the first "on the new operandum" response and
         # COD starts at that instant (Catania, 1963).
-        self._register_event(operandum, now)
+        changed_over, from_op = self._register_event(operandum, now)
         gated = self._cod_active(operandum, now)
 
         # Step all components; only the matched one sees ``event``.
@@ -599,13 +652,43 @@ class Concurrent:
         # Advance punishment schedules for all operanda so their clocks
         # stay aligned with ``now``. Only the matched operandum's
         # punisher receives the event; other punishers receive a tick.
-        punish_outcome: Outcome | None = None
+        # A changeover punisher receives the response only when it
+        # confirms a changeover in its direction. Every punisher that
+        # fires on this response adds its magnitude.
+        fired: list[Reinforcer] = []
         if self._punish is not None:
             for key, p_sched in self._punish.items():
                 if key == operandum:
-                    punish_outcome = p_sched.step(now, event)
+                    p_out = p_sched.step(now, event)
+                    if p_out.reinforced and p_out.reinforcer is not None:
+                        fired.append(p_out.reinforcer)
                 else:
                     p_sched.step(now, None)
+        changeover_punished = False
+        targets: list[tuple[Schedule, bool]] = []
+        if self._punish_changeover is not None:
+            targets.append((self._punish_changeover, changed_over))
+        if self._punish_directional is not None:
+            for (a, b), p_sched in self._punish_directional.items():
+                targets.append((p_sched, changed_over and a == from_op and b == operandum))
+        for p_sched, hit in targets:
+            if hit:
+                p_out = p_sched.step(now, event)
+                if p_out.reinforced and p_out.reinforcer is not None:
+                    changeover_punished = True
+                    fired.append(p_out.reinforcer)
+            else:
+                p_sched.step(now, None)
+        punish_outcome: Outcome | None = None
+        if fired:
+            punish_outcome = Outcome(
+                reinforced=True,
+                reinforcer=Reinforcer(
+                    time=fired[0].time,
+                    magnitude=sum(r.magnitude for r in fired),
+                    label=fired[0].label,
+                ),
+            )
 
         cod_suppressed = held
 
@@ -640,6 +723,14 @@ class Concurrent:
                 label = "SR-"
             else:
                 label = "SR0"
+            net_meta: dict[str, object] = {
+                "operandum": operandum,
+                "base_fired": True,
+                "punisher_fired": True,
+                "net_magnitude": net,
+            }
+            if changeover_punished:
+                net_meta["changeover_punished"] = True
             return Outcome(
                 reinforced=True,
                 reinforcer=Reinforcer(
@@ -647,12 +738,7 @@ class Concurrent:
                     magnitude=net,
                     label=label,
                 ),
-                meta={
-                    "operandum": operandum,
-                    "base_fired": True,
-                    "punisher_fired": True,
-                    "net_magnitude": net,
-                },
+                meta=net_meta,
             )
 
         if punisher_fired:
@@ -667,6 +753,8 @@ class Concurrent:
                 # The base reinforcer was earned but suppressed; the
                 # punisher still fires. Report the COD suppression too.
                 meta["cod_suppressed"] = True
+            if changeover_punished:
+                meta["changeover_punished"] = True
             return Outcome(
                 reinforced=True,
                 reinforcer=Reinforcer(
@@ -679,7 +767,11 @@ class Concurrent:
 
     def reset(self) -> None:
         if self._rust is not None:
-            for component in [*self._components.values(), *(self._punish or {}).values()]:
+            for component in [
+                *self._components.values(),
+                *(self._punish or {}).values(),
+                *self._changeover_punishers(),
+            ]:
                 component.reset()
             self._rust = rust_compound(self._rust_spec())
             if self._rust is not None:
@@ -689,6 +781,8 @@ class Concurrent:
         if self._punish is not None:
             for p_sched in self._punish.values():
                 p_sched.reset()
+        for p_sched in self._changeover_punishers():
+            p_sched.reset()
         self._last_operandum = None
         self._last_confirmed_operandum = None
         self._switch_time = None
@@ -696,3 +790,85 @@ class Concurrent:
         self._consecutive_new_count = 0
         self._last_now = None
         self._pending = {}
+
+
+def _validate_changeover_punish(
+    components: dict[str, Schedule],
+    punish_changeover: Schedule | None,
+    punish_directional: dict[tuple[str, str], Schedule] | None,
+) -> tuple[Schedule | None, dict[tuple[str, str], Schedule] | None]:
+    """Check the changeover punishment arguments of :class:`Concurrent`."""
+    if punish_changeover is not None and punish_directional is not None:
+        raise ScheduleConfigError(
+            "Concurrent takes punish_changeover or punish_directional, not both"
+        )
+    if punish_changeover is not None and not isinstance(punish_changeover, Schedule):
+        raise ScheduleConfigError(
+            f"Concurrent punish_changeover must implement Schedule, "
+            f"got {type(punish_changeover).__name__}"
+        )
+    if punish_directional is None:
+        return punish_changeover, None
+    if not isinstance(punish_directional, dict):
+        raise ScheduleConfigError(
+            f"Concurrent punish_directional must be a dict, got "
+            f"{type(punish_directional).__name__}"
+        )
+    validated: dict[tuple[str, str], Schedule] = {}
+    for key, sched in punish_directional.items():
+        if not isinstance(key, tuple) or len(key) != 2 or not all(isinstance(k, str) for k in key):
+            raise ScheduleConfigError(
+                f"Concurrent punish_directional keys must be (from, to) tuples of str, got {key!r}"
+            )
+        if key[0] == key[1]:
+            raise ScheduleConfigError(
+                f"Concurrent punish_directional rejects self-transition {key!r}"
+            )
+        for op in key:
+            if op not in components:
+                raise ScheduleConfigError(
+                    f"Concurrent punish_directional references unknown operandum "
+                    f"{op!r}; known operanda: {sorted(components)!r}"
+                )
+        if not isinstance(sched, Schedule):
+            raise ScheduleConfigError(
+                f"Concurrent punish_directional[{key!r}] must implement Schedule, "
+                f"got {type(sched).__name__}"
+            )
+        validated[key] = sched
+    return punish_changeover, (validated or None)
+
+
+_RUST_CHANGEOVER_PUNISH: bool | None = None
+
+
+def _rust_has_changeover_punish() -> bool:
+    """Whether the installed ``contingency_core`` runs changeover punishment.
+
+    An older build reads the Concurrent spec without the
+    ``punish_changeover`` / ``punish_directional`` keys and would run the
+    schedule without the punishment; such a build accepts a spec that
+    gives both keys, which a current build rejects.
+    """
+    global _RUST_CHANGEOVER_PUNISH
+    if _RUST_CHANGEOVER_PUNISH is None:
+        from contingency.engine import from_spec, rust_engine_available
+
+        if not rust_engine_available():
+            return False
+        fr1 = {"type": "FR", "params": {"n": 1}}
+        probe = {
+            "type": "Concurrent",
+            "params": {
+                "components": {"a": {"type": "EXT"}, "b": {"type": "EXT"}},
+                "punish_changeover": fr1,
+                "punish_directional": [{"from": "a", "to": "b", "schedule": fr1}],
+            },
+        }
+        try:
+            from_spec(probe)
+        except (ScheduleConfigError, ValueError, TypeError):
+            _RUST_CHANGEOVER_PUNISH = True
+        else:
+            _RUST_CHANGEOVER_PUNISH = False
+    return _RUST_CHANGEOVER_PUNISH
