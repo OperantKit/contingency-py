@@ -49,7 +49,7 @@ Analysis*, 27(4), 739-760. https://doi.org/10.1901/jaba.1994.27-739
 Platt, J. R. (1973). Percentile reinforcement: Paradigms for
 experimental analysis of response shaping. In G. H. Bower (Ed.),
 *The Psychology of Learning and Motivation* (Vol. 7, pp. 271-296).
-Academic Press. https://doi.org/10.1016/S0079-7421(08)60471-7
+Academic Press. https://doi.org/10.1016/S0079-7421(08)60070-5
 """
 
 from __future__ import annotations
@@ -177,7 +177,7 @@ class Percentile:
     Platt, J. R. (1973). Percentile reinforcement: Paradigms for
     experimental analysis of response shaping. In G. H. Bower (Ed.),
     *The Psychology of Learning and Motivation* (Vol. 7, pp. 271-296).
-    Academic Press. https://doi.org/10.1016/S0079-7421(08)60471-7
+    Academic Press. https://doi.org/10.1016/S0079-7421(08)60070-5
     """
 
     __slots__ = (
