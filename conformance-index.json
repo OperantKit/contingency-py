@@ -233,6 +233,13 @@
     },
     {
       "kind": "deterministic",
+      "path": "differential/lag_2_length_2.json",
+      "sha256": "db2f821c0f6c1522c54b233386519c5c1ff48eafb2ffa0649e91338b98361db5",
+      "steps": 11,
+      "type": "Lag"
+    },
+    {
+      "kind": "deterministic",
       "path": "differential/percentile_irt_r75_w3.json",
       "sha256": "e73efea5a9a98ae7682d737d6b021b68ed78c9afd6f8c0fa3728767a4a5f1693",
       "steps": 9,

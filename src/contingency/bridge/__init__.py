@@ -174,6 +174,7 @@ from contingency.schedules import (
     GoNoGo,
     InterlockingSchedule,
     Interpolate,
+    Lag,
     LimitedHold,
     MatchingToSample,
     Mixed,
@@ -935,6 +936,10 @@ def _from_modifier(node: Any, time_unit_seconds: float) -> Schedule:
     if mod == "Pctl":
         return _from_pctl(node)
 
+    if mod == "Lag":
+        n, length = _lag_params(node)
+        return Lag(n, length=length)
+
     raise ScheduleConfigError(f"unknown Modifier kind: {mod!r}")
 
 
@@ -987,6 +992,34 @@ def _from_pctl(node: Any) -> Percentile:
         window=window,
         direction=direction,
     )
+
+
+def _lag_params(node: Any) -> tuple[int, int]:
+    """Return ``(n, length)`` of a ``Lag`` :class:`Modifier`.
+
+    The parser gives ``n`` as a float with no time unit and ``length``
+    as an int defaulting to 1; a hand-built node is checked here.
+    """
+    from contingency.schedules.lag import LAG_MAX
+
+    value = node.value
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or node.time_unit is not None
+        or not float(value).is_integer()
+        or not 0 <= value <= LAG_MAX
+    ):
+        raise ScheduleConfigError(
+            f"Lag requires a unitless integer n in [0, {LAG_MAX}], got {value!r}"
+        )
+    length = getattr(node, "length", None)
+    length = 1 if length is None else length
+    if isinstance(length, bool) or not isinstance(length, int) or not 1 <= length <= LAG_MAX:
+        raise ScheduleConfigError(
+            f"Lag length must be an integer in [1, {LAG_MAX}], got {length!r}"
+        )
+    return int(value), length
 
 
 def _adj_numeric(

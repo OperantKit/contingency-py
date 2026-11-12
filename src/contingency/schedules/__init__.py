@@ -19,6 +19,7 @@ from contingency.schedules.differential import DRH, DRL, DRO
 from contingency.schedules.interlocking import InterlockingSchedule
 from contingency.schedules.interpolate import Interpolate
 from contingency.schedules.interval import FI, RI, VI, LimitedHold
+from contingency.schedules.lag import Lag
 from contingency.schedules.mixed import Mixed
 from contingency.schedules.overlay import Overlay
 from contingency.schedules.percentile import Percentile
@@ -65,6 +66,7 @@ __all__ = [
     "Conjunctive",
     "Mixed",
     "Percentile",
+    "Lag",
     "ProgressiveRatio",
     "arithmetic",
     "geometric",

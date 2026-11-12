@@ -945,6 +945,31 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         (CONFORMANCE_DIR / "differential" / "percentile_irt_r75_w3.json", pctl)
     )
 
+    lag = FixtureSpec(
+        name="lag-2-length-2",
+        description=(
+            "Lag(n=2, length=2): a unit is two consecutive responses read as "
+            "their operanda; units do not overlap. A unit is reinforced at "
+            "its second response iff it differs from each of the previous "
+            "two units (fewer while fewer exist). Units LL (first, "
+            "reinforced), LR (reinforced), LL (equals the unit two back, "
+            "no), RR (reinforced), LL (equals the unreinforced LL two "
+            "units back, no). The "
+            "unreinforced LL still enters the comparison list. A tick "
+            "changes nothing; the first response of a unit never "
+            "reinforces."
+        ),
+        schedule={"type": "Lag", "params": {"n": 2, "length": 2}},
+    )
+    for i, op in enumerate(["left", "left", "left", "right", "left"]):
+        t = float(i + 1)
+        lag.add(now=t, event={"time": t, "operandum": op})
+    lag.add(now=5.5, event=None)
+    for i, op in enumerate(["left", "right", "right", "left", "left"]):
+        t = float(i + 6)
+        lag.add(now=t, event={"time": t, "operandum": op})
+    fixtures.append((CONFORMANCE_DIR / "differential" / "lag_2_length_2.json", lag))
+
     # --- Progressive Ratio --------------------------------------------
 
     pr = FixtureSpec(

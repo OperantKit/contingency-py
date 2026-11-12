@@ -37,6 +37,7 @@ from contingency.schedules import (
     GoNoGo,
     InterlockingSchedule,
     Interpolate,
+    Lag,
     LimitedHold,
     MatchingToSample,
     Mixed,
@@ -282,6 +283,8 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
             int(params["window"]),
             direction=str(params.get("direction", "above")),
         )
+    if stype == "Lag":
+        return Lag(int(params["n"]), length=int(params.get("length", 1)))
     if stype == "SecondOrder":
         return SecondOrder(
             build_schedule_from_spec(params["overall"]),

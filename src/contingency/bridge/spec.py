@@ -66,7 +66,6 @@ These raise :class:`SpecUnrepresentableError` (a
   has no blackout; ``BO=0`` on ``Mult`` / ``Mix`` is written as no ``BO``);
   ``Overlay`` with ``target=``;
 * any other combinator parameter the spec has no key for;
-* ``Lag``;
 * ``Pctl`` with a target other than ``IRT``;
 * ``Adj`` with target ``delay`` or ``amount``;
 * the declaration form ``MTS(samples=...)``.
@@ -95,6 +94,7 @@ from contingency.bridge import (
     _fleshler_hoffman_kwargs,
     _fold_trial_based_lh,
     _is_zero_param,
+    _lag_params,
     _next_seed,
     _scaled_time,
     _trial_based_time,
@@ -492,7 +492,8 @@ def _modifier_spec(node: Any, recurse: Any, t: Any) -> Spec:
         )
 
     if mod == "Lag":
-        raise SpecUnrepresentableError("Lag has no spec form (no runtime schedule)")
+        n, length = _lag_params(node)
+        return _spec("Lag", n=n, length=length)
 
     raise ScheduleConfigError(f"unknown Modifier kind: {mod!r}")
 

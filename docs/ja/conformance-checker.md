@@ -2,7 +2,7 @@
 
 [English](../en/conformance-checker.md)
 
-contingency-py を入れると（[README](../../README.ja.md) の「インストール」を参照）、適合性 fixture と `contingency-conformance` コマンドも入ります。強化スケジュールの実装であれば、どの言語で書いたものでも、同じ 39 個の fixture に照らして検算できます。
+contingency-py を入れると（[README](../../README.ja.md) の「インストール」を参照）、適合性 fixture と `contingency-conformance` コマンドも入ります。強化スケジュールの実装であれば、どの言語で書いたものでも、同じ 43 個の fixture に照らして検算できます。
 
 ```bash
 contingency-conformance list                    # fixture・種別・スケジュール型・step 数
@@ -60,13 +60,13 @@ if __name__ == "__main__":
     json.dump(observe(json.load(sys.stdin)), sys.stdout)
 ```
 
-このアダプタは FR だけを実装しているので、合格するのは `atomic/fr_basic.json` だけです。`--only` を外すと、他の 38 本はアダプタがスケジュールを組み立てられず `ERROR` になります。他も通すには `observe` で各スケジュールの `type` を組み立てます。複合スケジュールの 12 本（Alternative・Chained・Concurrent・Conjunctive・Interpolate・Mixed・Multiple・Overlay・SecondOrder・Tandem）、包み型の 2 本（Timeout・ResponseCost）、Percentile の 1 本、嫌悪制御の 3 本（Sidman・DiscriminatedAvoidance・Escape）、試行型の 2 本（MatchingToSample・GoNoGo）は、一部の step で `meta`（`current_component`・`alternative_winner`・`cod_suppressed`・`timeout_active`・`in_probe`・`net_magnitude`・`phase`・`aversive_event`・`trial_outcome` など）も求めます。どの step にどのキーが要るかは fixture ファイルに書いてあります。
+このアダプタは FR だけを実装しているので、合格するのは `atomic/fr_basic.json` だけです。`--only` を外すと、他の 42 本はアダプタがスケジュールを組み立てられず `ERROR` になります。他も通すには `observe` で各スケジュールの `type` を組み立てます。複合スケジュールの 12 本（Alternative・Chained・Concurrent・Conjunctive・Interpolate・Mixed・Multiple・Overlay・SecondOrder・Tandem）、包み型の 2 本（Timeout・ResponseCost）、Percentile の 1 本、嫌悪制御の 3 本（Sidman・DiscriminatedAvoidance・Escape）、試行型の 2 本（MatchingToSample・GoNoGo）は、一部の step で `meta`（`current_component`・`alternative_winner`・`cod_suppressed`・`timeout_active`・`in_probe`・`net_magnitude`・`phase`・`aversive_event`・`trial_outcome` など）も求めます。どの step にどのキーが要るかは fixture ファイルに書いてあります。
 
-`contingency-conformance replay-python` は本パッケージの実行系に対する同じ役目のアダプタで、`contingency-conformance run -- contingency-conformance replay-python` は 39 本すべてに合格します。
+`contingency-conformance replay-python` は本パッケージの実行系に対する同じ役目のアダプタで、`contingency-conformance run -- contingency-conformance replay-python` は 43 本すべてに合格します。
 
 ## 乱数の種を持つ fixture
 
-8 本（種付きの VR・VI・VT・RR・RI・RT・MatchingToSample・GoNoGo）は Python の `random.Random(seed)` で固定されています。`--stochastic` で判定のしかたを選びます。
+9 本（種付きの VR・VI・VT・RR・RI・RT・MatchingToSample 2 本・GoNoGo）は Python の `random.Random(seed)` で固定されています。`--stochastic` で判定のしかたを選びます。
 
 - `count`（既定）: 強化の回数が記録値の 0.5〜1.5 倍に入り、最初の強化が最初の step より前でないこと。独自の乱数生成器を持つ実装向けです。
 - `strict`: 決定的な fixture と同じ判定です。Python の乱数生成器を再現した実装向けです。

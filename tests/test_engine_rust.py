@@ -223,6 +223,8 @@ DSL_PROGRAMS = [
     "LH = 1s\nMult(VI10s, FR3)",
     "COD = 1s\nFRCO = 2\nConc(VI30s, VI60s)",
     "RD = 0s\nBO = 0s\nMix(FR5, FR10)",
+    "Lag 0",
+    "Lag(1, length=2)",
 ]
 
 

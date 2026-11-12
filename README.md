@@ -6,7 +6,7 @@ contingency-py is a Python library that decides when a reinforcer is delivered. 
 
 - **Variable schedules use the Fleshler–Hoffman (1962) progression,** with the number of values and the seed under your control, so a session can be replayed exactly.
 - **Concurrent schedules handle the changeover delay (COD)** — the time after a switch between operanda (levers, keys) during which no response is reinforced — and hold an arranged reinforcer until the next response on its operandum.
-- **39 conformance fixtures pin the outcome of each schedule** for a known response sequence. The Rust engine [contingency-rs](https://github.com/OperantKit/contingency-rs) replays them, and you can check your own implementation against them.
+- **43 conformance fixtures pin the outcome of each schedule** for a known response sequence. The Rust engine [contingency-rs](https://github.com/OperantKit/contingency-rs) replays them, and you can check your own implementation against them.
 
 [Schedule terms](docs/en/schedule-terms.md) explains these points (COD, the Fleshler–Hoffman progression, DRL and interresponse time, resetting DRO, when a VI interval starts) in a few sentences each. Notes for AI coding agents, including a comparison with schedule code written by AI assistants, are in [AGENTS.md](AGENTS.md).
 
@@ -57,12 +57,12 @@ The components of a concurrent schedule are named `c0`, `c1`, … in the order t
 |---|---|
 | Simple schedules | FR, VR, RR, FI, VI, RI, FT, VT, RT, CRF, EXT, limited hold |
 | Compound schedules | Concurrent (with COD, fixed-ratio changeover, direction-specific COD), Multiple, Mixed, Chained, Tandem, Alternative, Conjunctive, Interpolate, Overlay, second-order |
-| Differential and progressive | DRO (resetting, momentary), DRL, DRH, percentile, progressive ratio (arithmetic, geometric, Richardson–Roberts), adjusting, interlocking |
+| Differential and progressive | DRO (resetting, momentary), DRL, DRH, percentile, Lag (variability), progressive ratio (arithmetic, geometric, Richardson–Roberts), adjusting, interlocking |
 | Other procedures | Timeout, response cost, Sidman avoidance, discriminated avoidance, escape, matching-to-sample, go/no-go |
 | Value generators | Fleshler–Hoffman (Fleshler & Hoffman, 1962) and the Hantula (1991) variant |
-| Building schedules | `contingency.bridge.from_dsl` (from a contingency-dsl expression; combinator parameters the runtime does not read, such as `BO` greater than zero, raise `ScheduleConfigError` instead of being dropped, as does `Pctl` with a target other than `IRT`; a postfix `LH` on `MTS`, as in `MTS(...) LH10s`, is the choice window, the same as `MTS(..., LH=10s)`), `contingency.builder.ScheduleBuilder` (from Python calls) |
+| Building schedules | `contingency.bridge.from_dsl` (from a contingency-dsl expression; combinator parameters the runtime does not read, such as `BO` greater than zero, raise `ScheduleConfigError` instead of being dropped, as does `Pctl` with a target other than `IRT`; `Lag n` and `Lag(n, length=k)` compare units of `k` responses by the operanda they were emitted on, so on a single operandum a `Lag n` with `n >= 1` stops reinforcing from the second unit on; a postfix `LH` on `MTS`, as in `MTS(...) LH10s`, is the choice window, the same as `MTS(..., LH=10s)`), `contingency.builder.ScheduleBuilder` (from Python calls) |
 | Hardware abstraction layer (`contingency.hw`) | An `Apparatus` interface with a virtual backend, a serial backend (needs `pyserial`), and a TCP backend for a hardware-in-the-loop (HIL) test rig |
-| Conformance | 39 JSON fixtures in `conformance/` and the `contingency-conformance` command |
+| Conformance | 43 JSON fixtures in `conformance/` and the `contingency-conformance` command |
 | Gymnasium | `contingency.envs.ScheduleEnv` and six registered environments (optional) |
 
 ```python
@@ -75,7 +75,7 @@ from contingency.bridge import from_dsl
 
 ### Check your own implementation against the fixtures
 
-The `contingency-conformance` command checks any schedule implementation, in any language, against the 39 fixtures. Your program reads a fixture as JSON and writes back which steps were reinforced:
+The `contingency-conformance` command checks any schedule implementation, in any language, against the 43 fixtures. Your program reads a fixture as JSON and writes back which steps were reinforced:
 
 ```bash
 contingency-conformance list                    # fixtures, kind, schedule type, steps
@@ -114,7 +114,7 @@ print(n_sr)  # 21
 
 - Not on PyPI yet, and the API can still change (development status: alpha).
 - This is a library, not a session program: it has no clock of its own. Your program calls `step` with the current time; timing accuracy depends on that program and on the hardware.
-- Eight fixtures (seeded VR, VI, VT, RR, RI, RT, matching-to-sample, go/no-go) are pinned to Python's `random.Random(seed)`. An implementation with another random number generator can match them only approximately.
+- Nine fixtures (seeded VR, VI, VT, RR, RI, RT, two matching-to-sample, go/no-go) are pinned to Python's `random.Random(seed)`. An implementation with another random number generator can match them only approximately.
 - The virtual and Gymnasium subjects are models. They show that the program delivers the schedule you wrote, not what an animal will do.
 
 ## Replayed against MED-PC session records

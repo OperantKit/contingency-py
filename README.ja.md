@@ -6,7 +6,7 @@ contingency-py は、強化子をいつ提示するかを決める Python のラ
 
 - **変動スケジュールの値は Fleshler–Hoffman (1962) の数列で作ります。** 値の個数と乱数の種を指定できるので、セッションを厳密に再現できます。
 - **並立スケジュールは切替遅延（COD）を扱います。** COD は、オペランダム（レバーやキー）を切り替えた直後に反応を強化しない時間のことです。設定済みの強化子は、そのオペランダムへの次の反応まで保持します。
-- **39 個の適合性 fixture が、各スケジュールの結果を既知の反応系列に対して固定しています。** Rust 版エンジン [contingency-rs](https://github.com/OperantKit/contingency-rs) も同じ fixture を再生します。自作の実装をこれに照らして検算することもできます。
+- **43 個の適合性 fixture が、各スケジュールの結果を既知の反応系列に対して固定しています。** Rust 版エンジン [contingency-rs](https://github.com/OperantKit/contingency-rs) も同じ fixture を再生します。自作の実装をこれに照らして検算することもできます。
 
 [スケジュールの用語](docs/ja/schedule-terms.md) では、これらの点（COD、Fleshler–Hoffman の数列、DRL と反応間時間、リセット型 DRO、VI の間隔がいつ始まるか）を数文ずつ説明しています。AI のコーディングエージェント向けの案内（AI アシスタントが書いたスケジュールのコードとの比較を含む）は [AGENTS.md](AGENTS.md) にあります。
 
@@ -57,12 +57,12 @@ print(reinforcers)  # {'c0': 16, 'c1': 9} — 種を固定しているので毎�
 |---|---|
 | 単一スケジュール | FR、VR、RR、FI、VI、RI、FT、VT、RT、CRF、EXT、リミテッドホールド |
 | 複合スケジュール | 並立（COD、固定比率の切替要件、方向別の COD つき）、多元、混合、連鎖、連接、選択、連言、挿入、重畳、二次スケジュール |
-| 分化強化と累進 | DRO（リセット型・瞬時型）、DRL、DRH、パーセンタイル、累進比率（等差・等比・Richardson–Roberts）、調整、連動 |
+| 分化強化と累進 | DRO（リセット型・瞬時型）、DRL、DRH、パーセンタイル、Lag（変動性の分化強化）、累進比率（等差・等比・Richardson–Roberts）、調整、連動 |
 | その他の手続き | タイムアウト、反応コスト、Sidman 型回避、弁別回避、逃避、見本合わせ、Go/No-Go |
 | 値の生成 | Fleshler–Hoffman（Fleshler & Hoffman, 1962）と Hantula (1991) の変法 |
-| スケジュールの組み立て | `contingency.bridge.from_dsl`（contingency-dsl の式から。実行側が読まない組み合わせ子の引数 — 0 より大きい `BO` など — は捨てずに `ScheduleConfigError` にする。`IRT` 以外を対象にした `Pctl` も同じ。`MTS(...) LH10s` のように `MTS` の後ろに書いた `LH` は、`MTS(..., LH=10s)` と同じく選択の制限時間になる）、`contingency.builder.ScheduleBuilder`（Python の呼び出しから） |
+| スケジュールの組み立て | `contingency.bridge.from_dsl`（contingency-dsl の式から。実行側が読まない組み合わせ子の引数 — 0 より大きい `BO` など — は捨てずに `ScheduleConfigError` にする。`IRT` 以外を対象にした `Pctl` も同じ。`Lag n` と `Lag(n, length=k)` は `k` 個の反応の単位を、反応した operandum の並びで比べるので、operandum が 1 つだけなら `n >= 1` の `Lag n` は 2 つ目の単位から強化しない。`MTS(...) LH10s` のように `MTS` の後ろに書いた `LH` は、`MTS(..., LH=10s)` と同じく選択の制限時間になる）、`contingency.builder.ScheduleBuilder`（Python の呼び出しから） |
 | ハードウェア抽象化層（`contingency.hw`） | `Apparatus` インタフェースと、仮想の装置、シリアル接続（`pyserial` が必要）、ハードウェア・イン・ザ・ループ（HIL）試験装置向けの TCP 接続 |
-| 適合性検査 | `conformance/` の 39 個の JSON fixture と `contingency-conformance` コマンド |
+| 適合性検査 | `conformance/` の 43 個の JSON fixture と `contingency-conformance` コマンド |
 | Gymnasium | `contingency.envs.ScheduleEnv` と、登録済みの 6 つの環境（任意） |
 
 ```python
@@ -75,7 +75,7 @@ from contingency.bridge import from_dsl
 
 ### 自作の実装を fixture で検算する
 
-`contingency-conformance` コマンドは、どの言語で書いたスケジュールの実装でも、39 個の fixture に照らして検算します。自作のプログラムは fixture を JSON で受け取り、どのステップが強化されたかを返します。
+`contingency-conformance` コマンドは、どの言語で書いたスケジュールの実装でも、43 個の fixture に照らして検算します。自作のプログラムは fixture を JSON で受け取り、どのステップが強化されたかを返します。
 
 ```bash
 contingency-conformance list                    # fixture・種別・スケジュール型・step 数
@@ -114,7 +114,7 @@ print(n_sr)  # 21
 
 - まだ PyPI に登録されておらず、API は変わることがあります（開発段階: alpha）。
 - これはライブラリであって、セッションを動かすプログラムではありません。自前の時計を持たず、呼び出す側のプログラムが現在時刻を付けて `step` を呼びます。時間の精度はそのプログラムとハードウェアで決まります。
-- 8 本の fixture（種付きの VR・VI・VT・RR・RI・RT・見本合わせ・Go/No-Go）は Python の `random.Random(seed)` に合わせて固定されています。別の乱数生成器を使う実装は、これらと近似的にしか一致しません。
+- 9 本の fixture（種付きの VR・VI・VT・RR・RI・RT・見本合わせ 2 本・Go/No-Go）は Python の `random.Random(seed)` に合わせて固定されています。別の乱数生成器を使う実装は、これらと近似的にしか一致しません。
 - 仮想被験体と Gymnasium の被験体はモデルです。書いたスケジュールどおりにプログラムが強化子を提示することは示しますが、動物がどう振る舞うかは示しません。
 
 ## MED-PC の記録で再生した結果

@@ -454,8 +454,6 @@ def test_to_spec_shape(source: str, expected: dict[str, Any]) -> None:
         ("Mult(FR3, FR5, BO=5s)", "BO"),
         ("Mix(FR3, FR5, BO=5s)", "BO"),
         ("Overlay(FR5, FR10, target=changeover)", "target"),
-        ("Lag(5, length=8)", "Lag"),
-        ("Lag5", "Lag"),
         ("Pctl(latency, 50)", "latency"),
         ("Adj(delay, start=2s, step=1s)", "delay"),
         ("Adj(amount, start=2, step=1)", "amount"),
@@ -494,8 +492,8 @@ def test_to_spec_repeated_directional_cod_keeps_the_last_value() -> None:
 
 @pytest.mark.unit
 def test_to_spec_rejects_unrepresentable_inside_compound() -> None:
-    with pytest.raises(SpecUnrepresentableError, match="Lag"):
-        to_spec(_parse("Mult(FR5, Lag5)"))
+    with pytest.raises(SpecUnrepresentableError, match="latency"):
+        to_spec(_parse("Mult(FR5, Pctl(latency, 50))"))
 
 
 @pytest.mark.unit
