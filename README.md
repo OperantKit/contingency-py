@@ -148,6 +148,17 @@ python -m venv .venv
 .venv/bin/pytest
 ```
 
+### Rust engine wheel (`core/`)
+
+`core/` builds the `contingency_core` extension module — the contingency-rs engine through PyO3 — as a separate wheel with [maturin](https://www.maturin.rs/). The crate takes contingency-rs from GitHub at the tag named in `core/Cargo.toml`; it does not use a path dependency. The `contingency` package in `src/` does not use this module yet.
+
+```bash
+cd core
+maturin build --release            # add --target aarch64-apple-darwin if rustc's host differs from your Python
+python -m pip install target/wheels/contingency_core-*.whl
+python -c "import contingency_core; print(len(contingency_core.SPEC_TYPES))"
+```
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for the code of conduct.
 
 ## Support

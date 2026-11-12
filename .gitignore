@@ -42,3 +42,6 @@ src/contingency/_version.py
 
 # mutmut working copy
 mutants/
+
+# Rust build output of the contingency_core wheel
+core/target/

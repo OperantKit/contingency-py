@@ -1,0 +1,21 @@
+# Wheel of the `contingency_core` extension module (the contingency-rs engine,
+# built with PyO3). Build from this directory:
+#
+#     maturin build --release
+#
+# The distribution is named `contingency-core` so that it never shadows the
+# `contingency` package of contingency-py in the same environment.
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "contingency-core"
+version = "0.0.0"
+description = "contingency-rs reinforcement contingency engine as the contingency_core Python extension module."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[tool.maturin]
+module-name = "contingency_core"
+bindings = "pyo3"

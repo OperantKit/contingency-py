@@ -1,0 +1,21 @@
+[package]
+name = "contingency-core-py"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Builds the contingency_core extension module (the contingency-rs engine) as a Python wheel for contingency-py."
+
+# Stand-alone crate: never part of an enclosing Cargo workspace.
+[workspace]
+
+[lib]
+name = "contingency_core"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+# The engine and its PyO3 module come from contingency-rs at a fixed tag.
+# A path dependency is not allowed here: this repository must build on its own
+# after a clone.
+contingency = { git = "https://github.com/OperantKit/contingency-rs", tag = "pyo3-from-spec", default-features = false, features = ["python"] }

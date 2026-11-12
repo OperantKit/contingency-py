@@ -148,6 +148,17 @@ python -m venv .venv
 .venv/bin/pytest
 ```
 
+### Rust のエンジンの wheel（`core/`）
+
+`core/` は、contingency-rs のエンジンを PyO3 で包んだ拡張モジュール `contingency_core` を、[maturin](https://www.maturin.rs/) で別の wheel として作ります。crate は contingency-rs を GitHub から `core/Cargo.toml` に書いたタグで取り込み、path 依存は使いません。`src/` の `contingency` パッケージは、まだこのモジュールを使っていません。
+
+```bash
+cd core
+maturin build --release            # rustc の host が Python と違うときは --target aarch64-apple-darwin を付ける
+python -m pip install target/wheels/contingency_core-*.whl
+python -c "import contingency_core; print(len(contingency_core.SPEC_TYPES))"
+```
+
 変更の送り方は [CONTRIBUTING.md](CONTRIBUTING.md) を、行動規範は [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) を参照してください。
 
 ## サポート
