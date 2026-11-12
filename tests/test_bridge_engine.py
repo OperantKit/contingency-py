@@ -21,6 +21,6 @@ def test_from_dsl_rejects_unknown_engine() -> None:
 
 @pytest.mark.unit
 def test_from_dsl_rust_engine_reports_unrepresentable_programs() -> None:
-    program = parse("Mult(FR3, FR5, BO=5s)")
+    program = parse("Pctl(latency, 50)")
     with pytest.raises(SpecUnrepresentableError):
         from_dsl(program, engine="rust")

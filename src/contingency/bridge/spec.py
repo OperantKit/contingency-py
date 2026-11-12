@@ -55,7 +55,8 @@ These raise :class:`SpecUnrepresentableError` (a
 * program-level parameter declarations (``LH``, ``COD``, ``FRCO``,
   ``BO``, ``RD``) — run ``contingency_dsl.analyze()`` to apply ``LH``,
   and write ``COD`` / ``FRCO`` on the ``Conc`` itself;
-* ``Mult`` / ``Mix`` / ``Conc`` with ``BO`` (the runtime has no blackout);
+* ``Mult`` / ``Mix`` / ``Conc`` with ``BO`` greater than zero (the runtime
+  has no blackout; ``BO=0`` on ``Mult`` / ``Mix`` is written as no ``BO``);
   ``Overlay`` with ``target=``;
 * any other combinator parameter the spec has no key for;
 * ``Lag``;
@@ -80,6 +81,7 @@ from contingency.bridge import (
     _aversive_magnitude,
     _aversive_time_param,
     _fleshler_hoffman_kwargs,
+    _is_zero_param,
     _next_seed,
     _scaled_time,
     _trial_based_time,
@@ -279,7 +281,10 @@ def _compound_spec(node: Any, recurse: Any, t: Any) -> Spec:
 
     combinator = node.combinator
     components = [recurse(c) for c in node.components]
-    params = node.params or {}
+    params = dict(node.params or {})
+    if combinator.value in ("Mult", "Mix") and _is_zero_param(params.get("BO")):
+        # BO=0 means no blackout, the same as omitting it.
+        del params["BO"]
 
     unsupported = sorted(set(params) - _COMPOUND_PARAMS.get(combinator.value, frozenset()))
     if unsupported:

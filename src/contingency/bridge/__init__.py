@@ -418,6 +418,7 @@ def from_dsl(
     from contingency_dsl.ast import SecondOrder as DSLSecondOrder
 
     if isinstance(ast_node, Program):
+        _check_program_blackout(ast_node)
         with _algorithm(_algorithm_scope(ast_node.program_annotations)):
             return from_dsl(ast_node.schedule, time_unit_seconds=time_unit_seconds)
 
@@ -561,15 +562,95 @@ def _from_special(node: Any) -> Schedule:
     raise ScheduleConfigError(f"unknown Special kind: {node.kind!r}")
 
 
+#: Combinator parameters the runtime reads. Any other parameter is
+#: rejected instead of being dropped, so that the schedule that runs is
+#: the one that was written.
+_READ_COMPOUND_PARAMS: dict[str, frozenset[str]] = {
+    "Conc": frozenset({"COD", "FRCO", "PUNISH"}),
+    "Interpolate": frozenset({"count", "onset"}),
+    "Interp": frozenset({"count", "onset"}),
+}
+
+_BLACKOUT_COMBINATORS = frozenset({"Mult", "Mix"})
+
+_NO_BLACKOUT_MESSAGE = (
+    "the runtime has no blackout between components; running it would "
+    "silently drop the blackout"
+)
+
+
+def _is_zero_param(value: Any) -> bool:
+    return getattr(value, "value", None) == 0
+
+
+def _compound_params(node: Any) -> dict[str, Any]:
+    """Return the combinator parameters of ``node`` that the runtime reads.
+
+    ``BO=0`` on ``Mult`` / ``Mix`` means no blackout and is dropped.
+    ``BO`` greater than zero, and any parameter the runtime does not read
+    for that combinator, raise :class:`ScheduleConfigError`.
+    """
+    name = node.combinator.value
+    params = dict(node.params or {})
+    if name in _BLACKOUT_COMBINATORS and "BO" in params:
+        if not _is_zero_param(params["BO"]):
+            raise ScheduleConfigError(f"{name} parameter BO: {_NO_BLACKOUT_MESSAGE}")
+        del params["BO"]
+    unused = sorted(set(params) - _READ_COMPOUND_PARAMS.get(name, frozenset()))
+    if unused:
+        raise ScheduleConfigError(
+            f"{name} parameter(s) {unused!r} are not used by the runtime; "
+            "refusing to drop them silently"
+        )
+    return params
+
+
+def _contains_blackout_combinator(node: Any) -> bool:
+    """Whether ``node`` has, anywhere inside it, a ``Mult`` / ``Mix`` without
+    its own ``BO`` (one that a program-level ``BO`` would apply to)."""
+    import dataclasses
+
+    from contingency_dsl.ast import Compound
+
+    if (
+        isinstance(node, Compound)
+        and node.combinator.value in _BLACKOUT_COMBINATORS
+        and "BO" not in (node.params or {})
+    ):
+        return True
+    if isinstance(node, (list, tuple)):
+        return any(_contains_blackout_combinator(item) for item in node)
+    if isinstance(node, dict):
+        return any(_contains_blackout_combinator(item) for item in node.values())
+    if dataclasses.is_dataclass(node) and not isinstance(node, type):
+        return any(
+            _contains_blackout_combinator(getattr(node, f.name))
+            for f in dataclasses.fields(node)
+        )
+    return False
+
+
+def _check_program_blackout(program: Any) -> None:
+    """Reject a program-level ``BO`` greater than zero that would apply to a
+    ``Mult`` / ``Mix`` in the program."""
+    for decl in program.param_decls or ():
+        if decl.name != "BO" or decl.value == 0:
+            continue
+        if _contains_blackout_combinator(program.schedule):
+            raise ScheduleConfigError(
+                f"program-level BO declaration: {_NO_BLACKOUT_MESSAGE}"
+            )
+
+
 def _from_compound(node: Any, time_unit_seconds: float) -> Schedule:
     from contingency_dsl.enums import Combinator
 
     combinator = node.combinator
+    params = _compound_params(node)
     components = [
         from_dsl(c, time_unit_seconds=time_unit_seconds)
         for c in node.components
     ]
-    params = node.params or {}
 
     if combinator is Combinator.CONC:
         return _build_concurrent(components, params, time_unit_seconds)
@@ -619,7 +700,7 @@ def _from_compound(node: Any, time_unit_seconds: float) -> Schedule:
         return Overlay(components[0], components[1])
 
     if combinator in (Combinator.INTERPOLATE, Combinator.INTERP):
-        return _build_interpolate(components, node.params or {}, time_unit_seconds)
+        return _build_interpolate(components, params, time_unit_seconds)
 
     raise ScheduleConfigError(
         f"combinator {combinator.value!r} is not yet supported by the "

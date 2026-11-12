@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- `from_dsl` raises `ScheduleConfigError` for combinator parameters the runtime does not read, instead of dropping them: `BO` greater than zero on `Mult` / `Mix` (the runtime has no blackout), including a program-level `BO` declaration in a program with a `Mult` / `Mix`; `BO` on other combinators; `COD` / `FRCO` / `PUNISH` outside `Conc`; `Overlay(target=)`. Programs that were accepted before ran as if the parameter were absent. `BO=0` on `Mult` / `Mix` means no blackout and is accepted by `from_dsl` and written as no `BO` by `to_spec`.
 - `Concurrent` COD now holds a reinforcer that a component sets up during the changeover delay and delivers it on the first response on that operandum after the COD, instead of discarding it; the component's next interval or ratio starts from that delivery (Herrnstein, 1961). Results of concurrent schedules with `cod > 0` differ from earlier releases. The conformance fixture `compound/concurrent_cod.json` is updated accordingly.
 
 ### Fixed
