@@ -69,10 +69,17 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+import contingency.schedules._rust as _rust
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
-from contingency.schedules._rust import engine_name, rust_compound, specs_of
+from contingency.schedules._rust import (
+    core_too_old,
+    engine_name,
+    require_core,
+    rust_compound,
+    specs_of,
+)
 from contingency.schedules.interval import FI, RI, VI
 from contingency.schedules.ratio import FR, RR, VR
 
@@ -591,7 +598,10 @@ class Concurrent:
         if (
             self._punish_changeover is not None or self._punish_directional is not None
         ) and not _rust_has_changeover_punish():
-            return None
+            if _rust._FORCE_PYTHON:
+                return None
+            require_core()
+            raise core_too_old("Concurrent runs without changeover punishment")
         return {"type": "Concurrent", "params": params}
 
     @property

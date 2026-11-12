@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from contingency import ResponseEvent
 from contingency.engine import rust_engine_available
+from contingency.errors import ScheduleConfigError
 from contingency.schedules import (
     CRF,
     DRH,
@@ -72,12 +75,15 @@ def test_reset_replays_the_same_trace(name: str, factory: object) -> None:
     assert _trace(schedule) == first, name
 
 
-def test_without_the_extension_the_class_runs_in_python(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_without_the_extension_the_class_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     import contingency.engine as engine
 
+    fi = FI(2.0)
     monkeypatch.setattr(engine, "rust_engine_available", lambda: False)
-    assert FR(3).engine == "python"
-    assert LimitedHold(FI(2.0), 1.0).engine == "python"
+    with pytest.raises(ScheduleConfigError, match="contingency_core"):
+        FR(3)
+    with pytest.raises(ScheduleConfigError, match="contingency_core"):
+        LimitedHold(fi, 1.0)
 
 
 def test_deepcopy_keeps_the_state() -> None:
@@ -113,8 +119,9 @@ def test_random_schedules_reject_rng_with_seed() -> None:
 
     with pytest.raises(ScheduleConfigError):
         RR(0.5, rng=random.Random(1), seed=1)
-    # A seed the Rust engine cannot take keeps the schedule in Python.
-    assert RR(0.5, seed=-1).engine == "python"
+    # A seed the Rust engine cannot take raises.
+    with pytest.raises(ScheduleConfigError, match="Rust engine"):
+        RR(0.5, seed=-1)
 
 
 def test_progressive_ratio_runs_on_rust_for_the_factory_steps() -> None:
@@ -179,10 +186,14 @@ def test_concurrent_cod_holds_a_rust_component_reinforcer() -> None:
     assert inside_cod == 0
 
 
-def test_arguments_beyond_the_rust_integer_width_run_in_python() -> None:
-    assert FR(2**64).engine == "python"
-    assert DRH(2**32, 1.0).engine == "python"
-    assert FI(float("inf")).engine == "python"
+@pytest.mark.parametrize(
+    "build",
+    [lambda: FR(2**64), lambda: DRH(2**32, 1.0), lambda: FI(float("inf"))],
+    ids=["FR", "DRH", "FI"],
+)
+def test_arguments_beyond_the_rust_integer_width_raise(build: Any) -> None:
+    with pytest.raises(ScheduleConfigError, match="Rust engine"):
+        build()
 
 
 def test_unseeded_schedules_leave_the_module_random_alone() -> None:

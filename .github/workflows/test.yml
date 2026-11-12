@@ -1,4 +1,6 @@
-# Clean-clone CI: install this package with its test extras and run pytest.
+# Clean-clone CI: build the contingency_core wheel from core/, install it and
+# this package with its test extras, and run pytest. The schedule classes need
+# contingency_core, so pytest runs only after the wheel job.
 name: test
 
 on:
@@ -22,8 +24,33 @@ env:
   OPERANTKIT_NEIGHBORS: ""
 
 jobs:
+  core-wheel:
+    name: contingency_core wheel (linux-x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          working-directory: core
+          target: x86_64-unknown-linux-gnu
+          manylinux: "2014"
+          args: --release --locked --out dist
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: core-wheel
+          path: core/dist/*.whl
+          if-no-files-found: error
+
   pytest:
     name: pytest (py${{ matrix.python-version }})
+    needs: core-wheel
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -58,6 +85,17 @@ jobs:
               python -m pip install --no-cache-dir \
                 "$dep @ git+https://github.com/OperantKit/$dep@$OPERANTKIT_SIBLING_REF"
           done
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: core-wheel
+          path: core-wheel
+
+      - name: Install the contingency_core wheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --no-index --find-links core-wheel contingency-core
+          python -c "import contingency_core; print(len(contingency_core.SPEC_TYPES), 'spec types')"
 
       - name: Install this package with test extras
         run: |

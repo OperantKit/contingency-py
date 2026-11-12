@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 from contingency_dsl import parse
 
-import contingency.engine as engine
+import contingency.schedules._rust as _rust
 from contingency import ResponseEvent
 from contingency.bridge import from_dsl, to_spec
 from contingency.engine import from_spec, rust_engine_available
@@ -52,7 +52,7 @@ def _make(
         kwargs["probe_trial_types"] = _PROBES if probes else None
     if python:
         with monkeypatch.context() as m:
-            m.setattr(engine, "rust_engine_available", lambda: False)
+            m.setattr(_rust, "_FORCE_PYTHON", True)
             mts = MatchingToSample(**kwargs)
         assert mts.engine == "python"
         return mts
@@ -253,7 +253,7 @@ def _drive_raw(
 
 @requires_rust
 @pytest.mark.unit
-def test_an_engine_without_correction_keeps_the_schedule_in_python(
+def test_an_engine_without_correction_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A contingency_core that predates correction reads past the key."""
@@ -276,7 +276,8 @@ def test_an_engine_without_correction_keeps_the_schedule_in_python(
         return None if rust is None else _Old(rust)
 
     monkeypatch.setattr(trial_based, "rust_or_none", old_engine)
-    assert MatchingToSample(n_comparisons=2, correction=True).engine == "python"
+    with pytest.raises(ScheduleConfigError, match="too old"):
+        MatchingToSample(n_comparisons=2, correction=True)
     assert MatchingToSample(n_comparisons=2).engine == "rust"
 
 

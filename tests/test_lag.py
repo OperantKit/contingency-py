@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from contingency_dsl import parse
 
-import contingency.engine as engine
+import contingency.schedules._rust as _rust
 from contingency import ResponseEvent
 from contingency.bridge import from_dsl, to_spec
 from contingency.engine import RustSchedule, from_spec, rust_engine_available
@@ -35,7 +35,7 @@ def _run(schedule: Any, ops: list[str]) -> list[bool]:
 
 def _python_lag(monkeypatch: pytest.MonkeyPatch, n: int, length: int = 1) -> Lag:
     with monkeypatch.context() as m:
-        m.setattr(engine, "rust_engine_available", lambda: False)
+        m.setattr(_rust, "_FORCE_PYTHON", True)
         lag = Lag(n, length=length)
     assert lag.engine == "python"
     return lag

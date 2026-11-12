@@ -16,8 +16,10 @@ from typing import Any
 import pytest
 
 import contingency.engine as engine
+import contingency.schedules._rust as _rust
 from contingency import ResponseEvent
 from contingency.engine import rust_engine_available
+from contingency.errors import ScheduleConfigError
 from contingency.schedules import FR, VR
 from contingency.schedules.adjusting import AdjustingSchedule
 from contingency.schedules.aversive import DiscriminatedAvoidance, Escape, Sidman
@@ -131,7 +133,7 @@ IDS = [c[0] for c in CASES]
 
 def _python(factory: Factory, monkeypatch: pytest.MonkeyPatch) -> Any:
     with monkeypatch.context() as m:
-        m.setattr(engine, "rust_engine_available", lambda: False)
+        m.setattr(_rust, "_FORCE_PYTHON", True)
         return factory()
 
 
@@ -227,18 +229,22 @@ def test_a_python_consequence_keeps_the_trial_schedule_in_python() -> None:
     assert GoNoGo(false_alarm=Custom(), seed=1).engine == "python"  # type: ignore[arg-type]
 
 
-def test_without_the_extension_they_run_in_python(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_without_the_extension_they_raise(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(engine, "rust_engine_available", lambda: False)
-    assert Sidman(2.0, 5.0).engine == "python"
-    assert MatchingToSample(3, seed=1).engine == "python"
+    with pytest.raises(ScheduleConfigError, match="contingency_core"):
+        Sidman(2.0, 5.0)
+    with pytest.raises(ScheduleConfigError, match="contingency_core"):
+        MatchingToSample(3, seed=1)
 
 
-def test_an_old_extension_without_state_keeps_them_in_python(
+def test_an_old_extension_without_state_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(engine.RustSchedule, "has_state", lambda self: False)
-    assert Sidman(2.0, 5.0).engine == "python"
-    assert GoNoGo(seed=1).engine == "python"
+    with pytest.raises(ScheduleConfigError, match="too old"):
+        Sidman(2.0, 5.0)
+    with pytest.raises(ScheduleConfigError, match="too old"):
+        GoNoGo(seed=1)
 
 
 def test_reset_without_a_seed_draws_a_new_sequence() -> None:
@@ -250,23 +256,23 @@ def test_reset_without_a_seed_draws_a_new_sequence() -> None:
     assert first != second
 
 
-def test_an_extension_whose_state_lacks_the_keys_keeps_them_in_python(
+def test_an_extension_whose_state_lacks_the_keys_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A contingency_core built before these schedule types reported
     # state has state() but returns an empty dict for them.
     monkeypatch.setattr(engine.RustSchedule, "state", lambda self: {})
-    for schedule in (
-        Sidman(2.0, 5.0),
-        Escape(2.0, 3.0),
-        AdjustingSchedule("ratio", 2, 1),
-        InterlockingSchedule(5, 10.0),
-        Percentile("irt", 50, 3),
-        MatchingToSample(3, seed=1),
-        GoNoGo(seed=1),
+    for build in (
+        lambda: Sidman(2.0, 5.0),
+        lambda: Escape(2.0, 3.0),
+        lambda: AdjustingSchedule("ratio", 2, 1),
+        lambda: InterlockingSchedule(5, 10.0),
+        lambda: Percentile("irt", 50, 3),
+        lambda: MatchingToSample(3, seed=1),
+        lambda: GoNoGo(seed=1),
     ):
-        assert schedule.engine == "python", type(schedule).__name__
-        assert schedule.step(1.0, ResponseEvent(time=1.0)) is not None
+        with pytest.raises(ScheduleConfigError, match="too old"):
+            build()
 
 
 def test_mts_without_a_sample_phase_starts_in_choice(monkeypatch: pytest.MonkeyPatch) -> None:

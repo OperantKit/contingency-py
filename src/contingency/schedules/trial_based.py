@@ -60,6 +60,7 @@ from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
 from contingency.schedules._rust import (
+    core_too_old,
     engine_name,
     fresh_seed,
     rust_compound,
@@ -417,7 +418,8 @@ class MatchingToSample:
         A ``contingency_core`` that predates correction trials reads
         past the unknown ``correction`` key and would run the schedule
         without them; with correction active the engine must report
-        ``correction_trial``, or the schedule stays in Python.
+        ``correction_trial``, or the constructor raises
+        :class:`ScheduleConfigError`.
         """
         spec = self._rust_spec()
         rust = rust_compound(spec, state_key="phase")
@@ -425,8 +427,8 @@ class MatchingToSample:
             return rust
         assert spec is not None
         probe = rust_or_none(spec)
-        if probe is None or "correction_trial" not in probe.step(0.0, None).meta:
-            return None
+        if "correction_trial" not in probe.step(0.0, None).meta:
+            raise core_too_old("MatchingToSample runs without correction trials")
         return rust
 
     def _rust_spec(self) -> dict[str, Any] | None:

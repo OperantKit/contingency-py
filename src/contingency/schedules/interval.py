@@ -64,6 +64,7 @@ from contingency.schedules._rust import (
     engine_name,
     fresh_seed,
     random_source,
+    require_core,
     rust_or_none,
     rust_reset,
 )
@@ -417,6 +418,7 @@ class LimitedHold:
         self._hold: float = float(hold)
         self._last_now: float | None = None
         inner_spec = getattr(inner, "_rust_spec", None)
+        require_core()
         self._rust = (
             None
             if inner_spec is None or getattr(inner, "_rust", None) is None

@@ -15,8 +15,10 @@ from typing import Any
 import pytest
 
 import contingency.engine as engine
+import contingency.schedules._rust as _rust
 from contingency import ResponseEvent
 from contingency.engine import rust_engine_available
+from contingency.errors import ScheduleConfigError
 from contingency.schedules import (
     EXT,
     FI,
@@ -120,7 +122,7 @@ IDS = [c[0] for c in CASES]
 
 def _python(factory: Factory, monkeypatch: pytest.MonkeyPatch) -> Any:
     with monkeypatch.context() as m:
-        m.setattr(engine, "rust_engine_available", lambda: False)
+        m.setattr(_rust, "_FORCE_PYTHON", True)
         return factory()
 
 
@@ -198,20 +200,26 @@ def test_a_python_component_keeps_the_compound_in_python() -> None:
     assert Multiple([FR(2), Custom()]).engine == "python"  # type: ignore[list-item]
 
 
-def test_without_the_extension_compounds_run_in_python(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_without_the_extension_compounds_raise(monkeypatch: pytest.MonkeyPatch) -> None:
+    fr2, fr3 = FR(2), FR(3)
     monkeypatch.setattr(engine, "rust_engine_available", lambda: False)
-    assert Multiple([FR(2), FR(3)]).engine == "python"
-    assert Timeout(FR(2), 1.0).engine == "python"
+    with pytest.raises(ScheduleConfigError, match="contingency_core"):
+        Multiple([fr2, fr3])
+    with pytest.raises(ScheduleConfigError, match="contingency_core"):
+        Timeout(fr2, 1.0)
 
 
-def test_an_old_extension_without_state_keeps_stateful_compounds_in_python(
+def test_an_old_extension_without_state_raises_for_stateful_compounds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    fr2, fr3 = FR(2), FR(3)
     monkeypatch.setattr(engine.RustSchedule, "has_state", lambda self: False)
-    assert Multiple([FR(2), FR(3)]).engine == "python"
-    assert SecondOrder(FR(3), FR(2)).engine == "python"
-    # Compounds without a position do not need state().
-    assert Alternative(FR(2), FR(3)).engine == "rust"
+    with pytest.raises(ScheduleConfigError, match="too old"):
+        Multiple([fr2, fr3])
+    with pytest.raises(ScheduleConfigError, match="too old"):
+        SecondOrder(fr3, fr2)
+    # Compounds without a position do not read state().
+    assert Alternative(fr2, fr3).engine == "rust"
 
 
 def test_reset_of_a_seedless_component_draws_a_new_sequence() -> None:

@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 from contingency_dsl import parse
 
-import contingency.engine as engine
+import contingency.schedules._rust as _rust
 from contingency import ResponseEvent
 from contingency.bridge import from_dsl, to_spec
 from contingency.engine import from_spec, rust_engine_available
@@ -56,7 +56,7 @@ def _conc(monkeypatch: pytest.MonkeyPatch, *, python: bool, **kwargs: Any) -> Co
 
     if python:
         with monkeypatch.context() as m:
-            m.setattr(engine, "rust_engine_available", lambda: False)
+            m.setattr(_rust, "_FORCE_PYTHON", True)
             conc = build()
         assert conc.engine == "python"
         return conc
@@ -295,13 +295,12 @@ def test_from_dsl_and_to_spec_reject_the_same(source: str, match: str) -> None:
 
 @requires_rust
 @pytest.mark.unit
-def test_class_runs_in_python_on_an_older_core(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_class_raises_on_an_older_core(monkeypatch: pytest.MonkeyPatch) -> None:
     import contingency.schedules.concurrent as conc_mod
 
     monkeypatch.setattr(conc_mod, "_rust_has_changeover_punish", lambda: False)
-    conc = Concurrent({"c0": EXT(), "c1": EXT()}, cod=2.0, punish_changeover=FR(1))
-    assert conc.engine == "python"
-    assert _punished(_drive(conc, _OPS)) == [False, False, True, False, True]
+    with pytest.raises(ScheduleConfigError, match="too old"):
+        Concurrent({"c0": EXT(), "c1": EXT()}, cod=2.0, punish_changeover=FR(1))
     plain = Concurrent({"c0": EXT(), "c1": EXT()}, cod=2.0, punish={"c1": FR(1)})
     assert plain.engine == "rust"
 

@@ -46,7 +46,7 @@ from typing import TypeAlias
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.schedules._rust import engine_name, rust_or_none
+from contingency.schedules._rust import engine_name, require_core, rust_or_none
 
 __all__ = [
     "StepFn",
@@ -347,6 +347,7 @@ class ProgressiveRatio:
         self._count: int = 0
         self._last_now: float | None = None
         params = _rust_step_params(step_fn)
+        require_core()
         self._rust = (
             None
             if params is None

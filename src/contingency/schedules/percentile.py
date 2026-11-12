@@ -237,7 +237,15 @@ class Percentile:
         self._rust: Any = rust_compound(self._rust_spec(), state_key="samples")
 
 
-    def _rust_spec(self) -> dict[str, Any]:
+    def _rust_spec(self) -> dict[str, Any] | None:
+        """The spec for the Rust engine, or ``None`` to run in Python.
+
+        The Rust engine takes only the IRT target and ranks from 1: a
+        target that cannot be executed (it raises on ``step``) and rank
+        0 stay in Python for now.
+        """
+        if self._target not in _EXECUTABLE_TARGETS or self._rank == 0:
+            return None
         return {
             "type": "Percentile",
             "params": {

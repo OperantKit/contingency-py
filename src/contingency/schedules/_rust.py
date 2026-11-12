@@ -1,12 +1,18 @@
-"""Run a schedule class on the Rust engine when ``contingency_core`` is present.
+"""Run a schedule class on the Rust engine (``contingency_core``).
 
 The schedule classes of this package validate their arguments and keep
 their public attributes in Python. Their ``step`` / ``reset`` are
 delegated to a :class:`contingency.engine.RustSchedule` built from the
-spec of the instance, when the ``contingency_core`` extension module can
-be imported. Without it, the class runs its own Python implementation.
-``engine`` on each instance tells which one runs (``"rust"`` or
-``"python"``).
+spec of the instance. Building a schedule class needs the
+``contingency_core`` extension module, at a version whose schedules
+report ``state()``; without it the constructor raises
+:class:`~contingency.errors.ScheduleConfigError` that says how to
+install it. ``import contingency`` and the DSL parsing do not need it.
+
+A few arguments still run in this package's Python implementation
+(a caller-supplied ``rng``, a custom ProgressiveRatio step function,
+compounds over components that run in Python). ``engine`` on each
+instance tells which one runs (``"rust"`` or ``"python"``).
 """
 
 from __future__ import annotations
@@ -17,6 +23,8 @@ from typing import Any
 from contingency.errors import ScheduleConfigError
 
 __all__ = [
+    "core_too_old",
+    "require_core",
     "rust_or_none",
     "engine_name",
     "random_source",
@@ -32,23 +40,84 @@ __all__ = [
 # caller's module-level ``random`` sequence.
 _SEEDS = random.Random()
 
+# Tests set this to run the Python implementation that remains in the
+# schedule classes, to compare it with the Rust engine. Not public API.
+_FORCE_PYTHON = False
 
-def rust_or_none(spec: dict[str, Any]) -> Any:
-    """Return a ``RustSchedule`` for ``spec``, or ``None`` to run in Python.
+_MISSING_CORE = (
+    "the schedule classes of contingency need the contingency_core extension "
+    "module (the contingency-rs engine), which is not installed; build and "
+    "install its wheel from the core/ directory of contingency-py with "
+    "maturin (see the Development section of the README)"
+)
 
-    ``None`` without the extension, and for arguments the Python class
-    accepts but the Rust engine cannot take (integers beyond its integer
-    width, infinite times): those keep running in Python.
+_OLD_CORE = (
+    "the installed contingency_core extension module is too old for this "
+    "version of contingency ({what}); rebuild and reinstall its wheel from "
+    "the core/ directory of contingency-py with maturin (see the "
+    "Development section of the README)"
+)
+
+_HAS_STATE: bool | None = None
+
+
+def _core_has_state() -> bool:
+    """Whether the schedules of the installed ``contingency_core`` report ``state()``."""
+    global _HAS_STATE
+    if _HAS_STATE:
+        return True
+    from contingency.engine import from_spec
+
+    # Only a positive answer is kept: the installed module does not lose
+    # state() while the process runs.
+    _HAS_STATE = from_spec({"type": "EXT", "params": {}}).has_state()
+    return _HAS_STATE
+
+
+def core_too_old(what: str) -> ScheduleConfigError:
+    """The error for a ``contingency_core`` that lacks ``what``."""
+    return ScheduleConfigError(_OLD_CORE.format(what=what))
+
+
+def require_core() -> None:
+    """Raise unless a recent enough ``contingency_core`` is installed.
+
+    Raises
+    ------
+    ScheduleConfigError
+        When ``contingency_core`` cannot be imported, or when its
+        schedules do not report ``state()``.
     """
-    from contingency.engine import from_spec, rust_engine_available
-    from contingency.errors import ScheduleConfigError
+    if _FORCE_PYTHON:
+        return
+    from contingency.engine import rust_engine_available
 
     if not rust_engine_available():
+        raise ScheduleConfigError(_MISSING_CORE)
+    if not _core_has_state():
+        raise core_too_old("its schedules do not report state()")
+
+
+def rust_or_none(spec: dict[str, Any]) -> Any:
+    """Return a ``RustSchedule`` for ``spec`` (``None`` only in tests).
+
+    Raises
+    ------
+    ScheduleConfigError
+        Without a recent enough ``contingency_core`` (see
+        :func:`require_core`), and when the Rust engine rejects the spec
+        (integers beyond its integer width, infinite times and the like).
+    """
+    if _FORCE_PYTHON:
         return None
+    require_core()
+    from contingency.engine import from_spec
+
+    kind = spec.get("type", "?")
     try:
         return from_spec(spec)
-    except (ScheduleConfigError, ValueError, TypeError, OverflowError):
-        return None
+    except (ScheduleConfigError, ValueError, TypeError, OverflowError) as exc:
+        raise ScheduleConfigError(f"the Rust engine rejected the {kind} spec: {exc}") from exc
 
 
 def fresh_seed() -> int:
@@ -74,7 +143,9 @@ def random_source(
     the Rust engine may run the schedule. A caller-supplied ``rng`` keeps
     the schedule in Python: its state cannot be handed to the Rust
     engine. ``seed`` draws the same sequence as ``rng=random.Random(seed)``.
+    Raises :class:`ScheduleConfigError` without ``contingency_core``.
     """
+    require_core()
     if seed is not None:
         if isinstance(seed, bool) or not isinstance(seed, int):
             raise ScheduleConfigError(f"{kind} requires an int seed, got {type(seed).__name__}")
@@ -142,17 +213,19 @@ def rust_compound(
     ``spec`` is ``None`` when a component runs in Python: then the
     compound runs in Python too. With ``needs_state`` the compound reads
     its position (``active_index`` and the like) from
-    ``Schedule.state()``; a ``contingency_core`` too old to have it keeps
-    the compound in Python. With ``state_key`` the schedule also needs
-    that key in its ``state()`` right after construction; a
-    ``contingency_core`` whose ``state()`` does not report it for this
-    schedule type keeps it in Python.
+    ``Schedule.state()``. With ``state_key`` the schedule also needs
+    that key in its ``state()`` right after construction. A
+    ``contingency_core`` that lacks either raises
+    :class:`ScheduleConfigError`, as does a missing one.
     """
+    if _FORCE_PYTHON:
+        return None
+    require_core()
     if spec is None:
         return None
     rust = rust_or_none(spec)
-    if rust is not None and (needs_state or state_key is not None) and not rust.has_state():
-        return None
-    if rust is not None and state_key is not None and state_key not in rust.state():
-        return None
+    if (needs_state or state_key is not None) and not rust.has_state():
+        raise core_too_old("its schedules do not report state()")
+    if state_key is not None and state_key not in rust.state():
+        raise core_too_old(f"the state() of {spec.get('type', '?')} has no {state_key!r}")
     return rust

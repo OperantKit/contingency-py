@@ -15,7 +15,8 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-# The engine and its PyO3 module come from contingency-rs at a fixed tag.
+# The engine and its PyO3 module come from contingency-rs at a fixed commit
+# (the schedule classes of contingency need its Schedule.state()).
 # A path dependency is not allowed here: this repository must build on its own
 # after a clone.
-contingency = { git = "https://github.com/OperantKit/contingency-rs", tag = "pyo3-from-spec", default-features = false, features = ["python"] }
+contingency = { git = "https://github.com/OperantKit/contingency-rs", rev = "0b6aba2a505c2850750f33533842beea4b846671", default-features = false, features = ["python"] }

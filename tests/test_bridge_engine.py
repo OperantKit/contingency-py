@@ -54,13 +54,13 @@ _needs_core = pytest.mark.skipif(
 
 @pytest.mark.unit
 @pytest.mark.parametrize(("source", "cls"), _DEFAULT_PROGRAMS)
-def test_default_engine_runs_in_python_without_the_extension(
+def test_default_engine_raises_without_the_extension(
     source: str, cls: type, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    program = parse(source)
     monkeypatch.setattr(_engine, "rust_engine_available", lambda: False)
-    schedule = from_dsl(parse(source))
-    assert isinstance(schedule, cls)
-    assert schedule.engine == "python"
+    with pytest.raises(ScheduleConfigError, match="contingency_core"):
+        from_dsl(program)
 
 
 @_needs_core
