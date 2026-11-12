@@ -368,8 +368,13 @@ def from_dsl(
         through directly.
     engine:
         ``"python"`` (default) builds the schedule classes of
-        :mod:`contingency.schedules`. ``"rust"`` writes the AST as a
-        spec with :func:`to_spec` and builds it on contingency-rs via
+        :mod:`contingency.schedules`; with ``contingency_core``
+        installed, the classes the Rust engine can run move their
+        ``step`` / ``reset`` to contingency-rs, and the rest run on
+        their Python implementation (the ``engine`` attribute tells
+        which). The return type does not depend on the environment.
+        ``"rust"`` writes the AST as a spec with :func:`to_spec` and
+        builds it on contingency-rs via
         :func:`contingency.engine.from_spec`; programs without a spec
         form raise :class:`~contingency.errors.SpecUnrepresentableError`.
 
