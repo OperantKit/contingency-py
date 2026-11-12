@@ -143,7 +143,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
@@ -343,7 +343,17 @@ def _fleshler_hoffman_kwargs(kind: str) -> dict[str, Any]:
 # --- Dispatch --------------------------------------------------------------
 
 
-def from_dsl(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Schedule:
+#: Engines :func:`from_dsl` can build for.
+Engine = Literal["python", "rust"]
+_ENGINES = ("python", "rust")
+
+
+def from_dsl(
+    ast_node: Any,
+    *,
+    time_unit_seconds: float = 1.0,
+    engine: Engine = "python",
+) -> Schedule:
     """Translate a contingency-dsl AST node to a :class:`Schedule`.
 
     Parameters
@@ -356,6 +366,12 @@ def from_dsl(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Schedule:
         Conversion factor from DSL seconds to the caller's runtime
         clock unit. Defaults to ``1.0``, i.e. the DSL's seconds pass
         through directly.
+    engine:
+        ``"python"`` (default) builds the schedule classes of
+        :mod:`contingency.schedules`. ``"rust"`` writes the AST as a
+        spec with :func:`to_spec` and builds it on contingency-rs via
+        :func:`contingency.engine.from_spec`; programs without a spec
+        form raise :class:`~contingency.errors.SpecUnrepresentableError`.
 
     Returns
     -------
@@ -368,6 +384,15 @@ def from_dsl(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Schedule:
         When the AST contains constructs not yet supported (see
         module docstring for the supported subset).
     """
+    if engine not in _ENGINES:
+        raise ScheduleConfigError(
+            f"unknown engine {engine!r}; expected one of {list(_ENGINES)}"
+        )
+    if engine == "rust":
+        from contingency.engine import from_spec
+
+        return from_spec(to_spec(ast_node, time_unit_seconds=time_unit_seconds))
+
     # Imported lazily so that ``contingency`` remains importable even
     # when ``contingency_dsl`` is not installed; the ImportError is
     # surfaced only at bridge time. Rename DSL node classes that

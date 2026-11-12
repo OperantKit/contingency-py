@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `contingency/ConcVIVI-v0`: concurrent VI VI with changeover delay on operanda `left` and `right` (`mean_left`, `mean_right`, `cod`), with the `conc_vi_vi` factory in `contingency.envs.presets`.
 - `core/`: a maturin project that builds the `contingency_core` extension module (the contingency-rs engine through PyO3) as the `contingency-core` wheel. contingency-rs is taken from GitHub at a fixed tag.
 - `.github/workflows/wheels.yml`: builds the `contingency-core` wheel with maturin-action for Linux x86_64 (manylinux2014), macOS x86_64 and arm64, and Windows x86_64, imports each wheel that the runner can load in a clean venv, and uploads the wheels as workflow artifacts.
+- `contingency.engine`: `RustSchedule` and `from_spec` run a schedule spec on `contingency_core` behind the `Schedule` protocol, with this package's `Outcome`, `Reinforcer`, `ResponseEvent` and errors (`ValueError` becomes `ScheduleConfigError`, `RuntimeError` becomes `ScheduleStateError`). `from_dsl` takes `engine="python"` (default) or `engine="rust"`.
 
 ### Changed
 

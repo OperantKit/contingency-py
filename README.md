@@ -150,13 +150,14 @@ python -m venv .venv
 
 ### Rust engine wheel (`core/`)
 
-`core/` builds the `contingency_core` extension module — the contingency-rs engine through PyO3 — as a separate wheel with [maturin](https://www.maturin.rs/). The crate takes contingency-rs from GitHub at the tag named in `core/Cargo.toml`; it does not use a path dependency. The `contingency` package in `src/` does not use this module yet.
+`core/` builds the `contingency_core` extension module — the contingency-rs engine through PyO3 — as a separate wheel with [maturin](https://www.maturin.rs/). The crate takes contingency-rs from GitHub at the tag named in `core/Cargo.toml`; it does not use a path dependency. With the module installed, `from_dsl(ast, engine="rust")` and `contingency.engine.from_spec(spec)` run the schedule on contingency-rs and return this package's `Outcome` and errors; `from_dsl` still uses the Python engine by default. `Outcome.meta` from the Rust engine leaves out keys whose value would be `None`, and DSL programs without a spec form raise `SpecUnrepresentableError`. `tests/test_engine_rust.py` replays the conformance fixtures through the Rust engine and compares both engines on DSL programs; it is skipped when the module is not installed.
 
 ```bash
 cd core
 maturin build --release            # add --target aarch64-apple-darwin if rustc's host differs from your Python
 python -m pip install target/wheels/contingency_core-*.whl
 python -c "import contingency_core; print(len(contingency_core.SPEC_TYPES))"
+python -m pytest tests/test_engine_rust.py
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for the code of conduct.
