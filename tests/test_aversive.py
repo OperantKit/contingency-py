@@ -116,7 +116,7 @@ def test_sidman_reset() -> None:
 def test_sidman_non_monotonic_time_raises() -> None:
     s = Sidman(shock_shock_interval=10.0, response_shock_interval=5.0)
     s.step(5.0)
-    with pytest.raises(ScheduleStateError, match="Non-monotonic"):
+    with pytest.raises(ScheduleStateError, match="(?i)non-monotonic"):
         s.step(4.0)
 
 

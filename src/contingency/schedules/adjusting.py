@@ -39,8 +39,11 @@ effect of delay and of intervening events on reinforcement value*
 
 from __future__ import annotations
 
+from typing import Any
+
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.schedules._rust import engine_name, rust_compound
 
 __all__ = ["AdjustingSchedule"]
 
@@ -118,6 +121,7 @@ class AdjustingSchedule:
     """
 
     __slots__ = (
+        "_rust",
         "_target",
         "_start",
         "_step",
@@ -207,6 +211,25 @@ class AdjustingSchedule:
         self._count: int = 0
         self._anchor: float | None = None
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), state_key="current_value")
+
+
+    def _rust_spec(self) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "target": self._target,
+            "start": self._start,
+            "step": self._step,
+        }
+        if self._min is not None:
+            params["minimum"] = self._min
+        if self._max is not None:
+            params["maximum"] = self._max
+        return {"type": "AdjustingSchedule", "params": params}
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     # --- Properties -------------------------------------------------------
 
@@ -238,11 +261,15 @@ class AdjustingSchedule:
     @property
     def current_value(self) -> float:
         """The current (clamped) value of the adjusted parameter."""
+        if self._rust is not None:
+            return float(self._rust.state()["current_value"])
         return self._current
 
     # --- Schedule protocol -----------------------------------------------
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -253,6 +280,9 @@ class AdjustingSchedule:
         return self._step_interval(now, event)
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._current = self._clamp(self._start)
         self._count = 0
         self._anchor = None

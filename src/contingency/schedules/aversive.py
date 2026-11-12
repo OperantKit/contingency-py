@@ -47,8 +47,11 @@ Applied*, 67(4), 1-19. https://doi.org/10.1037/h0093649
 
 from __future__ import annotations
 
+from typing import Any
+
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.schedules._rust import engine_name, rust_compound
 
 __all__ = ["Sidman", "DiscriminatedAvoidance", "Escape"]
 
@@ -119,6 +122,7 @@ class Sidman:
     """
 
     __slots__ = (
+        "_rust",
         "_ssi",
         "_rsi",
         "_magnitude",
@@ -141,6 +145,23 @@ class Sidman:
         self._magnitude: float = _validate_magnitude(shock_magnitude)
         self._next_shock_time: float = self._ssi
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), state_key="next_shock_time")
+
+
+    def _rust_spec(self) -> dict[str, Any]:
+        return {
+            "type": "Sidman",
+            "params": {
+                "shock_shock_interval": self._ssi,
+                "response_shock_interval": self._rsi,
+                "shock_magnitude": self._magnitude,
+            },
+        }
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     @property
     def shock_shock_interval(self) -> float:
@@ -156,9 +177,13 @@ class Sidman:
 
     @property
     def next_shock_time(self) -> float:
+        if self._rust is not None:
+            return float(self._rust.state()["next_shock_time"])
         return self._next_shock_time
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -186,6 +211,9 @@ class Sidman:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._next_shock_time = self._ssi
         self._last_now = None
 
@@ -215,6 +243,7 @@ class DiscriminatedAvoidance:
     """
 
     __slots__ = (
+        "_rust",
         "_warning_duration",
         "_iti",
         "_magnitude",
@@ -237,6 +266,23 @@ class DiscriminatedAvoidance:
         self._phase: str = "iti"
         self._phase_end: float = self._iti
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), state_key="phase")
+
+
+    def _rust_spec(self) -> dict[str, Any]:
+        return {
+            "type": "DiscriminatedAvoidance",
+            "params": {
+                "warning_duration": self._warning_duration,
+                "iti": self._iti,
+                "shock_magnitude": self._magnitude,
+            },
+        }
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     @property
     def warning_duration(self) -> float:
@@ -252,9 +298,13 @@ class DiscriminatedAvoidance:
 
     @property
     def phase(self) -> str:
+        if self._rust is not None:
+            return str(self._rust.state()["phase"])
         return self._phase
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -302,6 +352,9 @@ class DiscriminatedAvoidance:
         raise ScheduleStateError(f"unknown phase: {self._phase!r}")
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._phase = "iti"
         self._phase_end = self._iti
         self._last_now = None
@@ -335,6 +388,7 @@ class Escape:
     """
 
     __slots__ = (
+        "_rust",
         "_trial_duration",
         "_iti",
         "_magnitude",
@@ -360,6 +414,23 @@ class Escape:
         self._phase_end: float = self._trial_duration
         self._shock_onset_emitted: bool = False
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), state_key="phase")
+
+
+    def _rust_spec(self) -> dict[str, Any]:
+        return {
+            "type": "Escape",
+            "params": {
+                "trial_duration": self._trial_duration,
+                "iti": self._iti,
+                "shock_magnitude": self._magnitude,
+            },
+        }
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     @property
     def trial_duration(self) -> float:
@@ -375,9 +446,13 @@ class Escape:
 
     @property
     def phase(self) -> str:
+        if self._rust is not None:
+            return str(self._rust.state()["phase"])
         return self._phase
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -435,6 +510,9 @@ class Escape:
         raise ScheduleStateError(f"unknown phase: {self._phase!r}")
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._phase = "shock"
         self._phase_end = self._trial_duration
         self._shock_onset_emitted = False

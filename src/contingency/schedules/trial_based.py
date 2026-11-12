@@ -54,11 +54,12 @@ from __future__ import annotations
 import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.interfaces import Schedule
+from contingency.schedules._rust import engine_name, fresh_seed, rust_compound, specs_of
 
 __all__ = ["MatchingToSample", "GoNoGo", "TrialType", "trial_types_from_relations"]
 
@@ -170,6 +171,46 @@ def _validate_trial_types(
     return result
 
 
+def _python_meta(outcome: Outcome) -> Outcome:
+    """Give a Rust-run outcome the meta shape of the Python classes.
+
+    The Rust engine leaves ``trial_outcome`` out when there is none,
+    leaves ``choice`` out when a trial with trial types ends without a
+    named comparison (a timeout or an unknown operandum), and returns
+    ``comparisons`` as a list. The Python classes always set
+    ``trial_outcome`` (``None`` when no trial ended), set ``choice`` to
+    ``None`` in those cases, and use a tuple.
+    """
+    meta = dict(outcome.meta)
+    meta.setdefault("trial_outcome", None)
+    if "sample" in meta and meta["trial_outcome"] in ("correct", "incorrect"):
+        meta.setdefault("choice", None)
+    comparisons = meta.get("comparisons")
+    if isinstance(comparisons, list):
+        meta["comparisons"] = tuple(comparisons)
+    return Outcome(reinforced=outcome.reinforced, reinforcer=outcome.reinforcer, meta=meta)
+
+
+def _trial_types_spec(types: Sequence[TrialType]) -> list[dict[str, Any]]:
+    return [
+        {"sample": t.sample, "correct": t.correct, "comparisons": list(t.comparisons)}
+        for t in types
+    ]
+
+
+def _optional_specs(params: dict[str, Any], named: dict[str, Any]) -> bool:
+    """Put the specs of the non-``None`` schedules in ``named`` into ``params``.
+
+    ``False`` when any of them runs in Python (then so does the owner).
+    """
+    present = {k: v for k, v in named.items() if v is not None}
+    specs = specs_of(list(present.values()))
+    if specs is None:
+        return False
+    params.update(zip(present, specs, strict=True))
+    return True
+
+
 class MatchingToSample:
     """Matching-to-sample (MTS) discrete-trial schedule.
 
@@ -236,6 +277,7 @@ class MatchingToSample:
     """
 
     __slots__ = (
+        "_rust",
         "_n_comparisons",
         "_sample_duration",
         "_choice_timeout",
@@ -306,12 +348,46 @@ class MatchingToSample:
         self._current_positions: tuple[str, ...] = ()
         self._seed: int | None = seed
         self._rng: random.Random = random.Random(seed)
-        self._phase: Literal["sample", "choice", "iti"] = "sample"
+        self._phase: Literal["sample", "choice", "iti"] = (
+            "sample" if self._sample_duration > 0 else "choice"
+        )
         self._phase_started: float | None = None
         self._trial_index: int = 0
         self._correct_operandum: str = self._pick_correct_operandum()
         self._last_now: float | None = None
         self._pending_outcome_label: str | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), state_key="phase")
+
+
+    def _rust_spec(self) -> dict[str, Any] | None:
+        params: dict[str, Any] = {
+            "n_comparisons": self._n_comparisons,
+            "sample_duration": self._sample_duration,
+            "choice_timeout": self._choice_timeout,
+            "iti": self._iti,
+            "seed": self._seed if self._seed is not None else fresh_seed(),
+        }
+        if not _optional_specs(
+            params, {"consequence": self._consequence, "incorrect": self._incorrect}
+        ):
+            return None
+        if self._trial_types is not None:
+            n = self._n_baseline_types
+            params["trial_types"] = _trial_types_spec(self._trial_types[:n])
+            if len(self._trial_types) > n:
+                params["probe_trial_types"] = _trial_types_spec(self._trial_types[n:])
+        return {"type": "MatchingToSample", "params": params}
+
+    def _type_index_now(self) -> int | None:
+        if self._rust is None:
+            return self._current_type_index
+        index = self._rust.state().get("current_type_index")
+        return None if index is None else int(index)
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     # -- introspection ------------------------------------------------------
 
@@ -321,14 +397,20 @@ class MatchingToSample:
 
     @property
     def trial_index(self) -> int:
+        if self._rust is not None:
+            return int(self._rust.state()["trial_index"])
         return self._trial_index
 
     @property
     def phase(self) -> str:
+        if self._rust is not None:
+            return str(self._rust.state()["phase"])
         return self._phase
 
     @property
     def correct_operandum(self) -> str:
+        if self._rust is not None:
+            return str(self._rust.state()["correct_operandum"])
         return self._correct_operandum
 
     @property
@@ -338,9 +420,10 @@ class MatchingToSample:
     @property
     def current_trial_type(self) -> TrialType | None:
         """Trial type of the current trial; ``None`` without ``trial_types``."""
-        if self._trial_types is None or self._current_type_index is None:
+        index = self._type_index_now()
+        if self._trial_types is None or index is None:
             return None
-        return self._trial_types[self._current_type_index]
+        return self._trial_types[index]
 
     @property
     def current_sample(self) -> str | None:
@@ -350,14 +433,14 @@ class MatchingToSample:
     @property
     def current_comparisons(self) -> tuple[str, ...]:
         """Comparisons of the current trial in position order (``choice_0`` first)."""
+        if self._rust is not None:
+            return tuple(self._rust.state()["current_positions"])
         return self._current_positions
 
     @property
     def is_probe_trial(self) -> bool:
-        return (
-            self._current_type_index is not None
-            and self._current_type_index >= self._n_baseline_types
-        )
+        index = self._type_index_now()
+        return index is not None and index >= self._n_baseline_types
 
     # -- state helpers ------------------------------------------------------
 
@@ -423,6 +506,8 @@ class MatchingToSample:
     # -- core step ----------------------------------------------------------
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return _python_meta(self._rust.step(now, event))
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -541,6 +626,13 @@ class MatchingToSample:
     # -- reset --------------------------------------------------------------
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in (self._consequence, self._incorrect):
+                if component is not None:
+                    component.reset()
+            self._rust = rust_compound(self._rust_spec(), state_key="phase")
+            if self._rust is not None:
+                return
         self._rng = random.Random(self._seed)
         self._phase = "sample" if self._sample_duration > 0 else "choice"
         self._phase_started = None
@@ -609,6 +701,7 @@ class GoNoGo:
     """
 
     __slots__ = (
+        "_rust",
         "_go_probability",
         "_response_window",
         "_iti",
@@ -665,19 +758,50 @@ class GoNoGo:
         self._responded_this_trial: bool = False
         self._last_now: float | None = None
         self._pending_outcome_label: str | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), state_key="phase")
+
+
+    def _rust_spec(self) -> dict[str, Any] | None:
+        params: dict[str, Any] = {
+            "go_probability": self._go_probability,
+            "response_window": self._response_window,
+            "iti": self._iti,
+            "seed": self._seed if self._seed is not None else fresh_seed(),
+        }
+        if not _optional_specs(
+            params,
+            {
+                "correct_go_schedule": self._correct_go_schedule,
+                "correct_nogo_schedule": self._correct_nogo_schedule,
+                "false_alarm": self._false_alarm,
+            },
+        ):
+            return None
+        return {"type": "GoNoGo", "params": params}
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     # -- introspection ------------------------------------------------------
 
     @property
     def trial_index(self) -> int:
+        if self._rust is not None:
+            return int(self._rust.state()["trial_index"])
         return self._trial_index
 
     @property
     def phase(self) -> str:
+        if self._rust is not None:
+            return str(self._rust.state()["phase"])
         return self._phase
 
     @property
     def current_is_go(self) -> bool:
+        if self._rust is not None:
+            return bool(self._rust.state()["current_is_go"])
         return self._current_is_go
 
     @property
@@ -715,6 +839,8 @@ class GoNoGo:
     # -- core step ----------------------------------------------------------
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return _python_meta(self._rust.step(now, event))
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -840,6 +966,17 @@ class GoNoGo:
     # -- reset --------------------------------------------------------------
 
     def reset(self) -> None:
+        if self._rust is not None:
+            for component in (
+                self._correct_go_schedule,
+                self._correct_nogo_schedule,
+                self._false_alarm,
+            ):
+                if component is not None:
+                    component.reset()
+            self._rust = rust_compound(self._rust_spec(), state_key="phase")
+            if self._rust is not None:
+                return
         self._rng = random.Random(self._seed)
         self._phase_started = None
         self._trial_index = 0

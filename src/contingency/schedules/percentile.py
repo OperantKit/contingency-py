@@ -55,9 +55,11 @@ Academic Press. https://doi.org/10.1016/S0079-7421(08)60471-7
 from __future__ import annotations
 
 from collections import deque
+from typing import Any
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.schedules._rust import engine_name, rust_compound
 
 __all__ = ["Percentile"]
 
@@ -179,6 +181,7 @@ class Percentile:
     """
 
     __slots__ = (
+        "_rust",
         "_target",
         "_rank",
         "_window_size",
@@ -231,6 +234,26 @@ class Percentile:
         self._window: deque[float] = deque(maxlen=window)
         self._last_response_time: float | None = None
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), state_key="samples")
+
+
+    def _rust_spec(self) -> dict[str, Any]:
+        return {
+            "type": "Percentile",
+            "params": {
+                # The DSL spells the IRT target ``IRT``; the Rust engine
+                # takes the spec spelling ``irt``.
+                "target": "irt" if self._target == "IRT" else self._target,
+                "rank": self._rank,
+                "window": self._window_size,
+                "direction": self._direction,
+            },
+        }
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     @property
     def target(self) -> str:
@@ -255,9 +278,13 @@ class Percentile:
     @property
     def samples(self) -> tuple[float, ...]:
         """The current window of observed measurements (oldest first)."""
+        if self._rust is not None:
+            return tuple(float(x) for x in self._rust.state()["samples"])
         return tuple(self._window)
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -324,6 +351,9 @@ class Percentile:
         Clears the window, the last-response anchor, and the
         monotonic-time bookkeeping.
         """
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._window.clear()
         self._last_response_time = None
         self._last_now = None

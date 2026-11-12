@@ -131,18 +131,28 @@ def specs_of(schedules: Any) -> list[dict[str, Any]] | None:
     return specs  # type: ignore[return-value]
 
 
-def rust_compound(spec: dict[str, Any] | None, *, needs_state: bool = False) -> Any:
+def rust_compound(
+    spec: dict[str, Any] | None,
+    *,
+    needs_state: bool = False,
+    state_key: str | None = None,
+) -> Any:
     """Build a compound schedule on Rust from its spec, or ``None``.
 
     ``spec`` is ``None`` when a component runs in Python: then the
     compound runs in Python too. With ``needs_state`` the compound reads
     its position (``active_index`` and the like) from
     ``Schedule.state()``; a ``contingency_core`` too old to have it keeps
-    the compound in Python.
+    the compound in Python. With ``state_key`` the schedule also needs
+    that key in its ``state()`` right after construction; a
+    ``contingency_core`` whose ``state()`` does not report it for this
+    schedule type keeps it in Python.
     """
     if spec is None:
         return None
     rust = rust_or_none(spec)
-    if rust is not None and needs_state and not rust.has_state():
+    if rust is not None and (needs_state or state_key is not None) and not rust.has_state():
+        return None
+    if rust is not None and state_key is not None and state_key not in rust.state():
         return None
     return rust

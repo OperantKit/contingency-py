@@ -291,7 +291,7 @@ class TestStateErrors:
     def test_non_monotonic_time_raises(self) -> None:
         s = AdjustingSchedule("ratio", start=2, step=1)
         _respond(s, 5.0)
-        with pytest.raises(ScheduleStateError, match="Non-monotonic"):
+        with pytest.raises(ScheduleStateError, match="(?i)non-monotonic"):
             _respond(s, 4.0)
 
     def test_event_time_mismatch_raises(self) -> None:

@@ -28,8 +28,11 @@ reinforcement. *Journal of the Experimental Analysis of Behavior*,
 
 from __future__ import annotations
 
+from typing import Any
+
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.schedules._rust import engine_name, rust_compound
 
 __all__ = ["InterlockingSchedule"]
 
@@ -80,6 +83,7 @@ class InterlockingSchedule:
     """
 
     __slots__ = (
+        "_rust",
         "_R0",
         "_T",
         "_count",
@@ -116,6 +120,19 @@ class InterlockingSchedule:
         self._count: int = 0
         self._anchor: float | None = None
         self._last_now: float | None = None
+        self._rust: Any = rust_compound(self._rust_spec(), state_key="response_count")
+
+
+    def _rust_spec(self) -> dict[str, Any]:
+        return {
+            "type": "InterlockingSchedule",
+            "params": {"initial_ratio": self._R0, "decay_time": self._T},
+        }
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     # --- Properties -------------------------------------------------------
 
@@ -132,6 +149,8 @@ class InterlockingSchedule:
     @property
     def response_count(self) -> int:
         """Responses emitted since the last reinforcement (or anchor)."""
+        if self._rust is not None:
+            return int(self._rust.state()["response_count"])
         return self._count
 
     def current_requirement(self, now: float) -> int:
@@ -140,7 +159,12 @@ class InterlockingSchedule:
         Before any step has anchored the schedule the reference time
         is implicitly ``now`` (elapsed ``0``) so ``R_0`` is returned.
         """
-        anchor = self._anchor if self._anchor is not None else now
+        if self._rust is not None:
+            stored = self._rust.state().get("anchor")
+            stored = None if stored is None else float(stored)
+        else:
+            stored = self._anchor
+        anchor = stored if stored is not None else now
         elapsed = now - anchor
         if elapsed < 0:
             # Guard: should not happen in practice because step() enforces
@@ -155,6 +179,8 @@ class InterlockingSchedule:
     # --- Schedule protocol -----------------------------------------------
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -176,6 +202,9 @@ class InterlockingSchedule:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._count = 0
         self._anchor = None
         self._last_now = None
