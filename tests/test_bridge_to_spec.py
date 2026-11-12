@@ -450,8 +450,6 @@ def test_to_spec_shape(source: str, expected: dict[str, Any]) -> None:
 @pytest.mark.parametrize(
     ("source", "match"),
     [
-        ("COD = 2s\nConc(FR1, FR1)", "COD"),
-        ("LH = 2s\nFI5s", "analyze"),
         ("Conc(FR3, FR5, BO=5s)", "BO"),
         ("Mult(FR3, FR5, BO=5s)", "BO"),
         ("Mix(FR3, FR5, BO=5s)", "BO"),
@@ -461,8 +459,6 @@ def test_to_spec_shape(source: str, expected: dict[str, Any]) -> None:
         ("Pctl(latency, 50)", "latency"),
         ("Adj(delay, start=2s, step=1s)", "delay"),
         ("Adj(amount, start=2, step=1)", "amount"),
-        ("MTS(comparisons=3, consequence=CRF, ITI=5s, correction=true)", "correction"),
-        ("GoNoGo(responseWindow=2s, consequence=CRF, ITI=1s, LH=1s)", "LH"),
     ],
 )
 def test_to_spec_rejects_unrepresentable(source: str, match: str) -> None:
@@ -504,8 +500,11 @@ def test_to_spec_rejects_unrepresentable_inside_compound() -> None:
 
 @pytest.mark.unit
 def test_to_spec_rejects_rd_after_analyze() -> None:
+    """analyze() keeps RD; the runtime has no reinforcement delay."""
     program = analyze(_parse("RD = 1s\nFR5")).program
-    with pytest.raises(SpecUnrepresentableError, match="RD"):
+    with pytest.raises(ScheduleConfigError, match="RD"):
+        from_dsl(program)
+    with pytest.raises(ScheduleConfigError, match="RD"):
         to_spec(program)
 
 

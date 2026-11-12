@@ -46,15 +46,21 @@ Lossy mappings kept from :func:`from_dsl`
 * ``MTS``: ``mts_type`` is dropped; the runtime does not distinguish
   identity from arbitrary matching.
 
+Program-level declarations
+--------------------------
+
+``LH``, ``COD`` and ``FRCO`` declared before the schedule are written
+into the spec as if they were written on the schedule (see
+:mod:`contingency.bridge.program_decls`): ``LH = 2s`` + ``FI5s`` gives
+the spec of ``FI5s LH2s``. ``@algorithm`` seeds are kept.
+``RD = 0s`` and ``BO = 0s`` are dropped.
+
 Constructs without a spec form
 ------------------------------
 
 These raise :class:`SpecUnrepresentableError` (a
 :class:`ScheduleConfigError`) instead of being dropped:
 
-* program-level parameter declarations (``LH``, ``COD``, ``FRCO``,
-  ``BO``, ``RD``) — run ``contingency_dsl.analyze()`` to apply ``LH``,
-  and write ``COD`` / ``FRCO`` on the ``Conc`` itself;
 * ``Mult`` / ``Mix`` / ``Conc`` with ``BO`` greater than zero (the runtime
   has no blackout; ``BO=0`` on ``Mult`` / ``Mix`` is written as no ``BO``);
   ``Overlay`` with ``target=``;
@@ -62,12 +68,13 @@ These raise :class:`SpecUnrepresentableError` (a
 * ``Lag``;
 * ``Pctl`` with a target other than ``IRT``;
 * ``Adj`` with target ``delay`` or ``amount``;
-* ``MTS`` with ``correction`` enabled, and the declaration form
-  ``MTS(samples=...)``;
-* ``GoNoGo`` with ``LH``.
+* the declaration form ``MTS(samples=...)``.
 
 Errors that :func:`from_dsl` raises (unresolved ``IdentifierRef``,
-malformed values, ``@algorithm`` misuse) are raised here too.
+malformed values, ``@algorithm`` misuse, and constructs the runtime does
+not run: program-level ``RD`` or ``BO`` greater than zero, ``MTS`` with
+``correction``, ``GoNoGo`` with ``LH``) are raised here too, as
+:class:`ScheduleConfigError`.
 """
 
 from __future__ import annotations
@@ -80,12 +87,16 @@ from contingency.bridge import (
     _algorithm_scope,
     _aversive_magnitude,
     _aversive_time_param,
+    _check_go_nogo_params,
+    _check_mts_params,
+    _check_program_blackout,
     _fleshler_hoffman_kwargs,
     _is_zero_param,
     _next_seed,
     _scaled_time,
     _trial_based_time,
 )
+from contingency.bridge.program_decls import apply_program_decls
 from contingency.errors import ScheduleConfigError, SpecUnrepresentableError
 
 __all__ = ["to_spec"]
@@ -149,15 +160,10 @@ def to_spec(ast_node: Any, *, time_unit_seconds: float = 1.0) -> Spec:
         return float(_scaled_time(value, time_unit, time_unit_seconds))
 
     if isinstance(ast_node, Program):
-        if ast_node.param_decls:
-            names = [d.name for d in ast_node.param_decls]
-            raise SpecUnrepresentableError(
-                f"program-level parameter declaration(s) {names!r} have no spec "
-                "form; call contingency_dsl.analyze() to apply LH, and write "
-                "COD / FRCO on the Conc itself"
-            )
+        _check_program_blackout(ast_node)
+        schedule = apply_program_decls(ast_node)
         with _algorithm(_algorithm_scope(ast_node.program_annotations)):
-            return recurse(ast_node.schedule)
+            return recurse(schedule)
 
     if isinstance(ast_node, AnnotatedSchedule):
         with _algorithm(_algorithm_scope(ast_node.annotations)):
@@ -559,9 +565,7 @@ def _trial_based_spec(node: Any, recurse: Any, time_unit_seconds: float) -> Spec
                 "declaration-form MTS(samples=...) describes trial structure, "
                 "not a running schedule, and has no spec form"
             )
-        correction = params.get("correction")
-        if correction is not None and correction.get("mode") != "disabled":
-            raise SpecUnrepresentableError("MTS correction trials have no spec form")
+        _check_mts_params(params)
         comparisons = params.get("comparisons")
         if comparisons is None:
             raise ScheduleConfigError("MTS requires a 'comparisons' parameter")
@@ -582,10 +586,7 @@ def _trial_based_spec(node: Any, recurse: Any, time_unit_seconds: float) -> Spec
         )
 
     if trial_type == "GoNoGo":
-        if "limitedHold" in params:
-            raise SpecUnrepresentableError(
-                "GoNoGo LH has no spec form; responseWindow bounds the response"
-            )
+        _check_go_nogo_params(params)
         response_window = time("responseWindow", "responseWindowUnit")
         if response_window is None:
             raise ScheduleConfigError("GoNoGo requires a 'responseWindow' parameter")

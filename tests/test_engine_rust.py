@@ -218,6 +218,10 @@ DSL_PROGRAMS = [
     "Escape(SafeDuration=2s, MaxShock=3s)",
     "MTS(comparisons=3, consequence=VR2, incorrect=RT5s, ITI=1s)",
     "GoNoGo(responseWindow=5s, consequence=CRF, ITI=10s)",
+    "LH = 2s\nFI5s",
+    "LH = 1s\nMult(VI10s, FR3)",
+    "COD = 1s\nFRCO = 2\nConc(VI30s, VI60s)",
+    "RD = 0s\nBO = 0s\nMix(FR5, FR10)",
 ]
 
 
@@ -253,7 +257,7 @@ def _replay(schedule: Schedule, operanda: list[str], sparse: bool) -> list[tuple
 @pytest.mark.parametrize("source", DSL_PROGRAMS)
 def test_from_dsl_rust_engine_matches_python_engine(source: str) -> None:
     program = parse(_SEED + source, extensions=_REGISTRY)
-    spec_ops = ["c0", "c1"] if source.startswith("Conc") else ["main"]
+    spec_ops = ["c0", "c1"] if source.splitlines()[-1].startswith("Conc") else ["main"]
     reinforced = 0
     for sparse in (False, True):
         py = from_dsl(program)

@@ -419,8 +419,9 @@ def from_dsl(
 
     if isinstance(ast_node, Program):
         _check_program_blackout(ast_node)
+        schedule = apply_program_decls(ast_node)
         with _algorithm(_algorithm_scope(ast_node.program_annotations)):
-            return from_dsl(ast_node.schedule, time_unit_seconds=time_unit_seconds)
+            return from_dsl(schedule, time_unit_seconds=time_unit_seconds)
 
     if isinstance(ast_node, AnnotatedSchedule):
         # Only @algorithm affects the runtime schedule; other annotations
@@ -1182,9 +1183,29 @@ def _bridge_nested_schedule(
     return from_dsl(raw, time_unit_seconds=time_unit_seconds)
 
 
+def _check_mts_params(params: dict[str, Any]) -> None:
+    """Reject MTS parameters the runtime does not run."""
+    correction = params.get("correction")
+    if correction is not None and correction.get("mode") != "disabled":
+        raise ScheduleConfigError(
+            "MTS correction trials: the runtime has no correction procedure; "
+            "running it would silently drop the correction trials"
+        )
+
+
+def _check_go_nogo_params(params: dict[str, Any]) -> None:
+    """Reject GoNoGo parameters the runtime does not run."""
+    if "limitedHold" in params:
+        raise ScheduleConfigError(
+            "GoNoGo LH: the runtime bounds the response by responseWindow only; "
+            "running it would silently drop the LH"
+        )
+
+
 def _build_mts(
     params: dict[str, Any], time_unit_seconds: float
 ) -> MatchingToSample:
+    _check_mts_params(params)
     comparisons = params.get("comparisons")
     if comparisons is None:
         raise ScheduleConfigError(
@@ -1224,6 +1245,7 @@ def _build_mts(
 def _build_go_nogo(
     params: dict[str, Any], time_unit_seconds: float
 ) -> GoNoGo:
+    _check_go_nogo_params(params)
     response_window = _trial_based_time(
         params,
         "responseWindow",
@@ -1264,4 +1286,5 @@ def _build_go_nogo(
 
 
 # Imported last: ``contingency.bridge.spec`` reuses the helpers above.
+from contingency.bridge.program_decls import apply_program_decls  # noqa: E402
 from contingency.bridge.spec import to_spec  # noqa: E402
