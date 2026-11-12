@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `contingency.to_spec` (in `contingency.bridge.spec`): translates a contingency-dsl AST to the JSON schedule spec of the conformance corpus, so that `build_schedule_from_spec(to_spec(ast))` behaves like `from_dsl(ast)`. DSL constructs the spec has no form for (directional COD, `PUNISH`, `BO`, `Overlay(target=)`, `Lag`, non-IRT `Pctl`, `Adj(delay|amount)`, MTS correction, GoNoGo `LH`, program-level parameter declarations) raise the new `SpecUnrepresentableError`, a subclass of `ScheduleConfigError`.
 - `contingency/ConcVIVI-v0`: concurrent VI VI with changeover delay on operanda `left` and `right` (`mean_left`, `mean_right`, `cod`), with the `conc_vi_vi` factory in `contingency.envs.presets`.
 - `core/`: a maturin project that builds the `contingency_core` extension module (the contingency-rs engine through PyO3) as the `contingency-core` wheel. contingency-rs is taken from GitHub at a fixed tag.
+- `.github/workflows/wheels.yml`: builds the `contingency-core` wheel with maturin-action for Linux x86_64 (manylinux2014), macOS x86_64 and arm64, and Windows x86_64, imports each wheel that the runner can load in a clean venv, and uploads the wheels as workflow artifacts.
 
 ### Changed
 

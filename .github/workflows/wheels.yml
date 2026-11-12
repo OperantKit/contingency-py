@@ -1,0 +1,93 @@
+# Build the contingency_core wheel (the contingency-rs engine, packaged from
+# core/ with maturin) for Linux, macOS and Windows.
+#
+# The extension is built against the stable ABI (abi3, Python 3.8+), so one
+# wheel per platform covers every supported Python version.
+#
+# Targets:
+#   - Linux x86_64, manylinux2014 (built in the manylinux container)
+#   - macOS x86_64 and arm64 (both built on an arm64 runner; x86_64 is
+#     cross-compiled)
+#   - Windows x86_64
+#
+# Each wheel is installed into a clean Python and imported, except the macOS
+# x86_64 wheel, which cannot be loaded on the arm64 runner.
+name: wheels
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "core/**"
+      - ".github/workflows/wheels.yml"
+  pull_request:
+    paths:
+      - "core/**"
+      - ".github/workflows/wheels.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: wheel (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            manylinux: "2014"
+            smoke: true
+          - name: macos-x86_64
+            os: macos-14
+            target: x86_64-apple-darwin
+            manylinux: ""
+            smoke: false
+          - name: macos-arm64
+            os: macos-14
+            target: aarch64-apple-darwin
+            manylinux: ""
+            smoke: true
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            manylinux: ""
+            smoke: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          working-directory: core
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux || 'off' }}
+          args: --release --out dist
+
+      - name: Import the wheel in a clean venv
+        if: matrix.smoke
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/smoke"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            py="$RUNNER_TEMP/smoke/Scripts/python.exe"
+          else
+            py="$RUNNER_TEMP/smoke/bin/python"
+          fi
+          "$py" -m pip install --no-index --find-links core/dist contingency-core
+          "$py" -c "import contingency_core; assert len(contingency_core.SPEC_TYPES) > 0; print(len(contingency_core.SPEC_TYPES), 'spec types')"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wheel-${{ matrix.name }}
+          path: core/dist/*.whl
+          if-no-files-found: error
