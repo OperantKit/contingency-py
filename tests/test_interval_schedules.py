@@ -482,8 +482,10 @@ class TestLimitedHoldBehavior:
         sch = LimitedHold(inner, hold=0.1)
         # Tick far past any plausible VI interval, withdrawing once.
         sch.step(100.0)
-        # Inner VI has been re-armed at 100.0 with a new interval.
-        assert inner._arm_time > 100.0
+        # The opportunity was withdrawn and the VI re-armed at 100.0 with
+        # a new (positive) interval, so a response at 100.0 is not
+        # reinforced.
+        assert not sch.step(100.0, ResponseEvent(time=100.0)).reinforced
 
     def test_ri_withdraw_and_rearm_path(self) -> None:
         """Force RI through _withdraw_and_rearm by missing an opportunity."""

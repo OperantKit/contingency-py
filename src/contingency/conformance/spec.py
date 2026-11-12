@@ -9,7 +9,6 @@ Ports in other languages should reproduce it.
 
 from __future__ import annotations
 
-import random
 from typing import Any
 
 from contingency.errors import ScheduleConfigError
@@ -144,8 +143,7 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
             seed=params.get("seed"),
         )
     if stype == "RR":
-        rng = random.Random(params["seed"]) if "seed" in params else None
-        return RR(float(params["probability"]), rng=rng)
+        return RR(float(params["probability"]), seed=params.get("seed"))
     if stype == "FI":
         return FI(float(params["interval"]))
     if stype == "VI":
@@ -155,8 +153,7 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
             seed=params.get("seed"),
         )
     if stype == "RI":
-        rng = random.Random(params["seed"]) if "seed" in params else None
-        return RI(float(params["mean_interval"]), rng=rng)
+        return RI(float(params["mean_interval"]), seed=params.get("seed"))
     if stype == "FT":
         return FT(float(params["interval"]))
     if stype == "VT":
@@ -166,8 +163,7 @@ def build_schedule_from_spec(spec: dict[str, Any]) -> Schedule:
             seed=params.get("seed"),
         )
     if stype == "RT":
-        rng = random.Random(params["seed"]) if "seed" in params else None
-        return RT(float(params["mean_interval"]), rng=rng)
+        return RT(float(params["mean_interval"]), seed=params.get("seed"))
     if stype == "LimitedHold":
         inner = build_schedule_from_spec(params["inner"])
         return LimitedHold(inner, float(params["hold"]))  # type: ignore[arg-type]

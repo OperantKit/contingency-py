@@ -83,9 +83,11 @@ class ScheduleBuilder:
         return VR(mean, n_intervals=n_intervals, seed=seed)
 
     @staticmethod
-    def rr(probability: float, rng: random.Random | None = None) -> RR:
+    def rr(
+        probability: float, rng: random.Random | None = None, seed: int | None = None
+    ) -> RR:
         """Random Ratio — Bernoulli reinforcement per response."""
-        return RR(probability, rng=rng)
+        return RR(probability, rng=rng, seed=seed)
 
     @staticmethod
     def crf() -> FR:
@@ -111,9 +113,11 @@ class ScheduleBuilder:
         return VI(mean_interval, n_intervals=n_intervals, seed=seed)
 
     @staticmethod
-    def ri(mean_interval: float, rng: random.Random | None = None) -> RI:
+    def ri(
+        mean_interval: float, rng: random.Random | None = None, seed: int | None = None
+    ) -> RI:
         """Random Interval (memoryless exponential waits)."""
-        return RI(mean_interval, rng=rng)
+        return RI(mean_interval, rng=rng, seed=seed)
 
     @staticmethod
     def limited_hold(inner: Schedule, hold: float) -> LimitedHold:
@@ -139,9 +143,11 @@ class ScheduleBuilder:
         return VT(mean_interval, n_intervals=n_intervals, seed=seed)
 
     @staticmethod
-    def rt(mean_interval: float, rng: random.Random | None = None) -> RT:
+    def rt(
+        mean_interval: float, rng: random.Random | None = None, seed: int | None = None
+    ) -> RT:
         """Random Time (memoryless)."""
-        return RT(mean_interval, rng=rng)
+        return RT(mean_interval, rng=rng, seed=seed)
 
     @staticmethod
     def ext() -> EXT:

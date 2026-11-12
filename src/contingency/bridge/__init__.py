@@ -142,7 +142,6 @@ Behavior*, 5(4), 529-530. https://doi.org/10.1901/jeab.1962.5-529
 
 from __future__ import annotations
 
-import random
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -321,11 +320,6 @@ def _next_seed() -> int | None:
     if scope is None or scope.seeds is None:
         return None
     return scope.seeds.take()
-
-
-def _next_rng() -> random.Random | None:
-    seed = _next_seed()
-    return random.Random(seed) if seed is not None else None
 
 
 def _fleshler_hoffman_kwargs(kind: str) -> dict[str, Any]:
@@ -547,14 +541,14 @@ def _from_atomic(node: Any, time_unit_seconds: float) -> Schedule:
                 f"RR requires a positive mean-value to convert to "
                 f"probability, got {value!r}"
             )
-        return RR(1.0 / float(value), rng=_next_rng())
+        return RR(1.0 / float(value), seed=_next_seed())
     if dist is Distribution.RANDOM and domain is Domain.INTERVAL:
         return RI(
-            _scaled_time(value, node.time_unit, time_unit_seconds), rng=_next_rng()
+            _scaled_time(value, node.time_unit, time_unit_seconds), seed=_next_seed()
         )
     if dist is Distribution.RANDOM and domain is Domain.TIME:
         return RT(
-            _scaled_time(value, node.time_unit, time_unit_seconds), rng=_next_rng()
+            _scaled_time(value, node.time_unit, time_unit_seconds), seed=_next_seed()
         )
 
     raise ScheduleConfigError(

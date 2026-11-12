@@ -55,6 +55,7 @@ from typing import Literal
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.schedules._rust import engine_name, rust_or_none
 
 __all__ = ["DRO", "DRL", "DRH"]
 
@@ -139,6 +140,7 @@ class DRO:
         "_anchor",
         "_has_response_in_window",
         "_last_now",
+        "_rust",
     )
 
     def __init__(
@@ -164,6 +166,9 @@ class DRO:
         self._anchor: float | None = None
         self._has_response_in_window: bool = False
         self._last_now: float | None = None
+        self._rust = rust_or_none(
+            {"type": "DRO", "params": {"interval": self._interval, "dro_type": dro_type}}
+        )
 
     @property
     def interval(self) -> float:
@@ -175,7 +180,14 @@ class DRO:
         """The configured DRO variant."""
         return self._type
 
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -229,6 +241,9 @@ class DRO:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._anchor = None
         self._has_response_in_window = False
         self._last_now = None
@@ -268,7 +283,7 @@ class DRL:
     Behavior*, 7(3), 273-275. https://doi.org/10.1901/jeab.1964.7-273
     """
 
-    __slots__ = ("_interval", "_last_response_time", "_last_now")
+    __slots__ = ("_interval", "_last_response_time", "_last_now", "_rust")
 
     def __init__(self, interval: float) -> None:
         if isinstance(interval, bool) or not isinstance(interval, (int, float)):
@@ -282,13 +297,21 @@ class DRL:
         self._interval: float = float(interval)
         self._last_response_time: float | None = None
         self._last_now: float | None = None
+        self._rust = rust_or_none({"type": "DRL", "params": {"interval": self._interval}})
 
     @property
     def interval(self) -> float:
         """The configured minimum IRT."""
         return self._interval
 
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -303,6 +326,9 @@ class DRL:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._last_response_time = None
         self._last_now = None
 
@@ -345,7 +371,7 @@ class DRH:
     reinforcement*. Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_response_count", "_time_window", "_window", "_last_now")
+    __slots__ = ("_response_count", "_time_window", "_window", "_last_now", "_rust")
 
     def __init__(self, response_count: int, time_window: float) -> None:
         if isinstance(response_count, bool) or not isinstance(response_count, int):
@@ -370,6 +396,12 @@ class DRH:
         self._time_window: float = float(time_window)
         self._window: deque[float] = deque()
         self._last_now: float | None = None
+        self._rust = rust_or_none(
+            {
+                "type": "DRH",
+                "params": {"response_count": response_count, "time_window": self._time_window},
+            }
+        )
 
     @property
     def response_count(self) -> int:
@@ -387,7 +419,14 @@ class DRH:
         while w and w[0] < cutoff - _TIME_TOL:
             w.popleft()
 
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -400,5 +439,8 @@ class DRH:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._window.clear()
         self._last_now = None

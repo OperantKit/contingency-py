@@ -21,6 +21,10 @@ Known differences from the Python engine
 * ``Outcome.meta`` omits keys whose value would be ``None`` (the Rust
   meta value type has no null).
 * Errors raised by the Rust engine carry the Rust message text.
+* ``copy.deepcopy`` of a :class:`RustSchedule` builds a new schedule
+  from the same spec and replays the steps since the last
+  :meth:`~RustSchedule.reset`, so it costs time and memory in proportion
+  to those steps.
 """
 
 from __future__ import annotations
@@ -72,11 +76,20 @@ class RustSchedule:
     ``from_dsl(..., engine="rust")``) rather than directly.
     """
 
-    __slots__ = ("_inner", "_core")
+    __slots__ = ("_inner", "_core", "_spec", "_history")
 
-    def __init__(self, inner: Any, core: Any) -> None:
+    def __init__(self, inner: Any, core: Any, spec: dict[str, Any] | str) -> None:
         self._inner = inner
         self._core = core
+        self._spec = spec
+        self._history: list[tuple[float, ResponseEvent | None]] = []
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> RustSchedule:
+        copy = from_spec(self._spec)
+        for now, event in self._history:
+            copy.step(now, event)
+        memo[id(self)] = copy
+        return copy
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
         core_event = (
@@ -88,6 +101,7 @@ class RustSchedule:
             raw = self._inner.step(float(now), core_event)
         except (ValueError, RuntimeError) as exc:
             raise _translate(exc) from exc
+        self._history.append((now, event))
         r = raw.reinforcer
         reinforcer = (
             None if r is None else Reinforcer(time=r.time, magnitude=r.magnitude, label=r.label)
@@ -98,11 +112,29 @@ class RustSchedule:
             meta=dict(raw.meta),
         )
 
+    def probe_response(self, now: float, event: ResponseEvent) -> bool | None:
+        """Whether a response ``event`` at ``now`` would reinforce, without stepping.
+
+        ``None`` when the schedule offers no such probe (only FR, VR, RR,
+        FI, VI and RI do), or when the installed ``contingency_core`` is
+        too old to have it.
+        """
+        probe = getattr(self._inner, "probe_response", None)
+        if probe is None:
+            return None
+        core_event = self._core.ResponseEvent(float(event.time), str(event.operandum))
+        try:
+            probed = probe(float(now), core_event)
+        except (ValueError, RuntimeError) as exc:
+            raise _translate(exc) from exc
+        return None if probed is None else bool(probed)
+
     def reset(self) -> None:
         try:
             self._inner.reset()
         except (ValueError, RuntimeError) as exc:
             raise _translate(exc) from exc
+        self._history.clear()
 
     def __repr__(self) -> str:
         return f"RustSchedule({self._inner!r})"
@@ -129,4 +161,4 @@ def from_spec(spec: dict[str, Any] | str) -> RustSchedule:
         inner = core.from_spec(spec)
     except (ValueError, RuntimeError) as exc:
         raise _translate(exc) from exc
-    return RustSchedule(inner, core)
+    return RustSchedule(inner, core, spec)

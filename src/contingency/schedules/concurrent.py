@@ -85,6 +85,20 @@ _TIME_TOL = 1e-9
 _HOLD_IN_COMPONENT: tuple[type, ...] = (FR, VR, RR, FI, VI, RI)
 
 
+def _would_reinforce(component: Schedule, now: float, event: ResponseEvent) -> bool:
+    """Whether ``event`` would reinforce ``component``, leaving it unchanged.
+
+    A component run by the Rust engine answers through its probe; any
+    other component is tried on a copy.
+    """
+    rust = getattr(component, "_rust", None)
+    if rust is not None:
+        probed = rust.probe_response(now, event)
+        if probed is not None:
+            return bool(probed)
+    return bool(copy.deepcopy(component).step(now, event).reinforced)
+
+
 def _check_time(last_now: float | None, now: float) -> None:
     """Raise :class:`ScheduleStateError` if ``now`` moves backwards."""
     if last_now is not None and now < last_now - _TIME_TOL:
@@ -349,8 +363,7 @@ class Concurrent:
         Returns ``(outcome, held)``.
         """
         if isinstance(component, _HOLD_IN_COMPONENT):
-            probe = copy.deepcopy(component)
-            if probe.step(now, event).reinforced:
+            if _would_reinforce(component, now, event):
                 component.step(now, None)
                 return Outcome(), True
             return component.step(now, event), False

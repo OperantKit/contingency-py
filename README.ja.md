@@ -152,6 +152,8 @@ python -m venv .venv
 
 `core/` は、contingency-rs のエンジンを PyO3 で包んだ拡張モジュール `contingency_core` を、[maturin](https://www.maturin.rs/) で別の wheel として作ります。crate は contingency-rs を GitHub から `core/Cargo.toml` に書いたタグで取り込み、path 依存は使いません。このモジュールを入れると、`from_dsl(ast, engine="rust")` と `contingency.engine.from_spec(spec)` がスケジュールを contingency-rs で動かし、このパッケージの `Outcome` と例外で返します。`from_dsl` の既定は今も Python のエンジンです。Rust のエンジンの `Outcome.meta` には、値が `None` になるキーが入りません。spec に書けない DSL のプログラムは `SpecUnrepresentableError` になります。`tests/test_engine_rust.py` は、適合テストの fixture を Rust のエンジンで再生し、DSL のプログラムで 2 つのエンジンを比べます（モジュールが無ければ skip）。
 
+このモジュールを入れると、単一スケジュールのクラス `FR`・`CRF`・`VR`・`RR`・`FI`・`VI`・`RI`・`LimitedHold`・`FT`・`VT`・`RT`・`EXT`・`DRO`・`DRL`・`DRH`・`ProgressiveRatio` も contingency-rs で動きます。構築子は引数を検査して公開の属性を Python で持ち、`step` / `reset` を Rust のエンジンに渡します。モジュールが無ければ Python の実装で動くので、wheel が無くてもパッケージは使えます。どちらで動いているかはインスタンスの `engine`（`"rust"` か `"python"`）で分かります。モジュールがあっても Python で動くのは次の場合です: 呼び出し側の `rng` を渡した `RR` / `RI` / `RT`（代わりに `seed=` を渡す。`rng=random.Random(seed)` と同じ列を引きます）、`step_fn` が `arithmetic`・`richardson_roberts` で作ったものでない `ProgressiveRatio`（`geometric` も含む。Rust のエンジンは .5 を 0 から遠い側へ、Python は偶数側へ丸めるため）、Python で動くスケジュールを包んだ `LimitedHold`、Rust のエンジンが受け取れない引数（整数の幅を超える整数・無限大の時間・負の `seed`）。`LimitedHold` は内側のスケジュールの引数から Rust の写しを自分で作るので、内側のオブジェクトを別に step しても影響しません。Rust のエンジンで動くスケジュールを `copy.deepcopy` すると、最後の `reset` 以降の step を再生します。
+
 ```bash
 cd core
 maturin build --release            # rustc の host が Python と違うときは --target aarch64-apple-darwin を付ける

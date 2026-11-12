@@ -40,11 +40,13 @@ evaluate reinforcing efficacy. *Journal of Neuroscience Methods*,
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Callable
 from typing import TypeAlias
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.schedules._rust import engine_name, rust_or_none
 
 __all__ = [
     "StepFn",
@@ -56,6 +58,26 @@ __all__ = [
 
 
 StepFn: TypeAlias = Callable[[int], int]
+
+# Spec params of the step functions built by the factories below, so a
+# ProgressiveRatio over one of them can run on the Rust engine. Any other
+# callable keeps the schedule in Python.
+_RUST_STEPS: weakref.WeakKeyDictionary[StepFn, dict[str, object]] = weakref.WeakKeyDictionary()
+_U32_MAX = 2**32 - 1
+
+
+def _rust_step_params(step_fn: StepFn) -> dict[str, object] | None:
+    try:
+        params = _RUST_STEPS.get(step_fn)
+    except TypeError:  # not weak-referenceable
+        return None
+    if params is None:
+        return None
+    for key in ("start", "step_size"):
+        value = params.get(key)
+        if isinstance(value, int) and value > _U32_MAX:
+            return None
+    return params
 """A step function maps a 0-based reinforcement index to the ratio
 requirement that must be met to earn *that* reinforcer. The returned
 value must be a positive ``int`` (``>= 1``)."""
@@ -123,6 +145,7 @@ def arithmetic(start: int = 1, step: int = 1) -> StepFn:
     def _arithmetic(n: int) -> int:
         return start + n * step
 
+    _RUST_STEPS[_arithmetic] = {"step": "arithmetic", "start": start, "step_size": step}
     return _arithmetic
 
 
@@ -164,6 +187,9 @@ def geometric(start: int = 1, ratio: float = 2.0) -> StepFn:
         # (cannot happen for start >= 1 and ratio > 1, but defensive).
         return max(1, int(value))
 
+    # Not registered for the Rust engine: Rust rounds halves away from zero
+    # and Python's round() rounds them to even, so geometric(1, 2.5) would
+    # ask for 3 responses instead of 2 at the second reinforcer.
     return _geometric
 
 
@@ -249,6 +275,7 @@ def richardson_roberts() -> StepFn:
         value = round(series[-1] * (last_ratio**extra))
         return max(1, int(value))
 
+    _RUST_STEPS[_richardson_roberts] = {"step": "richardson_roberts"}
     return _richardson_roberts
 
 
@@ -307,7 +334,7 @@ class ProgressiveRatio:
     66(1), 1-11. https://doi.org/10.1016/0165-0270(95)00153-0
     """
 
-    __slots__ = ("_step_fn", "_index", "_count", "_last_now")
+    __slots__ = ("_step_fn", "_index", "_count", "_last_now", "_rust")
 
     def __init__(self, step_fn: StepFn) -> None:
         if not callable(step_fn):
@@ -319,6 +346,22 @@ class ProgressiveRatio:
         self._index: int = 0
         self._count: int = 0
         self._last_now: float | None = None
+        params = _rust_step_params(step_fn)
+        self._rust = (
+            None
+            if params is None
+            else rust_or_none({"type": "ProgressiveRatio", "params": dict(params)})
+        )
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``.
+
+        The Rust engine runs a schedule built over :func:`arithmetic` or
+        :func:`richardson_roberts`; any other ``step_fn`` (including
+        :func:`geometric`) runs in Python.
+        """
+        return engine_name(self._rust)
 
     @property
     def reinforcement_index(self) -> int:
@@ -343,6 +386,11 @@ class ProgressiveRatio:
         return value
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            outcome: Outcome = self._rust.step(now, event)
+            if outcome.reinforced:
+                self._index += 1
+            return outcome
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -357,6 +405,8 @@ class ProgressiveRatio:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
         self._index = 0
         self._count = 0
         self._last_now = None

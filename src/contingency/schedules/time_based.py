@@ -56,6 +56,13 @@ import random
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.helpers.fleshler_hoffman import generate_intervals
+from contingency.schedules._rust import (
+    engine_name,
+    fresh_seed,
+    random_source,
+    rust_or_none,
+    rust_reset,
+)
 
 __all__ = ["FT", "VT", "RT", "EXT"]
 
@@ -119,7 +126,7 @@ class FT:
     https://doi.org/10.1901/jeab.1968.11-405
     """
 
-    __slots__ = ("_interval", "_anchor", "_last_now")
+    __slots__ = ("_interval", "_anchor", "_last_now", "_rust")
 
     def __init__(self, interval: float) -> None:
         if isinstance(interval, bool) or not isinstance(interval, (int, float)):
@@ -131,13 +138,21 @@ class FT:
         self._interval: float = float(interval)
         self._anchor: float | None = None
         self._last_now: float | None = None
+        self._rust = rust_or_none({"type": "FT", "params": {"interval": self._interval}})
 
     @property
     def interval(self) -> float:
         """The configured fixed interval."""
         return self._interval
 
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -150,6 +165,9 @@ class FT:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._anchor = None
         self._last_now = None
 
@@ -207,6 +225,7 @@ class VT:
         "_requirement",
         "_anchor",
         "_last_now",
+        "_rust",
     )
 
     def __init__(
@@ -241,6 +260,9 @@ class VT:
         self._anchor: float | None = None
         self._last_now: float | None = None
         self._reload_sequence()
+        params: dict[str, object] = {"mean_interval": self._mean, "n_intervals": n_intervals}
+        params["seed"] = seed if seed is not None else fresh_seed()
+        self._rust = rust_or_none({"type": "VT", "params": params})
 
     @property
     def mean_interval(self) -> float:
@@ -268,7 +290,14 @@ class VT:
         else:
             self._requirement = self._sequence[self._cursor]
 
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -282,6 +311,9 @@ class VT:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust = rust_reset(self._rust, self._seed)
+            return
         self._rng = random.Random(self._seed)
         self._anchor = None
         self._last_now = None
@@ -300,6 +332,12 @@ class RT:
         Optional :class:`random.Random`. If ``None``, a fresh unseeded
         RNG is used. A state snapshot is captured at construction so
         :meth:`reset` returns to the original draw sequence.
+    seed:
+        Optional RNG seed, an int in ``[0, 2**64)``. Draws the same
+        sequence as ``rng=random.Random(seed)``. Give ``rng`` or ``seed``,
+        not both. A caller-supplied ``rng`` runs the schedule in Python
+        (its state cannot be handed to the Rust engine); ``seed`` or
+        neither runs it on the Rust engine when it is installed.
 
     Notes
     -----
@@ -330,12 +368,15 @@ class RT:
         "_requirement",
         "_anchor",
         "_last_now",
+        "_rust",
     )
 
     def __init__(
         self,
         mean_interval: float,
         rng: random.Random | None = None,
+        *,
+        seed: int | None = None,
     ) -> None:
         if isinstance(mean_interval, bool) or not isinstance(mean_interval, (int, float)):
             raise ScheduleConfigError(
@@ -346,11 +387,14 @@ class RT:
                 f"RT requires mean_interval > 0, got {mean_interval}"
             )
         self._mean: float = float(mean_interval)
-        self._rng: random.Random = rng if rng is not None else random.Random()
+        self._rng, rust_ok = random_source("RT", rng, seed)
         self._initial_state = self._rng.getstate()
         self._requirement: float = self._rng.expovariate(1.0 / self._mean)
         self._anchor: float | None = None
         self._last_now: float | None = None
+        params: dict[str, object] = {"mean_interval": self._mean}
+        params["seed"] = seed if seed is not None else fresh_seed()
+        self._rust = rust_or_none({"type": "RT", "params": params}) if rust_ok else None
 
     @property
     def mean_interval(self) -> float:
@@ -359,7 +403,14 @@ class RT:
     def _draw_requirement(self) -> None:
         self._requirement = self._rng.expovariate(1.0 / self._mean)
 
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -373,6 +424,9 @@ class RT:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._rng.setstate(self._initial_state)
         self._requirement = self._rng.expovariate(1.0 / self._mean)
         self._anchor = None
@@ -402,16 +456,27 @@ class EXT:
     Ferster). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_last_now",)
+    __slots__ = ("_last_now", "_rust")
 
     def __init__(self) -> None:
         self._last_now: float | None = None
+        self._rust = rust_or_none({"type": "EXT", "params": {}})
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._last_now = None

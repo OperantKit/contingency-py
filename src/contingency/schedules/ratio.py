@@ -35,6 +35,13 @@ import random
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.helpers.fleshler_hoffman import generate_ratios
+from contingency.schedules._rust import (
+    engine_name,
+    fresh_seed,
+    random_source,
+    rust_or_none,
+    rust_reset,
+)
 
 __all__ = ["FR", "VR", "RR", "CRF"]
 
@@ -79,7 +86,7 @@ class FR:
     Ferster). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_n", "_count", "_last_now")
+    __slots__ = ("_n", "_count", "_last_now", "_rust")
 
     def __init__(self, n: int) -> None:
         if not isinstance(n, int) or isinstance(n, bool):
@@ -89,13 +96,21 @@ class FR:
         self._n: int = n
         self._count: int = 0
         self._last_now: float | None = None
+        self._rust = rust_or_none({"type": "FR", "params": {"n": n}})
 
     @property
     def n(self) -> int:
         """The configured ratio requirement."""
         return self._n
 
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -108,6 +123,9 @@ class FR:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._count = 0
         self._last_now = None
 
@@ -170,6 +188,7 @@ class VR:
         "_count",
         "_requirement",
         "_last_now",
+        "_rust",
     )
 
     def __init__(
@@ -202,6 +221,9 @@ class VR:
         self._requirement: int = 0
         self._last_now: float | None = None
         self._reload_sequence()
+        params: dict[str, object] = {"mean": self._mean, "n_intervals": n_intervals}
+        params["seed"] = seed if seed is not None else fresh_seed()
+        self._rust = rust_or_none({"type": "VR", "params": params})
 
     @property
     def mean(self) -> float:
@@ -210,6 +232,11 @@ class VR:
     @property
     def n_intervals(self) -> int:
         return self._n_intervals
+
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
 
     def _next_sub_seed(self) -> int:
         """Derive a fresh deterministic seed from the internal RNG."""
@@ -231,6 +258,8 @@ class VR:
             self._requirement = self._sequence[self._cursor]
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -244,6 +273,9 @@ class VR:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust = rust_reset(self._rust, self._seed)
+            return
         self._rng = random.Random(self._seed)
         self._count = 0
         self._last_now = None
@@ -263,6 +295,12 @@ class RR:
         Bernoulli draws. If ``None``, a fresh unseeded RNG is used.
         A seeded ``Random`` snapshot is captured at construction so
         :meth:`reset` returns to the original draw sequence.
+    seed:
+        Optional RNG seed, an int in ``[0, 2**64)``. Draws the same
+        sequence as ``rng=random.Random(seed)``. Give ``rng`` or ``seed``,
+        not both. A caller-supplied ``rng`` runs the schedule in Python
+        (its state cannot be handed to the Rust engine); ``seed`` or
+        neither runs it on the Rust engine when it is installed.
 
     References
     ----------
@@ -270,12 +308,14 @@ class RR:
     Ferster). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_p", "_initial_state", "_rng", "_last_now")
+    __slots__ = ("_p", "_initial_state", "_rng", "_last_now", "_rust")
 
     def __init__(
         self,
         probability: float,
         rng: random.Random | None = None,
+        *,
+        seed: int | None = None,
     ) -> None:
         if isinstance(probability, bool) or not isinstance(probability, (int, float)):
             raise ScheduleConfigError(
@@ -286,17 +326,27 @@ class RR:
                 f"RR requires 0 < probability <= 1, got {probability}"
             )
         self._p: float = float(probability)
-        self._rng = rng if rng is not None else random.Random()
+        self._rng, rust_ok = random_source("RR", rng, seed)
         # Snapshot the RNG state so reset() restores the initial draw
         # sequence even when the caller supplies a shared Random.
         self._initial_state = self._rng.getstate()
         self._last_now: float | None = None
+        params: dict[str, object] = {"probability": self._p}
+        params["seed"] = seed if seed is not None else fresh_seed()
+        self._rust = rust_or_none({"type": "RR", "params": params}) if rust_ok else None
 
     @property
     def probability(self) -> float:
         return self._p
 
+    @property
+    def engine(self) -> str:
+        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
+        return engine_name(self._rust)
+
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+        if self._rust is not None:
+            return self._rust.step(now, event)  # type: ignore[no-any-return]
         _check_time(self._last_now, now)
         _check_event(now, event)
         self._last_now = now
@@ -307,5 +357,8 @@ class RR:
         return Outcome()
 
     def reset(self) -> None:
+        if self._rust is not None:
+            self._rust.reset()
+            return
         self._rng.setstate(self._initial_state)
         self._last_now = None
