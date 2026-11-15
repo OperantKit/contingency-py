@@ -84,6 +84,7 @@ markers = [
   "hw_hil: requires HIL bridge endpoint (skipped by default)",
   "unit: pure unit tests with no external dependencies",
   "integration: tests that exercise cross-module interactions",
+  "differential: random specs and responses fed to the Python implementation and the Rust engine",
 ]
 
 [tool.coverage.run]
