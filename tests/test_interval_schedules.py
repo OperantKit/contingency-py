@@ -477,7 +477,7 @@ class TestLimitedHoldBehavior:
             sch.step(11.0, ResponseEvent(time=10.5))
 
     def test_vi_withdraw_and_rearm_path(self) -> None:
-        """Force VI through _withdraw_and_rearm by missing an opportunity."""
+        """A missed VI opportunity is withdrawn and VI is re-armed."""
         inner = VI(2.0, n_intervals=5, seed=13)
         sch = LimitedHold(inner, hold=0.1)
         # Tick far past any plausible VI interval, withdrawing once.
@@ -488,8 +488,9 @@ class TestLimitedHoldBehavior:
         assert not sch.step(100.0, ResponseEvent(time=100.0)).reinforced
 
     def test_ri_withdraw_and_rearm_path(self) -> None:
-        """Force RI through _withdraw_and_rearm by missing an opportunity."""
+        """A missed RI opportunity is withdrawn and RI is re-armed."""
         inner = RI(1.0, rng=random.Random(21))
         sch = LimitedHold(inner, hold=0.05)
         sch.step(50.0)
-        assert inner._arm_time > 50.0
+        # Re-armed at 50.0 with a new (positive) interval.
+        assert not sch.step(50.0, ResponseEvent(time=50.0)).reinforced

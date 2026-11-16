@@ -13,6 +13,10 @@ Implementations here follow the Swift OperantKit condition
 the step returns a reinforcer only on a response that is *both*
 emitted at ``now`` *and* past the currently armed target time.
 
+``step`` and ``reset`` of FI, VI and RI run on the Rust engine
+(``contingency_core``); the classes validate their arguments and keep
+their parameters.
+
 LimitedHold wrapping
 --------------------
 Classical FI/VI/RI have no "missed opportunity" notion: any response
@@ -21,22 +25,18 @@ after the interval qualifies, no matter how late. The
 if no qualifying response is emitted within ``hold`` time units of
 the interval elapsing, the opportunity is withdrawn and the inner
 schedule is re-armed from scratch (a new interval is drawn without
-any reinforcer being delivered).
+any reinforcer being delivered). Over FI, VI or RI the whole
+LimitedHold runs on the Rust engine.
 
-To make this possible without leaking into the public
-:class:`~contingency.interfaces.Schedule` protocol, the concrete
-interval schedules expose two protected hooks:
+A schedule outside this module can be wrapped too when it exposes two
+protected hooks, and then LimitedHold runs in Python:
 
 * ``_arm_time`` — the absolute monotonic time at which the currently
   pending interval elapses (i.e. the earliest time at which a
   qualifying response could produce reinforcement).
 * ``_withdraw_and_rearm(now)`` — resample the next interval and
   anchor the new ``_arm_time`` to ``now``, *without* delivering a
-  reinforcer. Used by :class:`LimitedHold` when a hold window
-  expires.
-
-LimitedHold relies on duck typing of these two attributes; any
-interval-family schedule that provides them can be wrapped.
+  reinforcer.
 
 References
 ----------
@@ -55,28 +55,27 @@ References
 from __future__ import annotations
 
 import random
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
+from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.helpers.fleshler_hoffman import generate_intervals
 from contingency.schedules._rust import (
     engine_name,
     fresh_seed,
-    random_source,
     require_core,
-    rust_or_none,
     rust_reset,
+    rust_schedule,
+    seed_of,
 )
 
 
 @runtime_checkable
 class _ArmableSchedule(Protocol):
-    """Internal protocol for interval schedules wrappable by LimitedHold.
+    """Internal protocol for a schedule outside this module wrappable by LimitedHold.
 
-    Concrete interval schedules (FI, VI, RI) expose these protected
-    hooks so that :class:`LimitedHold` can query / reset their armed
-    state without going through the public :class:`Schedule` API.
+    Such a schedule exposes these protected hooks so that
+    :class:`LimitedHold` can query / reset its armed state without going
+    through the public :class:`Schedule` API.
     """
 
     _arm_time: float
@@ -135,47 +134,21 @@ class FI:
                 f"interval must be > 0, got {interval!r}"
             )
         self._interval: float = float(interval)
-        self._arm_time: float = self._interval
-        self._last_now: float | None = None
-        self._rust_spec: dict[str, object] = {"type": "FI", "params": {"interval": self._interval}}
-        self._rust = rust_or_none(self._rust_spec)
+        self._rust_spec: dict[str, Any] = {"type": "FI", "params": {"interval": self._interval}}
+        self._rust = rust_schedule(self._rust_spec)
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(
         self, now: float, event: ResponseEvent | None = None
     ) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(now, self._last_now)
-        _check_event(now, event)
-        self._last_now = now
-
-        if event is None:
-            return Outcome()
-
-        if now + _TIME_TOL >= self._arm_time:
-            reinforcer = Reinforcer(time=now)
-            self._arm_time = now + self._interval
-            return Outcome(reinforced=True, reinforcer=reinforcer)
-
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._arm_time = self._interval
-        self._last_now = None
-
-    # --- LimitedHold hooks -------------------------------------------------
-
-    def _withdraw_and_rearm(self, now: float) -> None:
-        """Re-arm the schedule anchored at ``now`` without reinforcing."""
-        self._arm_time = now + self._interval
+        self._rust.reset()
 
 
 class VI:
@@ -184,7 +157,7 @@ class VI:
     Intervals are drawn from a shuffled Fleshler-Hoffman progression
     with arithmetic mean equal to ``mean_interval``. When the
     sequence is exhausted a fresh sequence is generated
-    deterministically from the internal RNG so that a single seed
+    deterministically from the schedule's seed so that a single seed
     pins the whole trajectory of the schedule.
 
     Parameters
@@ -194,7 +167,8 @@ class VI:
     n_intervals:
         Number of intervals per Fleshler-Hoffman cycle. Must be >= 1.
     seed:
-        Optional RNG seed for deterministic sequences.
+        Optional RNG seed for deterministic sequences. Without it every
+        :meth:`reset` draws a new sequence.
     """
 
     def __init__(
@@ -214,75 +188,26 @@ class VI:
         self._mean_interval: float = float(mean_interval)
         self._n_intervals: int = int(n_intervals)
         self._seed: int | None = seed
-        self._rng: random.Random = random.Random(seed)
-        self._sequence: list[float] = self._generate_sequence()
-        self._cursor: int = 1
-        self._arm_time: float = self._sequence[0]
-        self._last_now: float | None = None
         vi_params: dict[str, object] = {
             "mean_interval": self._mean_interval,
             "n_intervals": self._n_intervals,
         }
         vi_params["seed"] = seed if seed is not None else fresh_seed()
-        self._rust_spec: dict[str, object] = {"type": "VI", "params": vi_params}
-        self._rust = rust_or_none(self._rust_spec)
-
-    def _generate_sequence(self) -> list[float]:
-        # Derive a per-cycle seed from the master RNG so the full
-        # trajectory is deterministic given the constructor seed.
-        subseed = self._rng.getrandbits(64)
-        return generate_intervals(
-            self._mean_interval,
-            self._n_intervals,
-            seed=subseed,
-        )
-
-    def _next_interval(self) -> float:
-        if self._cursor >= len(self._sequence):
-            self._sequence = self._generate_sequence()
-            self._cursor = 0
-        value = self._sequence[self._cursor]
-        self._cursor += 1
-        return value
+        self._rust_spec: dict[str, Any] = {"type": "VI", "params": vi_params}
+        self._rust = rust_schedule(self._rust_spec)
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(
         self, now: float, event: ResponseEvent | None = None
     ) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(now, self._last_now)
-        _check_event(now, event)
-        self._last_now = now
-
-        if event is None:
-            return Outcome()
-
-        if now + _TIME_TOL >= self._arm_time:
-            reinforcer = Reinforcer(time=now)
-            self._arm_time = now + self._next_interval()
-            return Outcome(reinforced=True, reinforcer=reinforcer)
-
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust = rust_reset(self._rust, self._seed)
-            return
-        self._rng = random.Random(self._seed)
-        self._sequence = self._generate_sequence()
-        self._cursor = 1
-        self._arm_time = self._sequence[0]
-        self._last_now = None
-
-    # --- LimitedHold hooks -------------------------------------------------
-
-    def _withdraw_and_rearm(self, now: float) -> None:
-        self._arm_time = now + self._next_interval()
+        self._rust = rust_reset(self._rust, self._seed)
 
 
 class RI:
@@ -297,16 +222,16 @@ class RI:
     mean_interval:
         Mean of the exponential distribution. Must be > 0.
     rng:
-        Optional :class:`random.Random` used to draw intervals. When
-        ``None``, a freshly-seeded private RNG is used. The RNG's
-        state at construction is captured so that :meth:`reset`
-        restores bit-identical behaviour.
+        Optional :class:`random.Random`. The constructor draws one
+        63-bit seed from it (advancing it once) and the Rust engine
+        draws the intervals from that seed; the schedule does not use
+        ``rng`` again.
     seed:
         Optional RNG seed, an int in ``[0, 2**64)``. Draws the same
-        sequence as ``rng=random.Random(seed)``. Give ``rng`` or ``seed``,
-        not both. A caller-supplied ``rng`` runs the schedule in Python
-        (its state cannot be handed to the Rust engine); ``seed`` or
-        neither runs it on the Rust engine when it is installed.
+        sequence as ``rng=random.Random(seed)`` did when the schedule
+        ran in Python. Give ``rng`` or ``seed``, not both. With either,
+        :meth:`reset` restores bit-identical behaviour; with neither,
+        the seed is fresh.
     """
 
     def __init__(
@@ -321,54 +246,25 @@ class RI:
                 f"mean_interval must be > 0, got {mean_interval!r}"
             )
         self._mean_interval: float = float(mean_interval)
-        self._rng, rust_ok = random_source("RI", rng, seed)
-        self._initial_state = self._rng.getstate()
-        self._arm_time: float = self._draw_interval()
-        self._last_now: float | None = None
-        ri_params: dict[str, object] = {"mean_interval": self._mean_interval}
-        ri_params["seed"] = seed if seed is not None else fresh_seed()
-        self._rust_spec: dict[str, object] = {"type": "RI", "params": ri_params}
-        self._rust = rust_or_none(self._rust_spec) if rust_ok else None
-
-    def _draw_interval(self) -> float:
-        return self._rng.expovariate(1.0 / self._mean_interval)
+        ri_params: dict[str, object] = {
+            "mean_interval": self._mean_interval,
+            "seed": seed_of("RI", rng, seed),
+        }
+        self._rust_spec: dict[str, Any] = {"type": "RI", "params": ri_params}
+        self._rust = rust_schedule(self._rust_spec)
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(
         self, now: float, event: ResponseEvent | None = None
     ) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(now, self._last_now)
-        _check_event(now, event)
-        self._last_now = now
-
-        if event is None:
-            return Outcome()
-
-        if now + _TIME_TOL >= self._arm_time:
-            reinforcer = Reinforcer(time=now)
-            self._arm_time = now + self._draw_interval()
-            return Outcome(reinforced=True, reinforcer=reinforcer)
-
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._rng.setstate(self._initial_state)
-        self._arm_time = self._draw_interval()
-        self._last_now = None
-
-    # --- LimitedHold hooks -------------------------------------------------
-
-    def _withdraw_and_rearm(self, now: float) -> None:
-        self._arm_time = now + self._draw_interval()
+        self._rust.reset()
 
 
 class LimitedHold:
@@ -386,9 +282,9 @@ class LimitedHold:
     Parameters
     ----------
     inner:
-        An interval-family schedule providing ``_arm_time`` and
-        ``_withdraw_and_rearm(now)`` (FI, VI, or RI from this
-        module).
+        FI, VI or RI from this module (the LimitedHold then runs on the
+        Rust engine), or a schedule providing ``_arm_time`` and
+        ``_withdraw_and_rearm(now)`` (then it runs in Python).
     hold:
         Availability window for each reinforcement opportunity.
         Must be > 0.
@@ -407,24 +303,24 @@ class LimitedHold:
             raise ScheduleConfigError(
                 f"hold must be > 0, got {hold!r}"
             )
-        if not hasattr(inner, "_arm_time") or not hasattr(
-            inner, "_withdraw_and_rearm"
+        rust_inner = isinstance(inner, (FI, VI, RI))
+        if not rust_inner and (
+            not hasattr(inner, "_arm_time") or not hasattr(inner, "_withdraw_and_rearm")
         ):
             raise ScheduleConfigError(
-                "LimitedHold requires an interval-family schedule "
+                "LimitedHold requires FI, VI or RI, or a schedule "
                 "exposing _arm_time and _withdraw_and_rearm"
             )
         self._inner: _ArmableSchedule = inner
         self._hold: float = float(hold)
         self._last_now: float | None = None
-        inner_spec = getattr(inner, "_rust_spec", None)
         require_core()
         self._rust = (
-            None
-            if inner_spec is None or getattr(inner, "_rust", None) is None
-            else rust_or_none(
-                {"type": "LimitedHold", "params": {"inner": inner_spec, "hold": self._hold}}
+            rust_schedule(
+                {"type": "LimitedHold", "params": {"inner": inner._rust_spec, "hold": self._hold}}
             )
+            if isinstance(inner, (FI, VI, RI))
+            else None
         )
 
     def _expire_if_needed(self, now: float) -> None:
@@ -472,8 +368,8 @@ class LimitedHold:
             if isinstance(self._inner, VI) and self._inner._seed is None:
                 # An unseeded VI draws a new sequence on every reset.
                 inner_spec = dict(self._inner._rust_spec)
-                inner_spec["params"] = {**inner_spec["params"], "seed": fresh_seed()}  # type: ignore[dict-item]
-                self._rust = rust_or_none(
+                inner_spec["params"] = {**inner_spec["params"], "seed": fresh_seed()}
+                self._rust = rust_schedule(
                     {"type": "LimitedHold", "params": {"inner": inner_spec, "hold": self._hold}}
                 )
             else:

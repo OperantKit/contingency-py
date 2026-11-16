@@ -50,34 +50,15 @@ operant behavior* (pp. 201-232). Prentice-Hall.
 
 from __future__ import annotations
 
-from collections import deque
 from typing import Literal
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.schedules._rust import engine_name, rust_or_none
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
+from contingency.schedules._rust import rust_schedule
 
 __all__ = ["DRO", "DRL", "DRH"]
 
-_TIME_TOL = 1e-9
-
 _DROType = Literal["resetting", "momentary"]
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    """Raise :class:`ScheduleStateError` if ``now`` moves backwards."""
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    """Raise :class:`ScheduleStateError` if ``event.time`` disagrees with ``now``."""
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
 
 
 class DRO:
@@ -134,14 +115,7 @@ class DRO:
     operant behavior* (pp. 201-232). Prentice-Hall.
     """
 
-    __slots__ = (
-        "_interval",
-        "_type",
-        "_anchor",
-        "_has_response_in_window",
-        "_last_now",
-        "_rust",
-    )
+    __slots__ = ("_interval", "_type", "_rust")
 
     def __init__(
         self,
@@ -163,10 +137,7 @@ class DRO:
             )
         self._interval: float = float(interval)
         self._type: _DROType = dro_type
-        self._anchor: float | None = None
-        self._has_response_in_window: bool = False
-        self._last_now: float | None = None
-        self._rust = rust_or_none(
+        self._rust = rust_schedule(
             {"type": "DRO", "params": {"interval": self._interval, "dro_type": dro_type}}
         )
 
@@ -182,71 +153,14 @@ class DRO:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        # First step anchors the timer / interval_start at ``now``.
-        if self._anchor is None:
-            self._anchor = now
-            if event is not None:
-                # An event arriving on the anchor step starts the
-                # first window with a response already recorded (for
-                # the momentary variant) and also resets the resetting
-                # timer to ``now`` (which we just set).
-                self._has_response_in_window = True
-            return Outcome()
-
-        if self._type == "resetting":
-            return self._step_resetting(now, event)
-        return self._step_momentary(now, event)
-
-    def _step_resetting(
-        self, now: float, event: ResponseEvent | None
-    ) -> Outcome:
-        if event is not None:
-            # Any response resets the DRO timer. No reinforcement.
-            self._anchor = now
-            return Outcome()
-        if now - self._anchor + _TIME_TOL >= self._interval:  # type: ignore[operator]
-            self._anchor = now
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
-
-    def _step_momentary(
-        self, now: float, event: ResponseEvent | None
-    ) -> Outcome:
-        # Evaluate the boundary first, BEFORE recording the incoming
-        # event: the window [interval_start, now) is half-open, so a
-        # response timestamped at ``now`` belongs to the next window.
-        reinforced = False
-        if now - self._anchor + _TIME_TOL >= self._interval:  # type: ignore[operator]
-            if not self._has_response_in_window:
-                reinforced = True
-            # Advance to the next interval regardless of outcome; the
-            # in-window flag is reset because we are opening a fresh
-            # window anchored at ``now``.
-            self._anchor = now
-            self._has_response_in_window = False
-        if event is not None:
-            self._has_response_in_window = True
-        if reinforced:
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._anchor = None
-        self._has_response_in_window = False
-        self._last_now = None
+        self._rust.reset()
 
 
 class DRL:
@@ -283,7 +197,7 @@ class DRL:
     Behavior*, 7(3), 273-275. https://doi.org/10.1901/jeab.1964.7-273
     """
 
-    __slots__ = ("_interval", "_last_response_time", "_last_now", "_rust")
+    __slots__ = ("_interval", "_rust")
 
     def __init__(self, interval: float) -> None:
         if isinstance(interval, bool) or not isinstance(interval, (int, float)):
@@ -295,9 +209,7 @@ class DRL:
                 f"DRL requires interval > 0, got {interval}"
             )
         self._interval: float = float(interval)
-        self._last_response_time: float | None = None
-        self._last_now: float | None = None
-        self._rust = rust_or_none({"type": "DRL", "params": {"interval": self._interval}})
+        self._rust = rust_schedule({"type": "DRL", "params": {"interval": self._interval}})
 
     @property
     def interval(self) -> float:
@@ -306,31 +218,14 @@ class DRL:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-        if event is None:
-            return Outcome()
-        prev = self._last_response_time
-        # Always update the last-response bookmark; the IRT clock
-        # advances with every response regardless of reinforcement.
-        self._last_response_time = now
-        if prev is None or now - prev + _TIME_TOL >= self._interval:
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._last_response_time = None
-        self._last_now = None
+        self._rust.reset()
 
 
 class DRH:
@@ -356,7 +251,7 @@ class DRH:
 
     The window bound uses ``>=``: a response whose timestamp equals
     ``now - time_window`` is considered still within the window
-    (within ``_TIME_TOL``). This matches the intuitive reading "rate
+    (within a tolerance of ``1e-9``). This matches the intuitive reading "rate
     of at least ``response_count`` per ``time_window``".
 
     The deque is *not* emptied on reinforcement. DRH cares about
@@ -371,7 +266,7 @@ class DRH:
     reinforcement*. Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_response_count", "_time_window", "_window", "_last_now", "_rust")
+    __slots__ = ("_response_count", "_time_window", "_rust")
 
     def __init__(self, response_count: int, time_window: float) -> None:
         if isinstance(response_count, bool) or not isinstance(response_count, int):
@@ -394,9 +289,7 @@ class DRH:
             )
         self._response_count: int = response_count
         self._time_window: float = float(time_window)
-        self._window: deque[float] = deque()
-        self._last_now: float | None = None
-        self._rust = rust_or_none(
+        self._rust = rust_schedule(
             {
                 "type": "DRH",
                 "params": {"response_count": response_count, "time_window": self._time_window},
@@ -413,34 +306,13 @@ class DRH:
         """Duration of the sliding window."""
         return self._time_window
 
-    def _evict_old(self, now: float) -> None:
-        cutoff = now - self._time_window
-        w = self._window
-        while w and w[0] < cutoff - _TIME_TOL:
-            w.popleft()
-
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-        self._evict_old(now)
-        if event is None:
-            return Outcome()
-        self._window.append(now)
-        if len(self._window) >= self._response_count:
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._window.clear()
-        self._last_now = None
+        self._rust.reset()

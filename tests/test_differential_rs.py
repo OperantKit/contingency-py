@@ -17,6 +17,15 @@ sequence and compares every step without rounding:
 Known differences are listed in :data:`KNOWN_DIFFERENCES`; a listed entry
 that no longer produces a mismatch fails, so the list cannot go stale.
 
+The single schedule classes (ratio, interval, time-based, differential,
+Lag, adjusting, interlocking, aversive) have no Python implementation and
+ignore ``_FORCE_PYTHON``: a spec built only from them runs on the Rust
+engine on both sides, so it always agrees. The comparison checks the
+classes that still have a Python implementation (compounds over them,
+trial-based schedules, ProgressiveRatio and Percentile). Their former
+Python trajectories are pinned by the recorded traces under
+``tests/fixtures/single_schedule_traces/`` instead.
+
 The test runs once per outermost type (every type in
 ``contingency_core.SPEC_TYPES``) with ``DIFFERENTIAL_EXAMPLES / 37``
 examples each (at least 5; ``DIFFERENTIAL_EXAMPLES`` defaults to 200).

@@ -11,7 +11,8 @@ completed unit enters the comparison list, reinforced or not.
 reinforced; ticks without a response do nothing.
 
 On a single operandum every unit is the same, so ``Lag n`` with
-``n >= 1`` reinforces only the first unit.
+``n >= 1`` reinforces only the first unit. ``step`` and ``reset`` run
+on the Rust engine (``contingency_core``).
 
 References
 ----------
@@ -22,16 +23,13 @@ https://doi.org/10.1037/0097-7403.11.3.429
 
 from __future__ import annotations
 
-from collections import deque
 from typing import Any
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.schedules._rust import engine_name, rust_or_none
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
+from contingency.schedules._rust import rust_schedule
 
 __all__ = ["Lag"]
-
-_TIME_TOL = 1e-9
 
 #: Largest ``n`` and ``length`` accepted (the Rust engine's bound).
 LAG_MAX = 2**32 - 1
@@ -60,23 +58,20 @@ class Lag:
         Defaults to 1.
     """
 
-    __slots__ = ("_rust", "_n", "_length", "_current", "_history", "_last_now")
+    __slots__ = ("_rust", "_n", "_length")
 
     def __init__(self, n: int, length: int = 1) -> None:
         self._n: int = _check_int("n", n, 0)
         self._length: int = _check_int("length", length, 1)
-        self._current: list[str] = []
-        self._history: deque[tuple[str, ...]] = deque(maxlen=self._n)
-        self._last_now: float | None = None
-        self._rust: Any = rust_or_none(self._rust_spec())
+        self._rust: Any = rust_schedule(self._rust_spec())
 
     def _rust_spec(self) -> dict[str, Any]:
         return {"type": "Lag", "params": {"n": self._n, "length": self._length}}
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     @property
     def n(self) -> int:
@@ -89,36 +84,8 @@ class Lag:
         return self._length
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        if self._last_now is not None and now < self._last_now - _TIME_TOL:
-            raise ScheduleStateError(
-                f"Non-monotonic time: new now={now!r} precedes previous now={self._last_now!r}"
-            )
-        if event is not None and abs(event.time - now) > _TIME_TOL:
-            raise ScheduleStateError(
-                f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-            )
-        self._last_now = now
-        if event is None:
-            return Outcome()
-        self._current.append(event.operandum)
-        if len(self._current) < self._length:
-            return Outcome()
-        unit = tuple(self._current)
-        self._current = []
-        met = unit not in self._history
-        if self._n > 0:
-            self._history.append(unit)
-        if met:
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
         """Clear the current unit, the comparison list and the clock."""
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._current = []
-        self._history.clear()
-        self._last_now = None
+        self._rust.reset()

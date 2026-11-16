@@ -1,16 +1,22 @@
 """The aversive, adjusting, interlocking, percentile and trial-based
-schedule classes run on the Rust engine when it is installed.
+schedule classes run on the Rust engine.
 
-Each schedule is built twice from the same arguments: once with the Rust
-engine and once with the extension hidden (the Python implementation).
-Both must give the same outcomes, the same meta and the same public
-state on the same trajectory.
+The aversive, adjusting, interlocking and percentile classes have no
+Python implementation of their own: their trajectories are checked
+against traces recorded from the Python implementation they used to
+have (``fixtures/single_schedule_traces/remaining.json``). The
+trial-based classes are still built twice from the same arguments, once
+with the Rust engine and once with the Python implementation, and both
+must give the same outcomes, the same meta and the same public state on
+the same trajectory.
 """
 
 from __future__ import annotations
 
 import copy
+import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -130,6 +136,14 @@ CASES: list[tuple[str, Factory, tuple[str, ...], tuple[str, ...]]] = [
 
 IDS = [c[0] for c in CASES]
 
+_RECORDED: dict[str, list[Any]] = json.loads(
+    (Path(__file__).parent / "fixtures" / "single_schedule_traces" / "remaining.json").read_text(
+        encoding="utf-8"
+    )
+)
+RECORDED_CASES = [c for c in CASES if c[0] in _RECORDED]
+PYTHON_CASES = [c for c in CASES if c[0] not in _RECORDED]
+
 
 def _python(factory: Factory, monkeypatch: pytest.MonkeyPatch) -> Any:
     with monkeypatch.context() as m:
@@ -164,7 +178,36 @@ def test_schedule_runs_on_rust(
     assert factory().engine == "rust", name
 
 
-@pytest.mark.parametrize(("name", "factory", "operanda", "attrs"), CASES, ids=IDS)
+def _as_recorded(trace: list[Any]) -> list[Any]:
+    """``trace`` in the JSON shape of the recorded traces."""
+    return json.loads(
+        json.dumps(
+            [
+                [reinforced, None if r is None else list(r), meta, list(state)]
+                for reinforced, r, meta, state in trace
+            ]
+        )
+    )
+
+
+def test_every_recorded_trace_has_a_case() -> None:
+    assert sorted(_RECORDED) == sorted(c[0] for c in RECORDED_CASES)
+
+
+@pytest.mark.parametrize(
+    ("name", "factory", "operanda", "attrs"), RECORDED_CASES, ids=[c[0] for c in RECORDED_CASES]
+)
+def test_matches_the_recorded_trace(
+    name: str, factory: Factory, operanda: tuple[str, ...], attrs: tuple[str, ...]
+) -> None:
+    trace = _trace(factory(), operanda, attrs)
+    assert any(step[0] for step in trace), name
+    assert _as_recorded(trace) == _RECORDED[name], name
+
+
+@pytest.mark.parametrize(
+    ("name", "factory", "operanda", "attrs"), PYTHON_CASES, ids=[c[0] for c in PYTHON_CASES]
+)
 def test_rust_and_python_agree(
     name: str,
     factory: Factory,

@@ -9,10 +9,13 @@ report ``state()``; without it the constructor raises
 :class:`~contingency.errors.ScheduleConfigError` that says how to
 install it. ``import contingency`` and the DSL parsing do not need it.
 
-A few arguments still run in this package's Python implementation
-(a caller-supplied ``rng``, a custom ProgressiveRatio step function,
-compounds over components that run in Python). ``engine`` on each
-instance tells which one runs (``"rust"`` or ``"python"``).
+The single schedule classes (ratio, interval, time-based,
+differential, Lag, adjusting, interlocking, aversive) run only on the
+Rust engine. A few cases still run in this package's Python
+implementation (Percentile on a non-IRT target or at rank 0, a custom
+ProgressiveRatio step function, trial-based schedules and compounds over
+components that run in Python). ``engine`` on each instance tells which
+one runs (``"rust"`` or ``"python"``).
 """
 
 from __future__ import annotations
@@ -26,8 +29,10 @@ __all__ = [
     "core_too_old",
     "require_core",
     "rust_or_none",
+    "rust_schedule",
+    "rust_state_schedule",
     "engine_name",
-    "random_source",
+    "seed_of",
     "fresh_seed",
     "rust_reset",
     "spec_of",
@@ -41,7 +46,9 @@ __all__ = [
 _SEEDS = random.Random()
 
 # Tests set this to run the Python implementation that remains in the
-# schedule classes, to compare it with the Rust engine. Not public API.
+# compound, trial-based and progressive schedule classes, to compare it
+# with the Rust engine. The single schedule classes ignore it: they have
+# no Python implementation. Not public API.
 _FORCE_PYTHON = False
 
 _MISSING_CORE = (
@@ -90,12 +97,7 @@ def require_core() -> None:
     """
     if _FORCE_PYTHON:
         return
-    from contingency.engine import rust_engine_available
-
-    if not rust_engine_available():
-        raise ScheduleConfigError(_MISSING_CORE)
-    if not _core_has_state():
-        raise core_too_old("its schedules do not report state()")
+    _require_core_now()
 
 
 def rust_or_none(spec: dict[str, Any]) -> Any:
@@ -120,6 +122,80 @@ def rust_or_none(spec: dict[str, Any]) -> Any:
         raise ScheduleConfigError(f"the Rust engine rejected the {kind} spec: {exc}") from exc
 
 
+def rust_schedule(spec: dict[str, Any]) -> Any:
+    """Return the ``RustSchedule`` for ``spec``; the schedule has no other engine.
+
+    Unlike :func:`rust_or_none`, this ignores the test switch that runs
+    the Python implementations of compound schedules.
+
+    Raises
+    ------
+    ScheduleConfigError
+        Without a recent enough ``contingency_core`` (see
+        :func:`require_core`), and when the Rust engine rejects the spec.
+    """
+    _require_core_now()
+    from contingency.engine import from_spec
+
+    kind = spec.get("type", "?")
+    try:
+        return from_spec(spec)
+    except (ScheduleConfigError, ValueError, TypeError, OverflowError) as exc:
+        raise ScheduleConfigError(f"the Rust engine rejected the {kind} spec: {exc}") from exc
+
+
+def rust_state_schedule(spec: dict[str, Any], *state_keys: str) -> Any:
+    """:func:`rust_schedule` for a schedule whose public attributes read ``state()``.
+
+    Raises :class:`ScheduleConfigError` when the installed
+    ``contingency_core`` does not report ``state()`` or lacks one of
+    ``state_keys`` in it right after construction.
+    """
+    rust = rust_schedule(spec)
+    if not rust.has_state():
+        raise core_too_old("its schedules do not report state()")
+    state = rust.state()
+    for key in state_keys:
+        if key not in state:
+            raise core_too_old(f"the state() of {spec.get('type', '?')} has no {key!r}")
+    return rust
+
+
+def seed_of(kind: str, rng: random.Random | None, seed: int | None) -> int:
+    """Resolve the ``rng`` / ``seed`` arguments of RR, RI and RT to a Rust seed.
+
+    ``seed`` is used as given. A caller-supplied ``rng`` gives a 63-bit
+    seed drawn from it (one draw, which advances ``rng``). Neither gives
+    a fresh seed. Raises :class:`ScheduleConfigError` without
+    ``contingency_core``, for a non-int ``seed`` and for both together.
+    """
+    _require_core_now()
+    if seed is not None:
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise ScheduleConfigError(f"{kind} requires an int seed, got {type(seed).__name__}")
+        if rng is not None:
+            raise ScheduleConfigError(f"{kind} takes rng or seed, not both")
+        return seed
+    if rng is not None:
+        draw = getattr(rng, "getrandbits", None)
+        if not callable(draw):
+            raise ScheduleConfigError(
+                f"{kind} requires rng to be a random.Random, got {type(rng).__name__}"
+            )
+        return int(draw(63))
+    return fresh_seed()
+
+
+def _require_core_now() -> None:
+    """:func:`require_core` without the test switch."""
+    from contingency.engine import rust_engine_available
+
+    if not rust_engine_available():
+        raise ScheduleConfigError(_MISSING_CORE)
+    if not _core_has_state():
+        raise core_too_old("its schedules do not report state()")
+
+
 def fresh_seed() -> int:
     """A seed for the Rust engine when the caller gave none.
 
@@ -134,29 +210,6 @@ def engine_name(rust: Any) -> str:
     return "python" if rust is None else "rust"
 
 
-def random_source(
-    kind: str, rng: random.Random | None, seed: int | None
-) -> tuple[random.Random, bool]:
-    """Resolve the ``rng`` / ``seed`` arguments of RR, RI and RT.
-
-    Returns the Python RNG of the fallback implementation and whether
-    the Rust engine may run the schedule. A caller-supplied ``rng`` keeps
-    the schedule in Python: its state cannot be handed to the Rust
-    engine. ``seed`` draws the same sequence as ``rng=random.Random(seed)``.
-    Raises :class:`ScheduleConfigError` without ``contingency_core``.
-    """
-    require_core()
-    if seed is not None:
-        if isinstance(seed, bool) or not isinstance(seed, int):
-            raise ScheduleConfigError(f"{kind} requires an int seed, got {type(seed).__name__}")
-        if rng is not None:
-            raise ScheduleConfigError(f"{kind} takes rng or seed, not both")
-        return random.Random(seed), True
-    if rng is not None:
-        return rng, False
-    return random.Random(), True
-
-
 def rust_reset(rust: Any, seed: int | None) -> Any:
     """Reset a Rust-run VR / VI / VT; return the schedule to keep.
 
@@ -168,7 +221,7 @@ def rust_reset(rust: Any, seed: int | None) -> Any:
         rust.reset()
         return rust
     spec = rust._spec
-    return rust_or_none({"type": spec["type"], "params": {**spec["params"], "seed": fresh_seed()}})
+    return rust_schedule({"type": spec["type"], "params": {**spec["params"], "seed": fresh_seed()}})
 
 
 def spec_of(schedule: Any) -> dict[str, Any] | None:

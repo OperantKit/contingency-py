@@ -49,28 +49,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.schedules._rust import engine_name, rust_compound
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
+from contingency.schedules._rust import rust_state_schedule
 
 __all__ = ["Sidman", "DiscriminatedAvoidance", "Escape"]
-
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
 
 
 def _validate_positive(name: str, value: float) -> float:
@@ -126,8 +109,6 @@ class Sidman:
         "_ssi",
         "_rsi",
         "_magnitude",
-        "_next_shock_time",
-        "_last_now",
     )
 
     def __init__(
@@ -143,9 +124,7 @@ class Sidman:
             "response_shock_interval", response_shock_interval
         )
         self._magnitude: float = _validate_magnitude(shock_magnitude)
-        self._next_shock_time: float = self._ssi
-        self._last_now: float | None = None
-        self._rust: Any = rust_compound(self._rust_spec(), state_key="next_shock_time")
+        self._rust: Any = rust_state_schedule(self._rust_spec(), "next_shock_time")
 
 
     def _rust_spec(self) -> dict[str, Any]:
@@ -160,8 +139,8 @@ class Sidman:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     @property
     def shock_shock_interval(self) -> float:
@@ -177,45 +156,13 @@ class Sidman:
 
     @property
     def next_shock_time(self) -> float:
-        if self._rust is not None:
-            return float(self._rust.state()["next_shock_time"])
-        return self._next_shock_time
+        return float(self._rust.state()["next_shock_time"])
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        # Response override: postpone next shock by R-S interval.
-        if event is not None:
-            self._next_shock_time = now + self._rsi
-
-        # Fire shock if time has reached / exceeded next_shock_time.
-        if now + _TIME_TOL >= self._next_shock_time:
-            # After a shock, schedule next shock using S-S, unless the
-            # response at this tick already shifted it later (R-S > S-S).
-            new_next = now + self._ssi
-            if event is not None:
-                # The R-S clock starts fresh at the shock time.
-                new_next = now + self._rsi
-            self._next_shock_time = new_next
-            return Outcome(
-                reinforced=True,
-                reinforcer=Reinforcer(
-                    time=now, magnitude=-self._magnitude, label="SR-"
-                ),
-                meta={"aversive_event": "shock"},
-            )
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._next_shock_time = self._ssi
-        self._last_now = None
+        self._rust.reset()
 
 
 class DiscriminatedAvoidance:
@@ -247,9 +194,6 @@ class DiscriminatedAvoidance:
         "_warning_duration",
         "_iti",
         "_magnitude",
-        "_phase",
-        "_phase_end",
-        "_last_now",
     )
 
     def __init__(
@@ -263,10 +207,7 @@ class DiscriminatedAvoidance:
         )
         self._iti: float = _validate_positive("iti", iti)
         self._magnitude: float = _validate_magnitude(shock_magnitude)
-        self._phase: str = "iti"
-        self._phase_end: float = self._iti
-        self._last_now: float | None = None
-        self._rust: Any = rust_compound(self._rust_spec(), state_key="phase")
+        self._rust: Any = rust_state_schedule(self._rust_spec(), "phase")
 
 
     def _rust_spec(self) -> dict[str, Any]:
@@ -281,8 +222,8 @@ class DiscriminatedAvoidance:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     @property
     def warning_duration(self) -> float:
@@ -298,66 +239,13 @@ class DiscriminatedAvoidance:
 
     @property
     def phase(self) -> str:
-        if self._rust is not None:
-            return str(self._rust.state()["phase"])
-        return self._phase
+        return str(self._rust.state()["phase"])
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        # ITI phase: transition to warning when elapsed.
-        if self._phase == "iti":
-            if now + _TIME_TOL >= self._phase_end:
-                self._phase = "warning"
-                self._phase_end = now + self._warning_duration
-                # Fall through to warning handling below.
-            else:
-                return Outcome(meta={"phase": "iti"})
-
-        # Warning phase: response avoids, timeout yields shock.
-        if self._phase == "warning":
-            if event is not None:
-                # Avoidance: terminate warning, enter ITI.
-                self._phase = "iti"
-                self._phase_end = now + self._iti
-                return Outcome(
-                    meta={
-                        "phase": "warning",
-                        "aversive_event": "avoidance",
-                        "trial_outcome": "avoid",
-                    }
-                )
-            if now + _TIME_TOL >= self._phase_end:
-                # Shock delivery.
-                self._phase = "iti"
-                self._phase_end = now + self._iti
-                return Outcome(
-                    reinforced=True,
-                    reinforcer=Reinforcer(
-                        time=now, magnitude=-self._magnitude, label="SR-"
-                    ),
-                    meta={
-                        "phase": "warning",
-                        "aversive_event": "shock",
-                        "trial_outcome": "shock",
-                    },
-                )
-            return Outcome(meta={"phase": "warning"})
-
-        # Defensive: unknown phase.
-        raise ScheduleStateError(f"unknown phase: {self._phase!r}")
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._phase = "iti"
-        self._phase_end = self._iti
-        self._last_now = None
+        self._rust.reset()
 
 
 class Escape:
@@ -392,10 +280,6 @@ class Escape:
         "_trial_duration",
         "_iti",
         "_magnitude",
-        "_phase",
-        "_phase_end",
-        "_shock_onset_emitted",
-        "_last_now",
     )
 
     def __init__(
@@ -409,12 +293,8 @@ class Escape:
         )
         self._iti: float = _validate_positive("iti", iti)
         self._magnitude: float = _validate_magnitude(shock_magnitude)
-        # Start in shock phase at construction: trial begins immediately.
-        self._phase: str = "shock"
-        self._phase_end: float = self._trial_duration
-        self._shock_onset_emitted: bool = False
-        self._last_now: float | None = None
-        self._rust: Any = rust_compound(self._rust_spec(), state_key="phase")
+        # The trial begins in the shock phase at construction.
+        self._rust: Any = rust_state_schedule(self._rust_spec(), "phase")
 
 
     def _rust_spec(self) -> dict[str, Any]:
@@ -429,8 +309,8 @@ class Escape:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     @property
     def trial_duration(self) -> float:
@@ -446,74 +326,10 @@ class Escape:
 
     @property
     def phase(self) -> str:
-        if self._rust is not None:
-            return str(self._rust.state()["phase"])
-        return self._phase
+        return str(self._rust.state()["phase"])
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        if self._phase == "iti":
-            if now + _TIME_TOL >= self._phase_end:
-                # Start new trial with shock on.
-                self._phase = "shock"
-                self._phase_end = now + self._trial_duration
-                self._shock_onset_emitted = False
-                # Fall through to shock handling.
-            else:
-                return Outcome(meta={"phase": "iti"})
-
-        if self._phase == "shock":
-            # Response terminates shock.
-            if event is not None:
-                self._phase = "iti"
-                self._phase_end = now + self._iti
-                self._shock_onset_emitted = False
-                return Outcome(
-                    meta={
-                        "phase": "shock",
-                        "aversive_event": "shock_termination",
-                        "trial_outcome": "escape",
-                    }
-                )
-            # Trial timeout: shock ends without escape.
-            if now + _TIME_TOL >= self._phase_end:
-                self._phase = "iti"
-                self._phase_end = now + self._iti
-                self._shock_onset_emitted = False
-                return Outcome(
-                    meta={
-                        "phase": "shock",
-                        "aversive_event": "trial_end",
-                        "trial_outcome": "failed",
-                    }
-                )
-            # Continuous shock tick.
-            is_onset = not self._shock_onset_emitted
-            self._shock_onset_emitted = True
-            event_label = "shock_onset" if is_onset else "shock"
-            return Outcome(
-                reinforced=True,
-                reinforcer=Reinforcer(
-                    time=now, magnitude=-self._magnitude, label="SR-"
-                ),
-                meta={
-                    "phase": "shock",
-                    "aversive_event": event_label,
-                },
-            )
-
-        raise ScheduleStateError(f"unknown phase: {self._phase!r}")
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._phase = "shock"
-        self._phase_end = self._trial_duration
-        self._shock_onset_emitted = False
-        self._last_now = None
+        self._rust.reset()

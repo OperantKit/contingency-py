@@ -97,7 +97,7 @@ def test_deepcopy_keeps_the_state() -> None:
     assert schedule.step(3.0, ResponseEvent(time=3.0)).reinforced
 
 
-def test_random_schedules_with_a_seed_run_on_rust_and_match_the_python_rng() -> None:
+def test_random_schedules_with_an_rng_run_on_rust_with_a_seed_drawn_from_it() -> None:
     import random
 
     for make in (
@@ -105,11 +105,24 @@ def test_random_schedules_with_a_seed_run_on_rust_and_match_the_python_rng() -> 
         lambda **kw: RI(2.0, **kw),
         lambda **kw: RT(2.0, **kw),
     ):
-        seeded = make(seed=7)
-        python = make(rng=random.Random(7))
-        assert seeded.engine == "rust"
-        assert python.engine == "python"
-        assert _trace(seeded) == _trace(python)
+        rng = random.Random(7)
+        from_rng = make(rng=rng)
+        assert from_rng.engine == "rust"
+        # One 63-bit draw, which advances the caller's rng once.
+        expected = random.Random(7)
+        seed = expected.getrandbits(63)
+        assert rng.getstate() == expected.getstate()
+        first = _trace(from_rng)
+        assert first == _trace(make(seed=seed))
+        from_rng.reset()
+        assert _trace(from_rng) == first
+
+
+def test_random_schedules_reject_an_rng_without_getrandbits() -> None:
+    from contingency.errors import ScheduleConfigError
+
+    with pytest.raises(ScheduleConfigError, match="random.Random"):
+        RR(0.5, rng=object())  # type: ignore[arg-type]
 
 
 def test_random_schedules_reject_rng_with_seed() -> None:

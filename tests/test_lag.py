@@ -1,4 +1,4 @@
-"""Lag schedule: the Python class, its Rust engine, and the DSL bridge.
+"""Lag schedule: the class (run on the Rust engine) and the DSL bridge.
 
 A unit is ``length`` consecutive responses read as their operanda; units
 do not overlap. At the end of a unit the schedule reinforces iff the unit
@@ -13,7 +13,6 @@ from typing import Any
 import pytest
 from contingency_dsl import parse
 
-import contingency.schedules._rust as _rust
 from contingency import ResponseEvent
 from contingency.bridge import from_dsl, to_spec
 from contingency.engine import RustSchedule, from_spec, rust_engine_available
@@ -33,14 +32,6 @@ def _run(schedule: Any, ops: list[str]) -> list[bool]:
     return out
 
 
-def _python_lag(monkeypatch: pytest.MonkeyPatch, n: int, length: int = 1) -> Lag:
-    with monkeypatch.context() as m:
-        m.setattr(_rust, "_FORCE_PYTHON", True)
-        lag = Lag(n, length=length)
-    assert lag.engine == "python"
-    return lag
-
-
 _CASES = [
     (1, 1, ["L", "R", "R", "L"], [True, True, False, True]),
     (2, 1, ["L", "L", "R", "L"], [True, False, True, False]),
@@ -56,14 +47,6 @@ _CASES = [
 ]
 
 
-@pytest.mark.unit
-@pytest.mark.parametrize(("n", "length", "ops", "expected"), _CASES)
-def test_python_implementation(
-    monkeypatch: pytest.MonkeyPatch, n: int, length: int, ops: list[str], expected: list[bool]
-) -> None:
-    assert _run(_python_lag(monkeypatch, n, length), ops) == expected
-
-
 @requires_rust
 @pytest.mark.unit
 @pytest.mark.parametrize(("n", "length", "ops", "expected"), _CASES)
@@ -74,9 +57,10 @@ def test_rust_engine(n: int, length: int, ops: list[str], expected: list[bool]) 
     assert _run(from_spec({"type": "Lag", "params": {"n": n, "length": length}}), ops) == expected
 
 
+@requires_rust
 @pytest.mark.unit
-def test_python_reset_ticks_and_time(monkeypatch: pytest.MonkeyPatch) -> None:
-    lag = _python_lag(monkeypatch, 1)
+def test_reset_ticks_and_time() -> None:
+    lag = Lag(1)
     assert not lag.step(0.5).reinforced
     assert lag.step(1.0, ResponseEvent(1.0, "L")).reinforced
     assert not lag.step(2.0, ResponseEvent(2.0, "L")).reinforced

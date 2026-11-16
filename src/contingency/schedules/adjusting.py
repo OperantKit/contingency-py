@@ -13,6 +13,7 @@ moves *up* after a reinforcement, bounded by optional
 which the sign of the step depends on the subject's choice between
 concurrent alternatives) are deferred to experiment-level logic.
 
+``step`` and ``reset`` run on the Rust engine (``contingency_core``).
 The runtime supports two targets:
 
 * ``target="ratio"`` — the schedule behaves like an ``FR`` whose
@@ -41,32 +42,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.schedules._rust import engine_name, rust_compound
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
+from contingency.schedules._rust import rust_state_schedule
 
 __all__ = ["AdjustingSchedule"]
-
-_TIME_TOL = 1e-9
 
 _SUPPORTED_TARGETS: frozenset[str] = frozenset({"ratio", "interval"})
 _KNOWN_TARGETS: frozenset[str] = frozenset(
     {"ratio", "interval", "delay", "amount"}
 )
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
 
 
 class AdjustingSchedule:
@@ -127,10 +112,6 @@ class AdjustingSchedule:
         "_step",
         "_min",
         "_max",
-        "_current",
-        "_count",
-        "_anchor",
-        "_last_now",
     )
 
     def __init__(
@@ -204,15 +185,9 @@ class AdjustingSchedule:
         self._step: float = float(step)
         self._min: float | None = float(minimum) if minimum is not None else None
         self._max: float | None = float(maximum) if maximum is not None else None
-        # Ensure the initial current value satisfies the clamp bounds
-        # even if the caller's start sits just outside them. This makes
-        # the reset contract ``current_value == clamp(start)``.
-        self._current: float = self._clamp(start_f)
-        self._count: int = 0
-        self._anchor: float | None = None
-        self._last_now: float | None = None
-        self._rust: Any = rust_compound(self._rust_spec(), state_key="current_value")
-
+        # The engine starts ``current_value`` at ``start`` clamped into
+        # the bounds, and returns to it on reset.
+        self._rust: Any = rust_state_schedule(self._rust_spec(), "current_value")
 
     def _rust_spec(self) -> dict[str, Any]:
         params: dict[str, Any] = {
@@ -228,8 +203,8 @@ class AdjustingSchedule:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     # --- Properties -------------------------------------------------------
 
@@ -261,70 +236,12 @@ class AdjustingSchedule:
     @property
     def current_value(self) -> float:
         """The current (clamped) value of the adjusted parameter."""
-        if self._rust is not None:
-            return float(self._rust.state()["current_value"])
-        return self._current
+        return float(self._rust.state()["current_value"])
 
     # --- Schedule protocol -----------------------------------------------
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        if self._target == "ratio":
-            return self._step_ratio(now, event)
-        # target == "interval"
-        return self._step_interval(now, event)
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._current = self._clamp(self._start)
-        self._count = 0
-        self._anchor = None
-        self._last_now = None
-
-    # --- Internals --------------------------------------------------------
-
-    def _clamp(self, value: float) -> float:
-        if self._min is not None and value < self._min:
-            value = self._min
-        if self._max is not None and value > self._max:
-            value = self._max
-        return value
-
-    def _advance(self) -> None:
-        self._current = self._clamp(self._current + self._step)
-
-    def _step_ratio(
-        self, now: float, event: ResponseEvent | None
-    ) -> Outcome:
-        if event is None:
-            return Outcome()
-        requirement = max(1, int(round(self._current)))
-        self._count += 1
-        if self._count >= requirement:
-            self._count = 0
-            self._advance()
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
-
-    def _step_interval(
-        self, now: float, event: ResponseEvent | None
-    ) -> Outcome:
-        # Anchor on the first step so the first interval is measured
-        # from the caller's initial clock, not from a hard-coded t=0.
-        if self._anchor is None:
-            self._anchor = now
-        if event is None:
-            return Outcome()
-        elapsed = now - self._anchor
-        if elapsed + _TIME_TOL >= self._current:
-            self._anchor = now
-            self._advance()
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        self._rust.reset()

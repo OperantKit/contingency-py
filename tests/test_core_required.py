@@ -149,13 +149,11 @@ def test_a_spec_the_rust_engine_rejects_raises_instead_of_running_in_python() ->
 
 
 @_needs_core
-def test_with_the_extension_every_factory_runs_on_rust_or_in_python_as_before() -> None:
-    # The Python branches stay for now: a custom PR step function and a
-    # caller-supplied rng still run in Python when the extension is present.
+def test_with_the_extension_every_factory_runs_on_rust_but_a_custom_pr_step() -> None:
+    # A custom ProgressiveRatio step function still runs in Python; a
+    # caller-supplied rng gives the Rust engine a seed drawn from it.
     engines = {name: factory().engine for name, factory in FACTORIES}
     assert engines.pop("PR custom step") == "python"
-    for name in ("RR rng", "RI", "RT"):
-        assert engines.pop(name) == "python"
     assert set(engines.values()) == {"rust"}
 
 

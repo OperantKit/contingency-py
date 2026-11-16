@@ -97,7 +97,6 @@ from typing import Any
 import pytest
 
 from contingency.conformance import fixtures_dir
-from contingency.conformance.spec import build_schedule_from_spec
 from contingency.helpers.fleshler_hoffman import (
     _fh_progression,
     generate_intervals_hantula1991,
@@ -205,17 +204,20 @@ def swift_control_driver(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return _build_driver(tmp_path_factory.mktemp("swift-control"), [COMPAT_PATCH, CONTROL_PATCH])
 
 
-def _variable_sequence(spec: dict[str, Any]) -> list[float]:
-    """Requirements ``contingency-py`` draws for the spec, in order."""
-    schedule: Any = build_schedule_from_spec(spec)
-    values = list(schedule._sequence)
-    for _ in range(INJECTED_CYCLES - 1):
-        if spec["type"] == "VI":
-            values += schedule._generate_sequence()
-        else:
-            schedule._reload_sequence()
-            values += list(schedule._sequence)
-    return [float(v) for v in values]
+#: The requirements the Python implementation of VI / VR / VT drew for
+#: each fixture's seed, ``INJECTED_CYCLES`` Fleshler-Hoffman cycles in
+#: order (recorded before the classes moved to the Rust engine).
+_RECORDED_SEQUENCES: dict[str, list[float]] = json.loads(
+    (Path(__file__).parent / "fixtures" / "single_schedule_traces" / "variable_sequences.json")
+    .read_text(encoding="utf-8")
+)
+
+
+def _variable_sequence(rel: str) -> list[float]:
+    """Requirements ``contingency-py`` draws for the fixture, in order."""
+    values = _RECORDED_SEQUENCES[rel]
+    assert len(values) == INJECTED_CYCLES * 12, rel
+    return list(values)
 
 
 @pytest.fixture(scope="module")
@@ -225,7 +227,7 @@ def injected_corpus(tmp_path_factory: pytest.TempPathFactory) -> Path:
     for rel in VARIABLE:
         doc = json.loads((fixtures_dir() / rel).read_text(encoding="utf-8"))
         spec = doc["schedule"]
-        values = _variable_sequence(spec)
+        values = _variable_sequence(rel)
         reinforcers = sum(1 for s in doc["steps"] if s["expect"]["reinforced"])
         # The Swift list wraps around; it must outlast the fixture.
         assert reinforcers < len(values), (rel, reinforcers, len(values))

@@ -17,7 +17,9 @@ All three time-based schedules are **response-independent**: they
 ignore the ``event`` argument to :meth:`step` for the purposes of the
 reinforcement decision. The event, if supplied, is still validated to
 have the same timestamp as ``now`` (consistent contract across the
-schedule family).
+schedule family). ``step`` and ``reset`` run on the Rust engine
+(``contingency_core``); the classes validate their arguments and keep
+their parameters.
 
 Single-fire per step
 --------------------
@@ -53,37 +55,16 @@ from __future__ import annotations
 
 import random
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.helpers.fleshler_hoffman import generate_intervals
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
 from contingency.schedules._rust import (
-    engine_name,
     fresh_seed,
-    random_source,
-    rust_or_none,
     rust_reset,
+    rust_schedule,
+    seed_of,
 )
 
 __all__ = ["FT", "VT", "RT", "EXT"]
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    """Raise :class:`ScheduleStateError` if ``now`` moves backwards."""
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    """Raise :class:`ScheduleStateError` if ``event.time`` disagrees with ``now``."""
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
-
 
 class FT:
     """Fixed-Time schedule: a reinforcer every ``interval`` time units.
@@ -101,9 +82,9 @@ class FT:
     ``event`` argument to :meth:`step` is ignored for the purpose of
     the decision, though its timestamp is still validated.
 
-    At construction the internal ``last_reinforcement_time`` is
-    ``None``. The first reinforcer fires on the first :meth:`step`
-    whose ``now`` is ``>= interval`` of the first step; equivalently,
+    At construction the ``last_reinforcement_time`` is unset. The
+    first reinforcer fires on the first :meth:`step` whose ``now`` is
+    ``>= interval`` of the first step; equivalently,
     the first step anchors ``t = 0`` on the schedule's internal clock.
 
     If the caller steps late — ``now`` has advanced by more than one
@@ -126,7 +107,7 @@ class FT:
     https://doi.org/10.1901/jeab.1968.11-405
     """
 
-    __slots__ = ("_interval", "_anchor", "_last_now", "_rust")
+    __slots__ = ("_interval", "_rust")
 
     def __init__(self, interval: float) -> None:
         if isinstance(interval, bool) or not isinstance(interval, (int, float)):
@@ -136,9 +117,7 @@ class FT:
         if interval <= 0:
             raise ScheduleConfigError(f"FT requires interval > 0, got {interval}")
         self._interval: float = float(interval)
-        self._anchor: float | None = None
-        self._last_now: float | None = None
-        self._rust = rust_or_none({"type": "FT", "params": {"interval": self._interval}})
+        self._rust = rust_schedule({"type": "FT", "params": {"interval": self._interval}})
 
     @property
     def interval(self) -> float:
@@ -147,29 +126,14 @@ class FT:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-        if self._anchor is None:
-            self._anchor = now
-            return Outcome()
-        if now - self._anchor + _TIME_TOL >= self._interval:
-            self._anchor = now
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._anchor = None
-        self._last_now = None
+        self._rust.reset()
 
 
 class VT:
@@ -183,7 +147,8 @@ class VT:
         Number of intervals generated per cycle. Defaults to 12.
     seed:
         Optional RNG seed for deterministic sequences. When supplied,
-        :meth:`reset` restores the original sequence bit-identically.
+        :meth:`reset` restores the original sequence bit-identically;
+        without it every :meth:`reset` draws a new sequence.
 
     Notes
     -----
@@ -193,8 +158,8 @@ class VT:
     The first interval becomes the current requirement. When
     ``now - anchor`` reaches that requirement a reinforcer is emitted,
     the cursor advances, and the next interval becomes the requirement.
-    When the pool is exhausted, a fresh pool is generated using a
-    sub-seed drawn from the internal RNG, preserving determinism.
+    When the pool is exhausted, a fresh pool is generated from the
+    schedule's seed, preserving determinism.
 
     The first call to :meth:`step` anchors the schedule's clock at
     ``now``; the first reinforcer therefore fires after one interval
@@ -215,18 +180,7 @@ class VT:
     https://doi.org/10.1901/jeab.1968.11-405
     """
 
-    __slots__ = (
-        "_mean",
-        "_n_intervals",
-        "_seed",
-        "_rng",
-        "_sequence",
-        "_cursor",
-        "_requirement",
-        "_anchor",
-        "_last_now",
-        "_rust",
-    )
+    __slots__ = ("_mean", "_n_intervals", "_seed", "_rust")
 
     def __init__(
         self,
@@ -253,16 +207,9 @@ class VT:
         self._mean: float = float(mean_interval)
         self._n_intervals: int = n_intervals
         self._seed: int | None = seed
-        self._rng: random.Random = random.Random(seed)
-        self._sequence: list[float] = []
-        self._cursor: int = 0
-        self._requirement: float = 0.0
-        self._anchor: float | None = None
-        self._last_now: float | None = None
-        self._reload_sequence()
         params: dict[str, object] = {"mean_interval": self._mean, "n_intervals": n_intervals}
         params["seed"] = seed if seed is not None else fresh_seed()
-        self._rust = rust_or_none({"type": "VT", "params": params})
+        self._rust = rust_schedule({"type": "VT", "params": params})
 
     @property
     def mean_interval(self) -> float:
@@ -272,52 +219,16 @@ class VT:
     def n_intervals(self) -> int:
         return self._n_intervals
 
-    def _next_sub_seed(self) -> int:
-        return self._rng.randrange(0, 2**31 - 1)
-
-    def _reload_sequence(self) -> None:
-        sub_seed = self._next_sub_seed()
-        self._sequence = generate_intervals(
-            self._mean, n=self._n_intervals, seed=sub_seed
-        )
-        self._cursor = 0
-        self._requirement = self._sequence[0]
-
-    def _advance_requirement(self) -> None:
-        self._cursor += 1
-        if self._cursor >= len(self._sequence):
-            self._reload_sequence()
-        else:
-            self._requirement = self._sequence[self._cursor]
-
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-        if self._anchor is None:
-            self._anchor = now
-            return Outcome()
-        if now - self._anchor + _TIME_TOL >= self._requirement:
-            self._anchor = now
-            self._advance_requirement()
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust = rust_reset(self._rust, self._seed)
-            return
-        self._rng = random.Random(self._seed)
-        self._anchor = None
-        self._last_now = None
-        self._reload_sequence()
+        self._rust = rust_reset(self._rust, self._seed)
 
 
 class RT:
@@ -329,15 +240,16 @@ class RT:
         The mean of the exponential distribution from which
         inter-reinforcer intervals are drawn. Must be ``> 0``.
     rng:
-        Optional :class:`random.Random`. If ``None``, a fresh unseeded
-        RNG is used. A state snapshot is captured at construction so
-        :meth:`reset` returns to the original draw sequence.
+        Optional :class:`random.Random`. The constructor draws one
+        63-bit seed from it (advancing it once) and the Rust engine
+        draws the intervals from that seed; the schedule does not use
+        ``rng`` again.
     seed:
         Optional RNG seed, an int in ``[0, 2**64)``. Draws the same
-        sequence as ``rng=random.Random(seed)``. Give ``rng`` or ``seed``,
-        not both. A caller-supplied ``rng`` runs the schedule in Python
-        (its state cannot be handed to the Rust engine); ``seed`` or
-        neither runs it on the Rust engine when it is installed.
+        sequence as ``rng=random.Random(seed)`` did when the schedule
+        ran in Python. Give ``rng`` or ``seed``, not both. With either,
+        :meth:`reset` returns to the original draw sequence; with
+        neither, the seed is fresh.
 
     Notes
     -----
@@ -361,15 +273,7 @@ class RT:
     11(3, Pt. 2), 327-383. https://doi.org/10.1901/jeab.1968.11-s327
     """
 
-    __slots__ = (
-        "_mean",
-        "_initial_state",
-        "_rng",
-        "_requirement",
-        "_anchor",
-        "_last_now",
-        "_rust",
-    )
+    __slots__ = ("_mean", "_rust")
 
     def __init__(
         self,
@@ -387,50 +291,23 @@ class RT:
                 f"RT requires mean_interval > 0, got {mean_interval}"
             )
         self._mean: float = float(mean_interval)
-        self._rng, rust_ok = random_source("RT", rng, seed)
-        self._initial_state = self._rng.getstate()
-        self._requirement: float = self._rng.expovariate(1.0 / self._mean)
-        self._anchor: float | None = None
-        self._last_now: float | None = None
-        params: dict[str, object] = {"mean_interval": self._mean}
-        params["seed"] = seed if seed is not None else fresh_seed()
-        self._rust = rust_or_none({"type": "RT", "params": params}) if rust_ok else None
+        params: dict[str, object] = {"mean_interval": self._mean, "seed": seed_of("RT", rng, seed)}
+        self._rust = rust_schedule({"type": "RT", "params": params})
 
     @property
     def mean_interval(self) -> float:
         return self._mean
 
-    def _draw_requirement(self) -> None:
-        self._requirement = self._rng.expovariate(1.0 / self._mean)
-
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-        if self._anchor is None:
-            self._anchor = now
-            return Outcome()
-        if now - self._anchor + _TIME_TOL >= self._requirement:
-            self._anchor = now
-            self._draw_requirement()
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._rng.setstate(self._initial_state)
-        self._requirement = self._rng.expovariate(1.0 / self._mean)
-        self._anchor = None
-        self._last_now = None
+        self._rust.reset()
 
 
 class EXT:
@@ -444,8 +321,9 @@ class EXT:
     -----
     EXT is stateless — :meth:`step` always returns an un-reinforced
     :class:`Outcome`, regardless of ``now``, ``event``, or how often it
-    is called. The only dynamic state is ``_last_now``, retained solely
-    to enforce the monotonic-time contract shared by all schedules.
+    is called. The only dynamic state is the last ``now``, retained
+    solely to enforce the monotonic-time contract shared by all
+    schedules.
 
     :meth:`reset` clears that retained timestamp; apart from that it is
     a no-op.
@@ -456,27 +334,18 @@ class EXT:
     Ferster). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_last_now", "_rust")
+    __slots__ = ("_rust",)
 
     def __init__(self) -> None:
-        self._last_now: float | None = None
-        self._rust = rust_or_none({"type": "EXT", "params": {}})
+        self._rust = rust_schedule({"type": "EXT", "params": {}})
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._last_now = None
+        self._rust.reset()

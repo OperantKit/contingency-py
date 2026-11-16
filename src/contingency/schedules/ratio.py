@@ -16,7 +16,9 @@ Each schedule is unit-agnostic with respect to time (``now`` is a
 monotonic float on a caller-declared clock). Ratio schedules use
 ``now`` only to time-stamp emitted :class:`Reinforcer` objects; the
 reinforcement logic is driven by the presence of a
-:class:`ResponseEvent`.
+:class:`ResponseEvent`. ``step`` and ``reset`` run on the Rust engine
+(``contingency_core``); the classes validate their arguments and keep
+their parameters.
 
 References
 ----------
@@ -32,36 +34,16 @@ from __future__ import annotations
 
 import random
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.helpers.fleshler_hoffman import generate_ratios
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
 from contingency.schedules._rust import (
-    engine_name,
     fresh_seed,
-    random_source,
-    rust_or_none,
     rust_reset,
+    rust_schedule,
+    seed_of,
 )
 
 __all__ = ["FR", "VR", "RR", "CRF"]
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    """Raise :class:`ScheduleStateError` if ``now`` moves backwards."""
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    """Raise :class:`ScheduleStateError` if ``event.time`` disagrees with ``now``."""
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
 
 
 class FR:
@@ -75,9 +57,8 @@ class FR:
 
     Notes
     -----
-    The schedule keeps an internal response counter that is incremented
-    each time :meth:`step` is called with a non-``None`` ``event``.
-    When the counter reaches ``n`` it is reset to zero and a
+    The schedule counts the steps called with a non-``None`` ``event``.
+    When the count reaches ``n`` it is reset to zero and a
     :class:`Reinforcer` timestamped at ``now`` is emitted.
 
     References
@@ -86,7 +67,7 @@ class FR:
     Ferster). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_n", "_count", "_last_now", "_rust")
+    __slots__ = ("_n", "_rust")
 
     def __init__(self, n: int) -> None:
         if not isinstance(n, int) or isinstance(n, bool):
@@ -94,9 +75,7 @@ class FR:
         if n < 1:
             raise ScheduleConfigError(f"FR requires n >= 1, got {n}")
         self._n: int = n
-        self._count: int = 0
-        self._last_now: float | None = None
-        self._rust = rust_or_none({"type": "FR", "params": {"n": n}})
+        self._rust = rust_schedule({"type": "FR", "params": {"n": n}})
 
     @property
     def n(self) -> int:
@@ -105,29 +84,14 @@ class FR:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-        if event is None:
-            return Outcome()
-        self._count += 1
-        if self._count >= self._n:
-            self._count = 0
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._count = 0
-        self._last_now = None
+        self._rust.reset()
 
 
 def CRF() -> FR:  # noqa: N802 - acronym per behavior-analytic convention
@@ -161,12 +125,13 @@ class VR:
 
     Notes
     -----
-    Each step with a response increments an internal counter. When the
-    counter meets the current requirement, reinforcement is delivered,
-    the counter is zeroed, and the next requirement is taken from the
-    pre-generated Fleshler-Hoffman sequence. When the sequence is
-    exhausted, a fresh sequence is generated using a seed derived from
-    the internal RNG, preserving determinism.
+    Each step with a response increments a counter. When the counter
+    meets the current requirement, reinforcement is delivered, the
+    counter is zeroed, and the next requirement is taken from the
+    Fleshler-Hoffman sequence. When the sequence is exhausted, a fresh
+    sequence is generated from the schedule's seed, preserving
+    determinism. Without ``seed`` every :meth:`reset` draws a new
+    sequence.
 
     References
     ----------
@@ -178,18 +143,7 @@ class VR:
     Ferster). Appleton-Century-Crofts.
     """
 
-    __slots__ = (
-        "_mean",
-        "_n_intervals",
-        "_seed",
-        "_rng",
-        "_sequence",
-        "_cursor",
-        "_count",
-        "_requirement",
-        "_last_now",
-        "_rust",
-    )
+    __slots__ = ("_mean", "_n_intervals", "_seed", "_rust")
 
     def __init__(
         self,
@@ -214,16 +168,9 @@ class VR:
         self._mean: float = float(mean)
         self._n_intervals: int = n_intervals
         self._seed: int | None = seed
-        self._rng: random.Random = random.Random(seed)
-        self._sequence: list[int] = []
-        self._cursor: int = 0
-        self._count: int = 0
-        self._requirement: int = 0
-        self._last_now: float | None = None
-        self._reload_sequence()
         params: dict[str, object] = {"mean": self._mean, "n_intervals": n_intervals}
         params["seed"] = seed if seed is not None else fresh_seed()
-        self._rust = rust_or_none({"type": "VR", "params": params})
+        self._rust = rust_schedule({"type": "VR", "params": params})
 
     @property
     def mean(self) -> float:
@@ -235,51 +182,14 @@ class VR:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
-
-    def _next_sub_seed(self) -> int:
-        """Derive a fresh deterministic seed from the internal RNG."""
-        return self._rng.randrange(0, 2**31 - 1)
-
-    def _reload_sequence(self) -> None:
-        sub_seed = self._next_sub_seed()
-        self._sequence = generate_ratios(
-            self._mean, n=self._n_intervals, seed=sub_seed
-        )
-        self._cursor = 0
-        self._requirement = self._sequence[0]
-
-    def _advance_requirement(self) -> None:
-        self._cursor += 1
-        if self._cursor >= len(self._sequence):
-            self._reload_sequence()
-        else:
-            self._requirement = self._sequence[self._cursor]
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-        if event is None:
-            return Outcome()
-        self._count += 1
-        if self._count >= self._requirement:
-            self._count = 0
-            self._advance_requirement()
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust = rust_reset(self._rust, self._seed)
-            return
-        self._rng = random.Random(self._seed)
-        self._count = 0
-        self._last_now = None
-        self._reload_sequence()
+        self._rust = rust_reset(self._rust, self._seed)
 
 
 class RR:
@@ -291,16 +201,15 @@ class RR:
         Reinforcement probability per response. Must satisfy
         ``0 < p <= 1``.
     rng:
-        Optional :class:`random.Random` instance for deterministic
-        Bernoulli draws. If ``None``, a fresh unseeded RNG is used.
-        A seeded ``Random`` snapshot is captured at construction so
-        :meth:`reset` returns to the original draw sequence.
+        Optional :class:`random.Random`. The constructor draws one
+        63-bit seed from it (advancing it once) and the Rust engine
+        draws from that seed; the schedule does not use ``rng`` again.
     seed:
         Optional RNG seed, an int in ``[0, 2**64)``. Draws the same
-        sequence as ``rng=random.Random(seed)``. Give ``rng`` or ``seed``,
-        not both. A caller-supplied ``rng`` runs the schedule in Python
-        (its state cannot be handed to the Rust engine); ``seed`` or
-        neither runs it on the Rust engine when it is installed.
+        sequence as ``rng=random.Random(seed)`` did when the schedule
+        ran in Python. Give ``rng`` or ``seed``, not both. With either,
+        :meth:`reset` returns to the original draw sequence; with
+        neither, the seed is fresh.
 
     References
     ----------
@@ -308,7 +217,7 @@ class RR:
     Ferster). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_p", "_initial_state", "_rng", "_last_now", "_rust")
+    __slots__ = ("_p", "_rust")
 
     def __init__(
         self,
@@ -326,14 +235,8 @@ class RR:
                 f"RR requires 0 < probability <= 1, got {probability}"
             )
         self._p: float = float(probability)
-        self._rng, rust_ok = random_source("RR", rng, seed)
-        # Snapshot the RNG state so reset() restores the initial draw
-        # sequence even when the caller supplies a shared Random.
-        self._initial_state = self._rng.getstate()
-        self._last_now: float | None = None
-        params: dict[str, object] = {"probability": self._p}
-        params["seed"] = seed if seed is not None else fresh_seed()
-        self._rust = rust_or_none({"type": "RR", "params": params}) if rust_ok else None
+        params: dict[str, object] = {"probability": self._p, "seed": seed_of("RR", rng, seed)}
+        self._rust = rust_schedule({"type": "RR", "params": params})
 
     @property
     def probability(self) -> float:
@@ -341,24 +244,11 @@ class RR:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-        if event is None:
-            return Outcome()
-        if self._rng.random() < self._p:
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._rng.setstate(self._initial_state)
-        self._last_now = None
+        self._rust.reset()

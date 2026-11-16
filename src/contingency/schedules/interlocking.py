@@ -30,28 +30,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.schedules._rust import engine_name, rust_compound
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
+from contingency.schedules._rust import rust_state_schedule
 
 __all__ = ["InterlockingSchedule"]
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
-
 
 class InterlockingSchedule:
     """Linearly-decaying interlocking ratio/interval schedule.
@@ -82,14 +65,7 @@ class InterlockingSchedule:
     last-reinforcement time to ``now``.
     """
 
-    __slots__ = (
-        "_rust",
-        "_R0",
-        "_T",
-        "_count",
-        "_anchor",
-        "_last_now",
-    )
+    __slots__ = ("_rust", "_R0", "_T")
 
     def __init__(self, initial_ratio: int, decay_time: float) -> None:
         if not isinstance(initial_ratio, int) or isinstance(initial_ratio, bool):
@@ -117,11 +93,7 @@ class InterlockingSchedule:
 
         self._R0: int = initial_ratio
         self._T: float = float(decay_time)
-        self._count: int = 0
-        self._anchor: float | None = None
-        self._last_now: float | None = None
-        self._rust: Any = rust_compound(self._rust_spec(), state_key="response_count")
-
+        self._rust: Any = rust_state_schedule(self._rust_spec(), "response_count")
 
     def _rust_spec(self) -> dict[str, Any]:
         return {
@@ -131,8 +103,8 @@ class InterlockingSchedule:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     # --- Properties -------------------------------------------------------
 
@@ -149,9 +121,7 @@ class InterlockingSchedule:
     @property
     def response_count(self) -> int:
         """Responses emitted since the last reinforcement (or anchor)."""
-        if self._rust is not None:
-            return int(self._rust.state()["response_count"])
-        return self._count
+        return int(self._rust.state()["response_count"])
 
     def current_requirement(self, now: float) -> int:
         """Return the effective requirement at ``now``.
@@ -159,12 +129,8 @@ class InterlockingSchedule:
         Before any step has anchored the schedule the reference time
         is implicitly ``now`` (elapsed ``0``) so ``R_0`` is returned.
         """
-        if self._rust is not None:
-            stored = self._rust.state().get("anchor")
-            stored = None if stored is None else float(stored)
-        else:
-            stored = self._anchor
-        anchor = stored if stored is not None else now
+        stored = self._rust.state().get("anchor")
+        anchor = now if stored is None else float(stored)
         elapsed = now - anchor
         if elapsed < 0:
             # Guard: should not happen in practice because step() enforces
@@ -179,45 +145,7 @@ class InterlockingSchedule:
     # --- Schedule protocol -----------------------------------------------
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        # Anchor on the first observed tick so elapsed time is measured
-        # from when the schedule "came online" rather than from 0.
-        if self._anchor is None:
-            self._anchor = now
-
-        if event is None:
-            return Outcome()
-
-        requirement = self._effective_requirement(now)
-        self._count += 1
-        if self._count >= requirement:
-            self._count = 0
-            self._anchor = now
-            return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            self._rust.reset()
-            return
-        self._count = 0
-        self._anchor = None
-        self._last_now = None
-
-    # --- Internals --------------------------------------------------------
-
-    def _effective_requirement(self, now: float) -> int:
-        """Compute ``R(t)`` at the internal anchor."""
-        assert self._anchor is not None  # anchored in step()
-        elapsed = now - self._anchor
-        if elapsed < 0:
-            elapsed = 0.0
-        raw = self._R0 * (1.0 - elapsed / self._T)
-        if raw <= 0:
-            return 0
-        return int(raw)
+        self._rust.reset()
