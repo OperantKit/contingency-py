@@ -34,7 +34,7 @@ pub trait Schedule {
 ```
 
 スケジュールは状態を持つため、可変借用が必要。内部可変性を必要とする
-実装者（例: `Box<dyn Schedule>` を保持するラッパ）は trait レベルで
+実装者 (例: `Box<dyn Schedule>` を保持するラッパ) は trait レベルで
 `&mut self` を使用し、RNG / カウンタを private フィールドに保持する
 こと。内部値へ再ディスパッチする専用の `Box<dyn Schedule>` 実装を
 提供してもよい。
@@ -43,17 +43,17 @@ pub trait Schedule {
 
 ### `step(now, event)`
 
-1. **単調時間**。`now` は `>= last_now` でなければならない（ここで
+1. **単調時間**。`now` は `>= last_now` でなければならない (ここで
    `last_now` は前回の呼び出しで渡された `now`。初回呼び出し前は
-   未設定）。`now < last_now - 1e-9` の場合、スケジュールは
+   未設定)。`now < last_now - 1e-9` の場合、スケジュールは
    `ScheduleStateError` を送出する。
 2. **イベントタイムスタンプ整合性**。`event` が `None` でない場合、
    `|event.time - now| <= 1e-9`。そうでなければ `ScheduleStateError`
    を送出する。
 3. **呼び出しごとに単一 Outcome**。ちょうど 1 つの `Outcome` が返る。
    前回のステップから経過した時間が複数のスケジュール間隔より大き
-   くても、本ステップで発火する強化子は最大 1 つ（時間ベース・
-   スケジュールは発火後に `now` で再アンカーする）。
+   くても、本ステップで発火する強化子は最大 1 つ (時間ベース・
+   スケジュールは発火後に `now` で再アンカーする)。
 4. **`event=None` で冪等**。純粋な tick が強化子を生成するかどうかは
    スケジュール・ファミリに依存する:
    - 比率スケジュール (FR, VR, RR): tick では決して強化しない。
@@ -84,12 +84,12 @@ pub trait Schedule {
     時に RNG 状態をスナップショットし、復元する。
 - カウンタはゼロに、シーケンス・カーソルは巻き戻り、シーケンス・
   プールはシード付きならビット同一に再生成される。
-- `last_now` と時間アンカーは `None`（未設定）になる。
+- `last_now` と時間アンカーは `None` (未設定) になる。
 - 複合スケジュールは全コンポーネントに `reset()` を伝播し、続いて
   自身の記録をクリアする。
 
-`reset()` は構成済みパラメータ（比率、平均、ステップ関数、コンポ
-ーネントリスト、COD 値など）を **変更しない**。
+`reset()` は構成済みパラメータ (比率、平均、ステップ関数、コンポ
+ーネントリスト、COD 値など) を **変更しない**。
 
 ## 値オブジェクト
 
@@ -113,7 +113,7 @@ pub struct ResponseEvent {
 }
 ```
 
-- `operandum` は押された operandum（レバー、キー、ボタン）を識別
+- `operandum` は押された operandum (レバー、キー、ボタン) を識別
   する。`Concurrent` がイベントをルーティングするために使用する。
 - デフォルト `"main"` は非複合スケジュールで使用される。複合
   スケジュールがルーティングに使用しない限り、値は検査されない。
@@ -136,7 +136,7 @@ pub struct Observation {
 ```
 
 Observation は現在ランタイム自身では使用されていないスナップ
-ショット（将来の analyser フック用に保持）。
+ショット (将来の analyser フック用に保持)。
 
 ### `Reinforcer`
 
@@ -157,7 +157,7 @@ pub struct Reinforcer {
 }
 ```
 
-- `magnitude` は量（ペレット数、ml、ポイント）をエンコードする。
+- `magnitude` は量 (ペレット数、ml、ポイント) をエンコードする。
 - 負の magnitude + `label="SR-"` で嫌悪制御をモデル化する。
 - 本ライブラリのすべてのスケジュールは、実験用ラッパが上書きしない
   限り magnitude `1.0`、`label="SR+"` で強化子を発生させる。Rust
@@ -214,7 +214,7 @@ impl Outcome {
 - `Multiple` / `Chained`: 現在活性なコンポーネントの刺激ラベルを
   `current_component: str` に設定し、`Chained` の非終端リンク遷移時
   には `chain_transition: bool` を設定する。
-- `Tandem`: `current_component: int`（活性リンクインデックス）を
+- `Tandem`: `current_component: int` (活性リンクインデックス) を
   設定する。
 - `Alternative`: `alternative_winner: "first" | "second"` を設定する。
 
@@ -256,13 +256,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 | Python クラス | Rust variant | 発生条件 |
 |---|---|---|
-| `ScheduleConfigError` | `Error::Config` | 不正なコンストラクタ引数（負の比率、未知のコンビネータ、未サポート DSL ノード） |
-| `ScheduleStateError` | `Error::State` | `step()` 契約違反（非単調時間、event/now の不一致） |
+| `ScheduleConfigError` | `Error::Config` | 不正なコンストラクタ引数 (負の比率、未知のコンビネータ、未サポート DSL ノード) |
+| `ScheduleStateError` | `Error::State` | `step()` 契約違反 (非単調時間、event/now の不一致) |
 | `HardwareError` | `Error::Hardware` | HAL I/O、トランスポート、設定、依存の欠如 |
 | `NotConnectedError` | `Error::NotConnected` | `connect()` 前または `disconnect()` 後の HAL read/write |
 
-`Schedule` trait の `step()` は `Result<Outcome>`（またはそれに相当
-するもの）を返すべき。Rust コードはすべての状態違反で panic より
+`Schedule` trait の `step()` は `Result<Outcome>` (またはそれに相当
+するもの) を返すべき。Rust コードはすべての状態違反で panic より
 `Err` を優先すべき。
 
 ## 時間許容誤差
@@ -283,8 +283,8 @@ _TIME_TOL = 1e-9
 - LimitedHold 失効: `now > arm_time + hold + 1e-9` で失効。
 
 Rust は単一の `const TIME_TOL: f64 = 1e-9;` を公開し、同一に適用
-すべき。これは conformance コーパスにとって load-bearing（負荷を
-支える）である。
+すべき。これは conformance コーパスにとって load-bearing (負荷を
+支える) である。
 
 ## スレッディング・モデル
 

@@ -6,7 +6,7 @@ Rust 実装者のための 1 ページ分オンボーディング資料である
 
 ## `contingency-py` に存在するもの
 
-### ランタイムスケジュール（本番利用可能）
+### ランタイムスケジュール (本番利用可能)
 
 | ファミリ | クラス |
 |---|---|
@@ -15,7 +15,7 @@ Rust 実装者のための 1 ページ分オンボーディング資料である
 | 時間ベース (Time-based) | `FT`, `VT`, `RT`, `EXT` |
 | 分化強化 (Differential) | `DRO` (resetting/momentary), `DRL`, `DRH` |
 | 複合 (Compound) | `Concurrent` (COD + FRCO), `Multiple`, `Chained`, `Tandem`, `Alternative` |
-| 累進 (Progressive) | `ProgressiveRatio`（`arithmetic`, `geometric`, `richardson_roberts` ステップ関数付） |
+| 累進 (Progressive) | `ProgressiveRatio` (`arithmetic`, `geometric`, `richardson_roberts` ステップ関数付) |
 
 すべて `Schedule` Protocol (`step(now, event) -> Outcome`,
 `reset() -> None`) を実装する。完全な契約は [protocol.md](protocol.md)
@@ -41,7 +41,7 @@ ContingencyError
 ```
 
 Rust 側では 4 バリアントの `enum Error` にマップされる
-（[protocol.md](protocol.md) 参照）。
+([protocol.md](protocol.md) 参照)。
 
 ### ヘルパー
 
@@ -73,7 +73,7 @@ Rust 移植版は PyO3 / KMP フロントエンドが決定した時点で同じ
 - `AdjustingSchedule`, `AversiveSchedule`, `InterlockingSchedule`,
   `ResponseCostWrapped`, `TimeoutWrapped`, `TrialBased` — すべて延期。
 - コンビネータ `CONJ`, `MIX`, `OVERLAY`, `INTERPOLATE`, `INTERP` — 延期。
-- `Modifier` kind `Pctl`（パーセンタイル・スケジュール） — 延期。
+- `Modifier` kind `Pctl` (パーセンタイル・スケジュール) — 延期。
 - `Concurrent` パラメータ `PUNISH` — 延期。
 - `Concurrent` の方向性 COD (`cod_asymmetric`) — 延期。
 
@@ -84,7 +84,7 @@ Rust 移植版は、機能が実装されるまで延期されたすべての構
 
 ファイル別の対応表は [swift-legacy-map.md](swift-legacy-map.md)
 を参照。Rust 移植版が守らなければならない主要な意味的差異
-（これらは **Python** の挙動であり、Swift の挙動ではない）:
+(これらは **Python** の挙動であり、Swift の挙動ではない):
 
 1. **アンカリング (Anchoring)**。時間ベース・スケジュール
    (`FT`, `VT`, `RT`, `DRO`) はクロックを **最初の `step()` 呼び出し**
@@ -96,20 +96,20 @@ Rust 移植版は、機能が実装されるまで延期されたすべての構
    呼び出し側はスケジュールを遵守するのに十分な頻度で
    ステップする必要がある。
 3. **ランダム系サンプリングは内部処理**。`RR`, `RI`, `RT` は
-   引き（ベルヌーイ / 指数）を内部でサンプリングする。Swift の
+   引き (ベルヌーイ / 指数) を内部でサンプリングする。Swift の
    `RI`/`RT`/`RR` ファイルは外部供給値を伴う固定版 (`FI`/`FT`/`FR`)
    に委譲していた。
 4. **単位非依存の時間**。すべての時刻は単位非依存の float。単位
-   契約は外部（`contingency-dsl` が宣言、`experiment-io` が強制）。
+   契約は外部 (`contingency-dsl` が宣言、`experiment-io` が強制)。
    Swift はミリ秒型だった。
 5. **Outcome 不変条件は構築時に強制**。強化子なしに強化された
    Outcome、あるいはその逆を許容してはならない。
 
 ## Rust 移植時の落とし穴
 
-1. **`TIME_TOL = 1e-9`** は指定通り、すべての比較（単調時間、
+1. **`TIME_TOL = 1e-9`** は指定通り、すべての比較 (単調時間、
    イベント時刻マッチング、経過時間、スライディングウィンドウの
-   eviction、LimitedHold の失効）で正確に適用すること。
+   eviction、LimitedHold の失効) で正確に適用すること。
 2. **`Concurrent` はすべてのステップで全コンポーネントを進める**。
    イベントを受け取らなかったコンポーネントであっても進める。
    これは他の operandum に反応として到着した tick で時間ベース
@@ -126,7 +126,7 @@ Rust 移植版は、機能が実装されるまで延期されたすべての構
    維持する。ラッパは表層に出す Outcome のみをゲートし、勝利時に
    両方をリセットする。
 6. **`DRO` momentary** は入ってきたイベントを記録する **前に** 境界を
-   評価する（半開ウィンドウ `[anchor, now)`）。resetting バリアント
+   評価する (半開ウィンドウ `[anchor, now)`)。resetting バリアント
    はその逆: イベントがタイマーをリセットし、そのステップで発生
    する可能性のある強化を先取りして無効化する。
 7. **`DRH` のウィンドウは強化時に空にならない**。持続する高頻度
@@ -199,7 +199,7 @@ contingency-rs/
 
 ## `contingency-py` のテスト範囲
 
-Python パッケージは 613 テスト（100% 緑）、ライン・カバレッジ 99%。
+Python パッケージは 613 テスト (100% 緑)、ライン・カバレッジ 99%。
 ソースを読むよりもテストを読む方が速いことが多い。各スケジュールには
 [`../tests/`](../../tests/) 配下に専用ファイルがある:
 

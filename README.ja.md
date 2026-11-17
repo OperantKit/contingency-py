@@ -2,13 +2,13 @@
 
 :gb: [English README](README.md)
 
-contingency-py は、強化子をいつ提示するかを決める Python のライブラリです。`FR 5`・`VI 60-s`・`Conc(VI 30-s, VI 60-s, COD=2-s)` のような強化スケジュールと、起きた反応を順に渡すと、ステップごとに強化子を提示するかどうかを返します。実験箱の制御プログラム、シミュレーション、授業でのデモ、別の実装を検査するときの基準として使えます。[OperantKit](https://github.com/OperantKit) の Python 版スケジュールエンジンで、セッション全体の実行（開始・終了の条件、記録）はこの上に載る [session-runner](https://github.com/OperantKit/session-runner) が受け持ちます。
+contingency-py は、強化子をいつ提示するかを決める Python のライブラリです。`FR 5`・`VI 60-s`・`Conc(VI 30-s, VI 60-s, COD=2-s)` のような強化スケジュールと、起きた反応を順に渡すと、ステップごとに強化子を提示するかどうかを返します。実験箱の制御プログラム、シミュレーション、授業でのデモ、別の実装を検査するときの基準として使えます。[OperantKit](https://github.com/OperantKit) の Python 版スケジュールエンジンで、セッション全体の実行 (開始・終了の条件、記録) はこの上に載る [session-runner](https://github.com/OperantKit/session-runner) が受け持ちます。
 
 - **変動スケジュールの値は Fleshler–Hoffman (1962) の数列で作ります。** 値の個数と乱数の種を指定できるので、セッションを厳密に再現できます。
-- **並立スケジュールは切替遅延（COD）を扱います。** COD は、オペランダム（レバーやキー）を切り替えた直後に反応を強化しない時間のことです。設定済みの強化子は、そのオペランダムへの次の反応まで保持します。
+- **並立スケジュールは切り替え遅延 (COD) を扱います。** COD は、オペランダム (レバーやキー) を切り替えた直後に反応を強化しない時間のことです。設定済みの強化子は、そのオペランダムへの次の反応まで保持します。
 - **`conformance/` の適合性 fixture が、各スケジュールの結果を既知の反応系列に対して固定しています。** Rust 版エンジン [contingency-rs](https://github.com/OperantKit/contingency-rs) も同じ fixture を再生します。自作の実装をこれに照らして検算することもできます。
 
-[スケジュールの用語](docs/ja/schedule-terms.md) では、これらの点（COD、Fleshler–Hoffman の数列、DRL と反応間時間、リセット型 DRO、VI の間隔がいつ始まるか）を数文ずつ説明しています。AI のコーディングエージェント向けの案内（AI アシスタントが書いたスケジュールのコードとの比較を含む）は [AGENTS.md](AGENTS.md) にあります。
+[スケジュールの用語](docs/ja/schedule-terms.md) では、これらの点 (COD、Fleshler–Hoffman の数列、DRL と反応間時間、リセット型 DRO、VI の間隔がいつ始まるか) を数文ずつ説明しています。AI のコーディングエージェント向けの案内 (AI アシスタントが書いたスケジュールのコードとの比較を含む) は [AGENTS.md](AGENTS.md) にあります。
 
 ## インストール
 
@@ -24,7 +24,7 @@ pip install gymnasium numpy     # 任意: Gymnasium 環境を使うときだけ
 
 依存は pip が解決するので、`pip check` は何も報告しません。
 
-スケジュールのクラスには、拡張モジュール `contingency_core`（contingency-rs のエンジン）も要ります。まだパッケージの索引に無いので、[Rust のエンジンの wheel](#rust-のエンジンの-wheelcore) のとおり `core/` で wheel を作って入れてください。無いと、スケジュールのクラスを作るときに、入れ方を示す `ScheduleConfigError` になります。`import contingency`・DSL のプログラムの解析・`to_spec` はモジュールが無くても動きます。
+スケジュールのクラスには、拡張モジュール `contingency_core` (contingency-rs のエンジン) も要ります。まだパッケージの索引に無いので、[Rust のエンジンの wheel](#rust-のエンジンの-wheel-core) のとおり `core/` で wheel を作って入れてください。無いと、スケジュールのクラスを作るときに、入れ方を示す `ScheduleConfigError` になります。`import contingency`・DSL のプログラムの解析・`to_spec` はモジュールが無くても動きます。
 
 ## 例
 
@@ -58,14 +58,14 @@ print(reinforcers)  # {'c0': 16, 'c1': 9} — 種を固定しているので毎�
 | 分野 | 内容 |
 |---|---|
 | 単一スケジュール | FR、VR、RR、FI、VI、RI、FT、VT、RT、CRF、EXT、リミテッドホールド |
-| 複合スケジュール | 並立（COD、固定比率の切替要件、方向別の COD つき）、多元、混合、連鎖、連接、選択、連言、挿入、重畳、二次スケジュール |
-| 分化強化と累進 | DRO（リセット型・瞬時型）、DRL、DRH、パーセンタイル、Lag（変動性の分化強化）、累進比率（等差・等比・Richardson–Roberts）、調整、連動 |
-| その他の手続き | タイムアウト、反応コスト、Sidman 型回避、弁別回避、逃避、見本合わせ（修正試行つき）、Go/No-Go |
-| 値の生成 | Fleshler–Hoffman（Fleshler & Hoffman, 1962）と Hantula (1991) の変法 |
-| スケジュールの組み立て | `contingency.bridge.from_dsl`（contingency-dsl の式から。実行側が読まない組み合わせ子の引数 — 0 より大きい `BO` など — は捨てずに `ScheduleConfigError` にする。`IRT` 以外を対象にした `Pctl` も同じ。`MTS(..., correction=true)` は誤答した試行を ITI の後に正答するまで、`correction=N` は最大 `N` 回、同じ見本・比較刺激の並び・正解で繰り返す。`Lag n` と `Lag(n, length=k)` は `k` 個の反応の単位を、反応した operandum の並びで比べるので、operandum が 1 つだけなら `n >= 1` の `Lag n` は 2 つ目の単位から強化しない。`MTS(...) LH10s` のように `MTS` の後ろに書いた `LH` は、`MTS(..., LH=10s)` と同じく選択の制限時間になる）、`contingency.builder.ScheduleBuilder`（Python の呼び出しから） |
-| ハードウェア抽象化層（`contingency.hw`） | `Apparatus` インタフェースと、仮想の装置、シリアル接続（`pyserial` が必要）、ハードウェア・イン・ザ・ループ（HIL）試験装置向けの TCP 接続 |
+| 複合スケジュール | 並立 (COD、固定比率の切替要件、方向別の COD つき)、多元、混合、連鎖、連接、選択、連言、挿入、重畳、二次スケジュール |
+| 分化強化と累進 | DRO (リセット型・瞬時型)、DRL、DRH、パーセンタイル、Lag (変動性の分化強化)、累進比率 (等差・等比・Richardson–Roberts)、調整、連動 |
+| その他の手続き | タイムアウト、反応コスト、Sidman 型回避、弁別回避、逃避、見本合わせ (修正試行つき)、Go/No-Go |
+| 値の生成 | Fleshler–Hoffman (Fleshler & Hoffman, 1962) と Hantula (1991) の変法 |
+| スケジュールの組み立て | `contingency.bridge.from_dsl` (contingency-dsl の式から。実行側が読まない組み合わせ子の引数 — 0 より大きい `BO` など — は捨てずに `ScheduleConfigError` にする。`IRT` 以外を対象にした `Pctl` も同じ。`MTS(..., correction=true)` は誤答した試行を ITI の後に正答するまで、`correction=N` は最大 `N` 回、同じ見本・比較刺激の並び・正解で繰り返す。`Lag n` と `Lag(n, length=k)` は `k` 個の反応の単位を、反応した operandum の並びで比べるので、operandum が 1 つだけなら `n >= 1` の `Lag n` は 2 つ目の単位から強化しない。`MTS(...) LH10s` のように `MTS` の後ろに書いた `LH` は、`MTS(..., LH=10s)` と同じく選択の制限時間になる)、`contingency.builder.ScheduleBuilder` (Python の呼び出しから) |
+| ハードウェア抽象化層 (`contingency.hw`) | `Apparatus` インタフェースと、仮想の装置、シリアル接続 (`pyserial` が必要)、ハードウェア・イン・ザ・ループ (HIL) 試験装置向けの TCP 接続 |
 | 適合性検査 | `conformance/` の JSON fixture と `contingency-conformance` コマンド |
-| Gymnasium | `contingency.envs.ScheduleEnv` と、登録済みの 6 つの環境（任意） |
+| Gymnasium | `contingency.envs.ScheduleEnv` と、登録済みの 6 つの環境 (任意) |
 
 ```python
 from contingency import Schedule, Observation, Reinforcer
@@ -88,11 +88,11 @@ JSON の形式、動くアダプタの全文、乱数の種を持つ fixture の
 
 ### Gymnasium 環境
 
-`contingency.envs.ScheduleEnv` は、任意の `Schedule` を強化学習エージェント向けのフリーオペラントのセッションとして動かします。1 ステップで時計が `dt`（既定 1）進み、行動 `0` は反応しないこと、行動 `i` は `i` 番目のオペランダムへの 1 反応です。`step` が返す `reward` の値は強化子の大きさで、反応したステップでは `response_cost`（既定 0）を引きます。観測は被験体が知りうるものだけです（直前の強化からの経過時間と反応数、直前のステップが強化されたか、直前に反応したオペランダム）。import すると 6 つの ID が登録されます: `contingency/FR-v0`（`n`）、`contingency/FI-v0`（`interval`）、`contingency/ConcVIVI-v0`（`mean_left`・`mean_right`・`cod`。オペランダムは `left` と `right`）、`contingency/ConcPhases-v0`（`phases`・`cod`）、`contingency/SidmanAvoidance-v0`（`rs`・`ss`・`shock_magnitude`）、`contingency/PunishedVI-v0`（`mean`・`punishment`・`ratio`）。
+`contingency.envs.ScheduleEnv` は、任意の `Schedule` を強化学習エージェント向けのフリーオペラントのセッションとして動かします。1 ステップで時計が `dt` (既定 1) 進み、行動 `0` は反応しないこと、行動 `i` は `i` 番目のオペランダムへの 1 反応です。`step` が返す `reward` の値は強化子の大きさで、反応したステップでは `response_cost` (既定 0) を引きます。観測は被験体が知りうるものだけです (直前の強化からの経過時間と反応数、直前のステップが強化されたか、直前に反応したオペランダム)。import すると 6 つの ID が登録されます: `contingency/FR-v0` (`n`)、`contingency/FI-v0` (`interval`)、`contingency/ConcVIVI-v0` (`mean_left`・`mean_right`・`cod`。オペランダムは `left` と `right`)、`contingency/ConcPhases-v0` (`phases`・`cod`)、`contingency/SidmanAvoidance-v0` (`rs`・`ss`・`shock_magnitude`)、`contingency/PunishedVI-v0` (`mean`・`punishment`・`ratio`)。
 
-`ConcPhases-v0` は、リサージェンス（resurgence）などの手続きのために、1 つのセッションで相を順に切り替えます。各相は `(left, right, steps)` で、各オペランダムの VI の平均（秒。`None` は消去）と、その相が続くステップ数を表します。既定は、`left` に VI 15 s を 18000 ステップ、次に `left` を消去して `right` に VI 15 s を 12000 ステップ、最後に両方を消去して 3000 ステップです。相は観測に入らず、`info["phase"]` と `info["phase_step"]` に出ます。最後の相が終わるとエピソードは終了（terminated）します。
+`ConcPhases-v0` は、リサージェンス (resurgence) などの手続きのために、1 つのセッションで相を順に切り替えます。各相は `(left, right, steps)` で、各オペランダムの VI の平均 (秒。`None` は消去) と、その相が続くステップ数を表します。既定は、`left` に VI 15 s を 18000 ステップ、次に `left` を消去して `right` に VI 15 s を 12000 ステップ、最後に両方を消去して 3000 ステップです。相は観測に入らず、`info["phase"]` と `info["phase_step"]` に出ます。最後の相が終わるとエピソードは終了 (terminated) します。
 
-`SidmanAvoidance-v0` と `PunishedVI-v0` は嫌悪制御のための環境です。`SidmanAvoidance-v0`（フリーオペラント回避）では、反応しない間は `ss` 秒ごとに shock が来て、反応するたびに次の shock がその反応の `rs` 秒後に延びます。shock のステップの報酬は `-shock_magnitude` です。`PunishedVI-v0` では、VI `mean` が大きさ 1 の強化子を提示し、`ratio` 回目ごとの反応が報酬 `-punishment` で罰されます（`punishment=0` なら VI だけ）。`ratio=1` のとき報酬の信号は `response_cost=punishment` の VI と同じで、違いは罰の回数を数えることです。どちらでも shock と罰は `info["n_sr"]` ではなく `info["n_shock"]` に数え、直前の強化からの経過時間と反応数は戻しません。観測には `time_since_response`・`time_since_shock`・`responses_since_shock` が加わります。
+`SidmanAvoidance-v0` と `PunishedVI-v0` は嫌悪制御のための環境です。`SidmanAvoidance-v0` (フリーオペラント回避) では、反応しない間は `ss` 秒ごとに shock が来て、反応するたびに次の shock がその反応の `rs` 秒後に延びます。shock のステップの報酬は `-shock_magnitude` です。`PunishedVI-v0` では、VI `mean` が大きさ 1 の強化子を提示し、`ratio` 回目ごとの反応が報酬 `-punishment` で罰されます (`punishment=0` なら VI だけ)。`ratio=1` のとき報酬の信号は `response_cost=punishment` の VI と同じで、違いは罰の回数を数えることです。どちらでも shock と罰は `info["n_sr"]` ではなく `info["n_shock"]` に数え、直前の強化からの経過時間と反応数は戻しません。観測には `time_since_response`・`time_since_shock`・`responses_since_shock` が加わります。
 
 ```python
 import gymnasium as gym
@@ -110,33 +110,33 @@ while True:  # 0 = no response, 1 = left, 2 = right; one step = 1 time unit
 print(n_sr)  # 21
 ```
 
-`contingency.envs.tabular` は ε-greedy の表形式 Q 学習（`train_q`、`run_greedy`）を持ちます。`tests/test_envs_concurrent.py` では、既定の Conc VI 30 VI 60（COD 2）で 100 セッション学習した表が、学習に使っていない 10 セッションで 600 時間単位あたり平均 23.2 回の強化を得ました。一様な無作為方策は 20.7 回、2 つのオペランダムから無作為に選ぶ方策（必ず反応する）は 21.1 回、学習前の同じ表は 21.5 回でした。
+`contingency.envs.tabular` は ε-greedy の表形式 Q 学習 (`train_q`、`run_greedy`) を持ちます。`tests/test_envs_concurrent.py` では、既定の Conc VI 30 VI 60 (COD 2) で 100 セッション学習した表が、学習に使っていない 10 セッションで 600 時間単位あたり平均 23.2 回の強化を得ました。一様な無作為方策は 20.7 回、2 つのオペランダムから無作為に選ぶ方策 (必ず反応する) は 21.1 回、学習前の同じ表は 21.5 回でした。
 
 ## 制限
 
-- まだ PyPI に登録されておらず、API は変わることがあります（開発段階: alpha）。
+- まだ PyPI に登録されておらず、API は変わることがあります (開発段階: alpha)。
 - これはライブラリであって、セッションを動かすプログラムではありません。自前の時計を持たず、呼び出す側のプログラムが現在時刻を付けて `step` を呼びます。時間の精度はそのプログラムとハードウェアで決まります。
-- 種付きの fixture（VR・VI・VT・RR・RI・RT・見本合わせ・Go/No-Go）は Python の `random.Random(seed)` に合わせて固定されています。別の乱数生成器を使う実装は、これらと近似的にしか一致しません。
+- 種付きの fixture (VR・VI・VT・RR・RI・RT・見本合わせ・Go/No-Go) は Python の `random.Random(seed)` に合わせて固定されています。別の乱数生成器を使う実装は、これらと近似的にしか一致しません。
 - 仮想被験体と Gymnasium の被験体はモデルです。書いたスケジュールどおりにプログラムが強化子を提示することは示しますが、動物がどう振る舞うかは示しません。
 
 ## MED-PC の記録で再生した結果
 
-`tests/test_apparatus_replay.py` は、公開されたセッションで MED-PC の装置が記録した反応を `DRL` と `ProgressiveRatio` にそのまま渡し、どの反応が強化されるかを比べます。データ全体 — DRL 10 s の 928 セッション・強化 30,578 件（Sosa et al., 2026）と、比率が 1, 4, 7, … と増える累進比率の 273 セッション・強化 3,979 件（McCutcheon, 2022）— で、装置のプログラムと同じく IRT（反応間時間）の計時を DRL の開始時点から始め、強化後 4 s（累進比率では 5.1 s）の反応を除くと、記録された強化のうち DRL で 99.30%、累進比率で 99.75% を、このパッケージも同じ反応で強化しました。食い違いはすべて計時の分解能によるもので、DRL では 10 s の境界から ±70 ms 以内の反応 192 件とそれに続く反応 93 件、累進比率では 5.1 s のタイムアウトの境界にあった反応とそれに続く反応の計 20 件です。テストはこのうち 4 セッションを fixture として持っています。
+`tests/test_apparatus_replay.py` は、公開されたセッションで MED-PC の装置が記録した反応を `DRL` と `ProgressiveRatio` にそのまま渡し、どの反応が強化されるかを比べます。データ全体 — DRL 10 s の 928 セッション・強化 30,578 件 (Sosa et al., 2026) と、比率が 1, 4, 7, … と増える累進比率の 273 セッション・強化 3,979 件 (McCutcheon, 2022) — で、装置のプログラムと同じく IRT (反応間時間) の計時を DRL の開始時点から始め、強化後 4 s (累進比率では 5.1 s) の反応を除くと、記録された強化のうち DRL で 99.30%、累進比率で 99.75% を、このパッケージも同じ反応で強化しました。食い違いはすべて計時の分解能によるもので、DRL では 10 s の境界から ±70 ms 以内の反応 192 件とそれに続く反応 93 件、累進比率では 5.1 s のタイムアウトの境界にあった反応とそれに続く反応の計 20 件です。テストはこのうち 4 セッションを fixture として持っています。
 
 ## Swift 原典との違い
 
-本パッケージは Swift のライブラリ [OperantKit](https://github.com/YutoMizutani/OperantKit) の移植です。`tests/test_legacy_swift_parity.py` は手元の Swift 原典をビルドし、小さなドライバ（`tools/legacy-swift/`）で上の fixture に通します。Swift のツールチェーンが必要で、原典の場所を渡さない限り skip されます。
+本パッケージは Swift のライブラリ [OperantKit](https://github.com/YutoMizutani/OperantKit) の移植です。`tests/test_legacy_swift_parity.py` は手元の Swift 原典をビルドし、小さなドライバ (`tools/legacy-swift/`) で上の fixture に通します。Swift のツールチェーンが必要で、原典の場所を渡さない限り skip されます。
 
 ```bash
 OPERANTKIT_LEGACY_DIR=/path/to/OperantKit .venv/bin/pytest -q tests/test_legacy_swift_parity.py
 ```
 
-Swift 原典にあるのは FR・CRF・EXT・FI・FT・VI・VR・VT・Alternative・Concurrent（切替遅延なし）です。乱数生成器に種を与えられないので、VI・VR・VT は本パッケージが引く値の列をテストが注入します。FR・CRF・EXT・FI・FT は fixture と step ごとに一致します。既知の違い:
+Swift 原典にあるのは FR・CRF・EXT・FI・FT・VI・VR・VT・Alternative・Concurrent (切り替え遅延なし) です。乱数生成器に種を与えられないので、VI・VR・VT は本パッケージが引く値の列をテストが注入します。FR・CRF・EXT・FI・FT は fixture と step ごとに一致します。既知の違い:
 
-- **VI・VR・VT**: Swift 原典は値の列の最初の値を繰り返します。`Parameter.nextOrder()` が `mutating` でないため、列の位置が進みません。この 1 関数だけを `mutating` にすると（`tools/legacy-swift/nextorder-control.patch`、一時コピーにだけ当てます）3 本とも完全に一致します。
-- **Alternative(FR 5, FT 10 s)**: 5 秒に FR が強化した後、Swift は次の FT の間隔を強化の時点（5 秒）から測って 15 秒に強化します。本パッケージは FT を次の step（6 秒）から測り直します。
-- **Hantula (1991) の生成器**: 最小値が 0 に丸まるとき（たとえばテストした `v = 10, n = 12`）、Swift の `hantula1991` は 0 を残します。`generate_intervals_hantula1991` はそれを 1 に置き換えるので、合計が 1 多くなります。
-- **Fleshler-Hoffman の生成器**（VR 5・`n = 12` と、VI の `(10, 12)`・`(60, 20)`・`(30000, 12)` で確認）: 比率の列は多重集合として一致します。Swift は丸めの過不足を無作為な位置に足すので、他のパラメータでは多重集合が変わることがあります。Swift の間隔の生成器は整数を返します。Fleshler-Hoffman の数列を丸め、丸めの余りを無作為な位置の 1 要素に足したものです。`generate_intervals` は小数のまま返します。
+- **VI・VR・VT**: Swift 原典は値の列の最初の値を繰り返します。`Parameter.nextOrder()` が `mutating` でないため、列の位置が進みません。この 1 関数だけを `mutating` にすると (`tools/legacy-swift/nextorder-control.patch`、一時コピーにだけ当てます) 3 本とも完全に一致します。
+- **Alternative(FR 5, FT 10 s)**: 5 秒に FR が強化した後、Swift は次の FT の間隔を強化の時点 (5 秒) から測って 15 秒に強化します。本パッケージは FT を次の step (6 秒) から測り直します。
+- **Hantula (1991) の生成器**: 最小値が 0 に丸まるとき (たとえばテストした `v = 10, n = 12`)、Swift の `hantula1991` は 0 を残します。`generate_intervals_hantula1991` はそれを 1 に置き換えるので、合計が 1 多くなります。
+- **Fleshler-Hoffman の生成器**(VR 5・`n = 12` と、VI の `(10, 12)`・`(60, 20)`・`(30000, 12)` で確認): 比率の列は多重集合として一致します。Swift は丸めの過不足を無作為な位置に足すので、他のパラメータでは多重集合が変わることがあります。Swift の間隔の生成器は整数を返します。Fleshler-Hoffman の数列を丸め、丸めの余りを無作為な位置の 1 要素に足したものです。`generate_intervals` は小数のまま返します。
 
 これらは記録であって修正ではありません。どちらの実装も相手に合わせて変えていません。
 
@@ -150,15 +150,15 @@ python -m venv .venv
 .venv/bin/pytest
 ```
 
-### Rust のエンジンの wheel（`core/`）
+### Rust のエンジンの wheel (`core/`)
 
-`core/` は、contingency-rs のエンジンを PyO3 で包んだ拡張モジュール `contingency_core` を、[maturin](https://www.maturin.rs/) で別の wheel として作ります。crate は contingency-rs を GitHub から `core/Cargo.toml` に書いた commit で取り込み、path 依存は使いません。このモジュールを入れると、`from_dsl(ast, engine="rust")` と `contingency.engine.from_spec(spec)` がスケジュールを contingency-rs で動かし、このパッケージの `Outcome` と例外で返します。`from_dsl` の既定は `engine="python"` のままで、`contingency.schedules` のクラス（`FR`・`Concurrent` など）を返します。モジュールを入れると、Rust のエンジンで動かせるクラスは `step` / `reset` を contingency-rs に渡します（クラスと例外は下を参照。どちらで動いているかはインスタンスの `engine` で分かります）。戻り値の型はモジュールの有無で変わりません。`engine="rust"` は spec から作った素の `contingency.engine.RustSchedule` を返します。`contingency-core` はこのパッケージの依存に書いていません。wheel を置いたパッケージの索引がまだ無いので、下のとおり `core/` から入れてください。Rust のエンジンの `Outcome.meta` には、値が `None` になるキーが入りません。spec に書けない DSL のプログラムは `SpecUnrepresentableError` になります。`tests/test_engine_rust.py` は、適合テストの fixture を Rust のエンジンで再生し、DSL のプログラムで 2 つのエンジンを比べます（モジュールが無ければ skip）。
+`core/` は、contingency-rs のエンジンを PyO3 で包んだ拡張モジュール `contingency_core` を、[maturin](https://www.maturin.rs/) で別の wheel として作ります。crate は contingency-rs を GitHub から `core/Cargo.toml` に書いた commit で取り込み、path 依存は使いません。このモジュールを入れると、`from_dsl(ast, engine="rust")` と `contingency.engine.from_spec(spec)` がスケジュールを contingency-rs で動かし、このパッケージの `Outcome` と例外で返します。`from_dsl` の既定は `engine="python"` のままで、`contingency.schedules` のクラス (`FR`・`Concurrent` など) を返します。モジュールを入れると、Rust のエンジンで動かせるクラスは `step` / `reset` を contingency-rs に渡します (クラスと例外は下を参照。どちらで動いているかはインスタンスの `engine` で分かります)。戻り値の型はモジュールの有無で変わりません。`engine="rust"` は spec から作った素の `contingency.engine.RustSchedule` を返します。`contingency-core` はこのパッケージの依存に書いていません。wheel を置いたパッケージの索引がまだ無いので、下のとおり `core/` から入れてください。Rust のエンジンの `Outcome.meta` には、値が `None` になるキーが入りません。spec に書けない DSL のプログラムは `SpecUnrepresentableError` になります。`tests/test_engine_rust.py` は、適合テストの fixture を Rust のエンジンで再生し、DSL のプログラムで 2 つのエンジンを比べます (モジュールが無ければ skip)。
 
-このモジュールを入れると、単一スケジュールのクラス `FR`・`CRF`・`VR`・`RR`・`FI`・`VI`・`RI`・`LimitedHold`・`FT`・`VT`・`RT`・`EXT`・`DRO`・`DRL`・`DRH`・`ProgressiveRatio`・`Lag` も contingency-rs で動きます。構築子は引数を検査して公開の属性を Python で持ち、`step` / `reset` を Rust のエンジンに渡します。スケジュールのクラスにはモジュールが要ります。無いとき、またはスケジュールが `Schedule.state()` を持たない古い版のときは、構築子が入れ方を示す `ScheduleConfigError` を出します。どちらで動いているかはインスタンスの `engine`（`"rust"` か `"python"`）で分かります。`FR`・`CRF`・`VR`・`RR`・`FI`・`VI`・`RI`・`FT`・`VT`・`RT`・`EXT`・`DRO`・`DRL`・`DRH`・`Lag` には Python の実装がありません。呼び出し側の `rng` を渡した `RR` / `RI` / `RT` は、構築のときに `rng` から 63 bit の seed を 1 つ引き（`rng.getrandbits(63)`）、その seed で Rust のエンジンで動きます。`seed=s` は、Python で動いていたときの `rng=random.Random(s)` と同じ列を引きます。`step_fn` が `arithmetic`・`richardson_roberts` で作ったものでない `ProgressiveRatio` は、モジュールがあっても Python で動きます（`geometric` も含む。Rust のエンジンは .5 を 0 から遠い側へ、Python は偶数側へ丸めるため）。`LimitedHold` が受け取るのは `FI`・`VI`・`RI` だけで、ほかの内側のスケジュールは `ScheduleConfigError` になります。Rust のエンジンが受け取れない引数（整数の幅を超える整数・無限大の時間・負の `seed`）は `ScheduleConfigError` になります。`LimitedHold` は内側のスケジュールの引数から Rust の写しを自分で作るので、内側のオブジェクトを別に step しても影響しません。Rust のエンジンで動くスケジュールを `copy.deepcopy` すると、最後の `reset` 以降の step を再生します。
+このモジュールを入れると、単一スケジュールのクラス `FR`・`CRF`・`VR`・`RR`・`FI`・`VI`・`RI`・`LimitedHold`・`FT`・`VT`・`RT`・`EXT`・`DRO`・`DRL`・`DRH`・`ProgressiveRatio`・`Lag` も contingency-rs で動きます。構築子は引数を検査して公開の属性を Python で持ち、`step` / `reset` を Rust のエンジンに渡します。スケジュールのクラスにはモジュールが要ります。無いとき、またはスケジュールが `Schedule.state()` を持たない古い版のときは、構築子が入れ方を示す `ScheduleConfigError` を出します。どちらで動いているかはインスタンスの `engine` (`"rust"` か `"python"`) で分かります。`FR`・`CRF`・`VR`・`RR`・`FI`・`VI`・`RI`・`FT`・`VT`・`RT`・`EXT`・`DRO`・`DRL`・`DRH`・`Lag` には Python の実装がありません。呼び出し側の `rng` を渡した `RR` / `RI` / `RT` は、構築のときに `rng` から 63 bit の seed を 1 つ引き (`rng.getrandbits(63)`)、その seed で Rust のエンジンで動きます。`seed=s` は、Python で動いていたときの `rng=random.Random(s)` と同じ列を引きます。`step_fn` が `arithmetic`・`richardson_roberts` で作ったものでない `ProgressiveRatio` は、モジュールがあっても Python で動きます (`geometric` も含む。Rust のエンジンは .5 を 0 から遠い側へ、Python は偶数側へ丸めるため)。`LimitedHold` が受け取るのは `FI`・`VI`・`RI` だけで、ほかの内側のスケジュールは `ScheduleConfigError` になります。Rust のエンジンが受け取れない引数 (整数の幅を超える整数・無限大の時間・負の `seed`) は `ScheduleConfigError` になります。`LimitedHold` は内側のスケジュールの引数から Rust の写しを自分で作るので、内側のオブジェクトを別に step しても影響しません。Rust のエンジンで動くスケジュールを `copy.deepcopy` すると、最後の `reset` 以降の step を再生します。
 
-複合スケジュールのクラス `Multiple`・`Chained`・`Tandem`・`Mixed`・`Concurrent`・`Alternative`・`Conjunctive`・`Overlay`・`Interpolate`・`SecondOrder`・`Timeout`・`ResponseCost` には Python の実装がありません。contingency-rs でだけ動き、`engine` は常に `"rust"` です。複合は成分（`Concurrent` では罰の schedule も）の spec から自分の spec を組むので、contingency-rs で動く成分だけを受け取ります。Python で動く成分（`Schedule` を満たす自作のオブジェクトや、`geometric` の `ProgressiveRatio` など）は `ScheduleConfigError` になります。最後の reset 以降に step した成分（包む前に reset してください）と、1 つの複合に 2 回渡した同じオブジェクト（使う場所ごとに別のオブジェクトを作ってください）も同じです。`active_index`・`current_stimulus`・`is_terminal`・`unit_completions`・`in_timeout`・`balance` は Rust のエンジン（`Schedule.state()`）から読みます。`state()` の無い `contingency_core` では、これらの属性を持つ複合を作るときに `ScheduleConfigError` になります。複合は成分の Rust の写しを自分で持つので、成分のオブジェクトを別に step しても影響せず、複合の `step` で成分のオブジェクトは進みません。`reset` は成分のオブジェクトを reset してから写しを作り直すので、seed の無い VR・VI・VT の成分は新しい列を引きます。1 つの成分のオブジェクトを 2 つの複合で共有した場合は検出しません。複合はそれぞれ自分の写しを進めます。成分のオブジェクトを返す属性（`components`・`first`・`base`・`unit` など）は、複合が進めた状態ではなく作ったときの状態を示します。`Concurrent` の 2 つの成分が同じ tick で強化子を出したときは、挿入順で先の成分ではなく、キーを昇順に並べて先の成分が勝ちます。Rust のエンジンが成分をキーの昇順に読むためです。`PhasedConcurrent` は、段階ごとの `Concurrent` の切り替えを Python で行い、各段階は contingency-rs で動きます。
+複合スケジュールのクラス `Multiple`・`Chained`・`Tandem`・`Mixed`・`Concurrent`・`Alternative`・`Conjunctive`・`Overlay`・`Interpolate`・`SecondOrder`・`Timeout`・`ResponseCost` には Python の実装がありません。contingency-rs でだけ動き、`engine` は常に `"rust"` です。複合は成分 (`Concurrent` では罰の schedule も) の spec から自分の spec を組むので、contingency-rs で動く成分だけを受け取ります。Python で動く成分 (`Schedule` を満たす自作のオブジェクトや、`geometric` の `ProgressiveRatio` など) は `ScheduleConfigError` になります。最後の reset 以降に step した成分 (包む前に reset してください) と、1 つの複合に 2 回渡した同じオブジェクト (使う場所ごとに別のオブジェクトを作ってください) も同じです。`active_index`・`current_stimulus`・`is_terminal`・`unit_completions`・`in_timeout`・`balance` は Rust のエンジン (`Schedule.state()`) から読みます。`state()` の無い `contingency_core` では、これらの属性を持つ複合を作るときに `ScheduleConfigError` になります。複合は成分の Rust の写しを自分で持つので、成分のオブジェクトを別に step しても影響せず、複合の `step` で成分のオブジェクトは進みません。`reset` は成分のオブジェクトを reset してから写しを作り直すので、seed の無い VR・VI・VT の成分は新しい列を引きます。1 つの成分のオブジェクトを 2 つの複合で共有した場合は検出しません。複合はそれぞれ自分の写しを進めます。成分のオブジェクトを返す属性 (`components`・`first`・`base`・`unit` など) は、複合が進めた状態ではなく作ったときの状態を示します。`Concurrent` の 2 つの成分が同じ tick で強化子を出したときは、挿入順で先の成分ではなく、キーを昇順に並べて先の成分が勝ちます。Rust のエンジンが成分をキーの昇順に読むためです。`PhasedConcurrent` は、段階ごとの `Concurrent` の切り替えを Python で行い、各段階は contingency-rs で動きます。
 
-残りのクラス `Sidman`・`DiscriminatedAvoidance`・`Escape`・`AdjustingSchedule`・`InterlockingSchedule`・`Percentile`・`MatchingToSample`・`GoNoGo` も同じ形で contingency-rs で動きます。変わっていく属性（`next_shock_time`・`phase`・`current_value`・`response_count`・`current_requirement()`・`samples`・`trial_index`・`correct_operandum`・`current_trial_type`・`current_comparisons`・`is_probe_trial`・`current_is_go`）は `Schedule.state()` から読むので、これらの `state()` を持たない `contingency_core` では `ScheduleConfigError` になります。`MatchingToSample` の修正試行・`Concurrent` の切り替え反応の罰を使うときに、それを持たない版でも同じです。IRT 以外を対象にした `Percentile` と、rank 0 の `Percentile` は Python で動きます。`MatchingToSample` と `GoNoGo` は、結果の schedule がすべて contingency-rs で動く（か渡されていない）ときに contingency-rs で動きます。結果の schedule が Python で動くとき、最後の reset 以降に step したとき、同じオブジェクトを 2 回渡したときは Python で動きます。`seed` が無ければ構築時に引いた seed を Rust のエンジンに渡し、Python の実装が reset のたびに seed を引き直すのと同じく、`reset` のたびに新しい seed を引きます。`Outcome.meta` は Python の形のままです: `trial_outcome` の鍵は常にあり、試行の種類を持つ試行が名前のある比較刺激なしに終わったときの `choice` は `None`、`comparisons` は tuple です。
+残りのクラス `Sidman`・`DiscriminatedAvoidance`・`Escape`・`AdjustingSchedule`・`InterlockingSchedule`・`Percentile`・`MatchingToSample`・`GoNoGo` も同じ形で contingency-rs で動きます。変わっていく属性 (`next_shock_time`・`phase`・`current_value`・`response_count`・`current_requirement()`・`samples`・`trial_index`・`correct_operandum`・`current_trial_type`・`current_comparisons`・`is_probe_trial`・`current_is_go`) は `Schedule.state()` から読むので、これらの `state()` を持たない `contingency_core` では `ScheduleConfigError` になります。`MatchingToSample` の修正試行・`Concurrent` の切り替え反応の罰を使うときに、それを持たない版でも同じです。IRT 以外を対象にした `Percentile` と、rank 0 の `Percentile` は Python で動きます。`MatchingToSample` と `GoNoGo` は、結果の schedule がすべて contingency-rs で動く (か渡されていない) ときに contingency-rs で動きます。結果の schedule が Python で動くとき、最後の reset 以降に step したとき、同じオブジェクトを 2 回渡したときは Python で動きます。`seed` が無ければ構築時に引いた seed を Rust のエンジンに渡し、Python の実装が reset のたびに seed を引き直すのと同じく、`reset` のたびに新しい seed を引きます。`Outcome.meta` は Python の形のままです: `trial_outcome` の鍵は常にあり、試行の種類を持つ試行が名前のある比較刺激なしに終わったときの `choice` は `None`、`comparisons` は tuple です。
 
 ```bash
 cd core
@@ -172,7 +172,7 @@ python -m pytest tests/test_engine_rust.py
 
 ## サポート
 
-不具合の報告・機能の要望・使い方の質問は [issue tracker](https://github.com/OperantKit/contingency-py/issues) に書いてください。不具合の報告には、スケジュールの式（またはスケジュールを作るコード）、再現する反応の列、期待した結果と実際の結果、Python・contingency-py・contingency-dsl-py の版を添えてください。開発者 1 名が手の空いたときに対応しています。返信の期日は約束できませんが、issue はすべて読みます。
+不具合の報告・機能の要望・使い方の質問は [issue tracker](https://github.com/OperantKit/contingency-py/issues) に書いてください。不具合の報告には、スケジュールの式 (またはスケジュールを作るコード)、再現する反応の列、期待した結果と実際の結果、Python・contingency-py・contingency-dsl-py の版を添えてください。開発者 1 名が手の空いたときに対応しています。返信の期日は約束できませんが、issue はすべて読みます。
 
 ## 参考文献
 
