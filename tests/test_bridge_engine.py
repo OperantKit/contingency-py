@@ -84,9 +84,9 @@ def test_rust_engine_returns_the_bare_rust_schedule(source: str, cls: type) -> N
 
 @_needs_core
 @pytest.mark.integration
-def test_default_engine_keeps_a_class_rust_cannot_run_in_python() -> None:
-    # The geometric progressive ratio rounds differently in contingency-rs,
-    # so the class keeps its Python implementation even with the module.
+def test_default_engine_runs_a_geometric_pr_on_rust() -> None:
+    # contingency-rs rounds the geometric requirement half to even, as
+    # Python's round() does, so the class runs it on the Rust engine.
     schedule = from_dsl(parse("PR(geometric, start=1, ratio=2)"))
     assert isinstance(schedule, _schedules.ProgressiveRatio)
-    assert schedule.engine == "python"
+    assert schedule.engine == "rust"

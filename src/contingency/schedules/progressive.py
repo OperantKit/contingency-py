@@ -10,12 +10,14 @@ and is not enforced by the schedule itself: :class:`ProgressiveRatio`
 advances indefinitely.
 
 The module factors the step rule out of the schedule so that new step
-series can be added without touching :class:`ProgressiveRatio`:
+series can be added without touching :class:`ProgressiveRatio`. A
+schedule over one of the three factories below runs on the Rust engine;
+a schedule over any other callable runs in this module's Python loop:
 
 * :func:`arithmetic` — linear progression ``r_n = start + n * step``
   (Hodos, 1961, used the simplest arithmetic form).
 * :func:`geometric` — multiplicative progression
-  ``r_n = round(start * ratio ** n)``.
+  ``r_n = round(start * ratio ** n)`` (halves round to even).
 * :func:`richardson_roberts` — the 30-term Richardson-Roberts series
   popularised for drug self-administration (Richardson & Roberts,
   1996, Table 2), inspired by Hursh's (1980) demand-curve analyses.
@@ -46,7 +48,7 @@ from typing import TypeAlias
 
 from contingency.entities import Outcome, Reinforcer, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
-from contingency.schedules._rust import engine_name, require_core, rust_or_none
+from contingency.schedules._rust import require_core, rust_schedule
 
 __all__ = [
     "StepFn",
@@ -59,11 +61,10 @@ __all__ = [
 
 StepFn: TypeAlias = Callable[[int], int]
 
-# Spec params of the step functions built by the factories below, so a
-# ProgressiveRatio over one of them can run on the Rust engine. Any other
-# callable keeps the schedule in Python.
+# Spec params of the step functions built by the factories below: a
+# ProgressiveRatio over one of them runs on the Rust engine. Any other
+# callable runs in the Python loop of ProgressiveRatio.
 _RUST_STEPS: weakref.WeakKeyDictionary[StepFn, dict[str, object]] = weakref.WeakKeyDictionary()
-_U32_MAX = 2**32 - 1
 
 
 def _rust_step_params(step_fn: StepFn) -> dict[str, object] | None:
@@ -71,12 +72,6 @@ def _rust_step_params(step_fn: StepFn) -> dict[str, object] | None:
         params = _RUST_STEPS.get(step_fn)
     except TypeError:  # not weak-referenceable
         return None
-    if params is None:
-        return None
-    for key in ("start", "step_size"):
-        value = params.get(key)
-        if isinstance(value, int) and value > _U32_MAX:
-            return None
     return params
 """A step function maps a 0-based reinforcement index to the ratio
 requirement that must be met to earn *that* reinforcer. The returned
@@ -164,7 +159,9 @@ def geometric(start: int = 1, ratio: float = 2.0) -> StepFn:
     -------
     StepFn
         A callable mapping reinforcement index to response requirement,
-        with the geometric value rounded to the nearest positive integer.
+        with the geometric value rounded to the nearest positive integer
+        (halves to even, as :func:`round`: ``geometric(1, 2.5)`` gives
+        1, 2, 6, 16).
     """
     if not isinstance(start, int) or isinstance(start, bool):
         raise ScheduleConfigError(
@@ -187,9 +184,7 @@ def geometric(start: int = 1, ratio: float = 2.0) -> StepFn:
         # (cannot happen for start >= 1 and ratio > 1, but defensive).
         return max(1, int(value))
 
-    # Not registered for the Rust engine: Rust rounds halves away from zero
-    # and Python's round() rounds them to even, so geometric(1, 2.5) would
-    # ask for 3 responses instead of 2 at the second reinforcer.
+    _RUST_STEPS[_geometric] = {"step": "geometric", "start": start, "ratio": ratio_f}
     return _geometric
 
 
@@ -347,22 +342,21 @@ class ProgressiveRatio:
         self._count: int = 0
         self._last_now: float | None = None
         params = _rust_step_params(step_fn)
-        require_core()
-        self._rust = (
-            None
-            if params is None
-            else rust_or_none({"type": "ProgressiveRatio", "params": dict(params)})
-        )
+        if params is None:
+            require_core()
+            self._rust = None
+        else:
+            self._rust = rust_schedule({"type": "ProgressiveRatio", "params": dict(params)})
 
     @property
     def engine(self) -> str:
         """``"rust"`` when the Rust engine runs this schedule, else ``"python"``.
 
-        The Rust engine runs a schedule built over :func:`arithmetic` or
-        :func:`richardson_roberts`; any other ``step_fn`` (including
-        :func:`geometric`) runs in Python.
+        The Rust engine runs a schedule built over :func:`arithmetic`,
+        :func:`geometric` or :func:`richardson_roberts`; any other
+        ``step_fn`` runs in the Python loop of this class.
         """
-        return engine_name(self._rust)
+        return "python" if self._rust is None else "rust"
 
     @property
     def reinforcement_index(self) -> int:

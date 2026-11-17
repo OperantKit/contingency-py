@@ -1,20 +1,25 @@
-"""MTS correction trials: the Python class, its Rust engine, and the DSL bridge.
+"""MTS correction trials: the class (on the Rust engine) and the DSL bridge.
 
 With correction active, a baseline trial that ends incorrect (a wrong
 choice or a timeout) is followed, after the ITI, by the same trial: the
 same correct operandum, sample and comparison positions, with no draw
 from the RNG. ``True`` repeats until correct; an int ``N`` repeats at
-most ``N`` times. Probe trials are not repeated.
+most ``N`` times. Probe trials are not repeated. The trajectories are
+also checked against traces recorded from the Python implementation the
+class used to have, when it agreed with the Rust engine
+(``fixtures/single_schedule_traces/mts_correction.json``).
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 from contingency_dsl import parse
 
-import contingency.schedules._rust as _rust
+import contingency.schedules.trial_based as trial_based
 from contingency import ResponseEvent
 from contingency.bridge import from_dsl, to_spec
 from contingency.engine import from_spec, rust_engine_available
@@ -33,9 +38,7 @@ _PROBES = [TrialType(sample="C1", correct="B1", comparisons=("B1", "B2", "B3"))]
 
 
 def _make(
-    monkeypatch: pytest.MonkeyPatch,
     *,
-    python: bool,
     correction: bool | int | None,
     trial_types: bool = True,
     probes: bool = False,
@@ -50,13 +53,9 @@ def _make(
     if trial_types:
         kwargs["trial_types"] = _TYPES
         kwargs["probe_trial_types"] = _PROBES if probes else None
-    if python:
-        with monkeypatch.context() as m:
-            m.setattr(_rust, "_FORCE_PYTHON", True)
-            mts = MatchingToSample(**kwargs)
-        assert mts.engine == "python"
-        return mts
-    return MatchingToSample(**kwargs)
+    mts = MatchingToSample(**kwargs)
+    assert mts.engine == "rust"
+    return mts
 
 
 def _wrong(correct: str) -> str:
@@ -88,8 +87,8 @@ def _drive(schedule: Any, script: list[bool | None] = _SCRIPT) -> list[tuple[Any
 
 
 @pytest.mark.unit
-def test_python_repeats_the_trial_until_correct(monkeypatch: pytest.MonkeyPatch) -> None:
-    mts = _make(monkeypatch, python=True, correction=True)
+def test_repeats_the_trial_until_correct() -> None:
+    mts = _make(correction=True)
     rows = _drive(mts)
     # trials 0-3 are the same trial (wrong, wrong, timeout, correct)
     assert len({(r[1], r[2]) for r in rows[:4]}) == 1
@@ -99,16 +98,14 @@ def test_python_repeats_the_trial_until_correct(monkeypatch: pytest.MonkeyPatch)
 
 
 @pytest.mark.unit
-def test_python_bounded_draws_a_new_trial_after_the_limit(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    plain = _make(monkeypatch, python=True, correction=None)
+def test_bounded_draws_a_new_trial_after_the_limit() -> None:
+    plain = _make(correction=None)
     plain.step(0.0, None)
     plain.step(0.5, ResponseEvent(0.5, _wrong(plain.correct_operandum)))
     plain.step(1.5, None)
     drawn_second = (plain.correct_operandum, plain.current_comparisons)
 
-    mts = _make(monkeypatch, python=True, correction=2)
+    mts = _make(correction=2)
     rows = _drive(mts, [False, False, False, True])
     assert len({(r[1], r[2]) for r in rows[:3]}) == 1
     assert (rows[3][1], rows[3][2]) == drawn_second
@@ -116,9 +113,9 @@ def test_python_bounded_draws_a_new_trial_after_the_limit(
 
 
 @pytest.mark.unit
-def test_probe_trials_are_not_repeated(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_probe_trials_are_not_repeated() -> None:
     # bounded, so the wrong answers do not hold the first baseline trial forever
-    mts = _make(monkeypatch, python=True, correction=1, probes=True)
+    mts = _make(correction=1, probes=True)
     rows = _drive(mts, [False] * 16)
     for prev, cur in zip(rows, rows[1:], strict=False):
         if prev[4]["probe"]:
@@ -128,8 +125,8 @@ def test_probe_trials_are_not_repeated(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.unit
 @pytest.mark.parametrize("correction", [None, False])
-def test_disabled_adds_no_meta(monkeypatch: pytest.MonkeyPatch, correction: bool | None) -> None:
-    rows = _drive(_make(monkeypatch, python=True, correction=correction))
+def test_disabled_adds_no_meta(correction: bool | None) -> None:
+    rows = _drive(_make(correction=correction))
     assert all("correction_trial" not in r[4] for r in rows)
 
 
@@ -141,8 +138,8 @@ def test_bad_correction_is_rejected(bad: Any) -> None:
 
 
 @pytest.mark.unit
-def test_reset_clears_a_pending_repeat(monkeypatch: pytest.MonkeyPatch) -> None:
-    mts = _make(monkeypatch, python=True, correction=True)
+def test_reset_clears_a_pending_repeat() -> None:
+    mts = _make(correction=True)
     first = _drive(mts, [True])
     mts.reset()
     _drive(mts, [False])
@@ -150,28 +147,40 @@ def test_reset_clears_a_pending_repeat(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _drive(mts, [True]) == first
 
 
+_RECORDED: dict[str, list[Any]] = json.loads(
+    (Path(__file__).parent / "fixtures" / "single_schedule_traces" / "mts_correction.json")
+    .read_text(encoding="utf-8")
+)
+
+
+def _key(correction: bool | int | None, trial_types: bool, probes: bool) -> str:
+    return (
+        f"correction={json.dumps(correction)} trial_types={json.dumps(trial_types)} "
+        f"probes={json.dumps(probes)}"
+    )
+
+
 @requires_rust
 @pytest.mark.unit
 @pytest.mark.parametrize("correction", [None, True, 1, 2])
 @pytest.mark.parametrize("trial_types", [True, False])
 @pytest.mark.parametrize("probes", [False, True])
-def test_python_and_rust_agree(
-    monkeypatch: pytest.MonkeyPatch,
-    correction: bool | int | None,
-    trial_types: bool,
-    probes: bool,
+def test_matches_the_recorded_trace(
+    correction: bool | int | None, trial_types: bool, probes: bool
 ) -> None:
     if probes and not trial_types:
         pytest.skip("probe trial types need trial types")
-    py = _make(
-        monkeypatch, python=True, correction=correction, trial_types=trial_types, probes=probes
-    )
-    rs = _make(
-        monkeypatch, python=False, correction=correction, trial_types=trial_types, probes=probes
-    )
-    assert rs.engine == "rust"
-    script = _SCRIPT * 3
-    assert _drive(rs, script) == _drive(py, script)
+    rs = _make(correction=correction, trial_types=trial_types, probes=probes)
+    got = json.loads(json.dumps(_drive(rs, _SCRIPT * 3)))
+    assert got == _RECORDED[_key(correction, trial_types, probes)]
+
+
+def test_every_recorded_trace_has_a_case() -> None:
+    expected = {
+        _key(c, t, p) for c in (None, True, 1, 2) for t in (True, False) for p in (False, True)
+        if t or not p
+    }
+    assert set(_RECORDED) == expected
 
 
 _DSL = "MTS(comparisons=3, consequence=CRF, incorrect=EXT, ITI=1s, correction={c})"
@@ -257,9 +266,7 @@ def test_an_engine_without_correction_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A contingency_core that predates correction reads past the key."""
-    import contingency.schedules.trial_based as trial_based
-
-    real = trial_based.rust_or_none
+    real = trial_based.rust_schedule
 
     class _Old:
         def __init__(self, inner: Any) -> None:
@@ -272,10 +279,9 @@ def test_an_engine_without_correction_raises(
 
     def old_engine(spec: dict[str, Any]) -> Any:
         params = {k: v for k, v in spec["params"].items() if k != "correction"}
-        rust = real({**spec, "params": params})
-        return None if rust is None else _Old(rust)
+        return _Old(real({**spec, "params": params}))
 
-    monkeypatch.setattr(trial_based, "rust_or_none", old_engine)
+    monkeypatch.setattr(trial_based, "rust_schedule", old_engine)
     with pytest.raises(ScheduleConfigError, match="too old"):
         MatchingToSample(n_comparisons=2, correction=True)
     assert MatchingToSample(n_comparisons=2).engine == "rust"

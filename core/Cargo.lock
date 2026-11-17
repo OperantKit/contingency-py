@@ -150,7 +150,7 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 [[package]]
 name = "contingency"
 version = "0.1.0"
-source = "git+https://github.com/OperantKit/contingency-rs?rev=0b6aba2a505c2850750f33533842beea4b846671#0b6aba2a505c2850750f33533842beea4b846671"
+source = "git+https://github.com/OperantKit/contingency-rs?rev=bb05fec26af125bff207d0af6e3ba742ee6ec7bd#bb05fec26af125bff207d0af6e3ba742ee6ec7bd"
 dependencies = [
  "anyhow",
  "cbindgen",

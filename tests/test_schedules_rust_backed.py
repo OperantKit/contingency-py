@@ -140,7 +140,7 @@ def test_random_schedules_reject_rng_with_seed() -> None:
 def test_progressive_ratio_runs_on_rust_for_the_factory_steps() -> None:
     from contingency.schedules import ProgressiveRatio, arithmetic, geometric, richardson_roberts
 
-    for step_fn in (arithmetic(2, 3), richardson_roberts()):
+    for step_fn in (arithmetic(2, 3), geometric(2, 1.5), richardson_roberts()):
         schedule = ProgressiveRatio(step_fn)
         assert schedule.engine == "rust"
         reinforced = 0
@@ -153,8 +153,20 @@ def test_progressive_ratio_runs_on_rust_for_the_factory_steps() -> None:
         schedule.reset()
         assert schedule.reinforcement_index == 0
     assert ProgressiveRatio(lambda n: n + 1).engine == "python"
-    # Rust rounds halves away from zero, Python to even: geometric stays in Python.
-    assert ProgressiveRatio(geometric(1, 2.5)).engine == "python"
+
+
+def test_geometric_pr_rounds_halves_to_even_on_rust() -> None:
+    from contingency.schedules import ProgressiveRatio, geometric
+
+    # 1, 2.5 -> 2, 6.25 -> 6, 15.625 -> 16 (halves to even, as round()).
+    step_fn = geometric(1, 2.5)
+    assert [step_fn(n) for n in range(4)] == [1, 2, 6, 16]
+    schedule = ProgressiveRatio(step_fn)
+    assert schedule.engine == "rust"
+    reinforced_at = [
+        i for i in range(1, 26) if schedule.step(float(i), ResponseEvent(time=float(i))).reinforced
+    ]
+    assert reinforced_at == [1, 3, 9, 25]
 
 
 @pytest.mark.parametrize(

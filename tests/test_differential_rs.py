@@ -17,17 +17,19 @@ through the same sequence and compares every step without rounding:
 Known differences are listed in :data:`KNOWN_DIFFERENCES`; a listed entry
 that no longer produces a mismatch fails, so the list cannot go stale.
 
-The single and compound schedule classes (ratio, interval, time-based,
-differential, Lag, adjusting, interlocking, aversive, and every compound)
-have no Python implementation and ignore ``_FORCE_PYTHON``: a spec built
-only from them runs on the Rust engine on both sides, so it always
-agrees. A compound takes only components that run on the Rust engine, so
-every node inside a compound is built without the flag. The comparison
-checks the classes that still have a Python implementation (trial-based
-schedules, ProgressiveRatio and Percentile) where they are not inside a
-compound. The former Python trajectories of the other classes are pinned
-by the recorded traces under ``tests/fixtures/single_schedule_traces/``
-and ``tests/fixtures/compound_traces/`` instead.
+The single, compound and trial-based schedule classes (ratio, interval,
+time-based, differential, Lag, adjusting, interlocking, aversive,
+ProgressiveRatio over a factory step, every compound, MatchingToSample
+and GoNoGo) have no Python implementation and ignore ``_FORCE_PYTHON``:
+a spec built only from them runs on the Rust engine on both sides, so it
+always agrees. A compound or trial-based schedule takes only components
+that run on the Rust engine, so every node inside one is built without
+the flag. The comparison checks the class that still has a Python
+implementation (Percentile) where it is not inside a compound or a
+trial-based schedule. The former Python trajectories of the other
+classes are pinned by the recorded traces under
+``tests/fixtures/single_schedule_traces/`` and
+``tests/fixtures/compound_traces/`` instead.
 
 The test runs once per outermost type (every type in
 ``contingency_core.SPEC_TYPES``) with ``DIFFERENTIAL_EXAMPLES / 37``
@@ -58,7 +60,6 @@ import contingency.conformance.spec as _spec_module  # noqa: E402
 from contingency.engine import from_spec  # noqa: E402
 from contingency.entities import ResponseEvent  # noqa: E402
 from contingency.schedules import _rust  # noqa: E402
-from contingency.schedules import progressive as _progressive  # noqa: E402
 
 from .strategies_spec import (  # noqa: E402
     SEEDED_TYPES,
@@ -127,15 +128,17 @@ def run_side(make: Callable[[], Any], steps: list[Step]) -> list[Observation]:
 
 
 # Types whose class runs only on the Rust engine and takes only components
-# that run there.
+# that run there (the compounds and the trial-based schedules).
 COMPOUND_TYPES = frozenset(
     {
         "Alternative",
         "Chained",
         "Concurrent",
         "Conjunctive",
+        "GoNoGo",
         "Interpolate",
         "LimitedHold",
+        "MatchingToSample",
         "Mixed",
         "Multiple",
         "Overlay",
@@ -276,43 +279,6 @@ def _rank_zero_to_one(node: dict[str, Any]) -> dict[str, Any]:
     return node
 
 
-def _round_half_away(x: float) -> int:
-    return int(math.copysign(math.floor(abs(x) + 0.5), x))
-
-
-def _drop_inner_meta(observations: list[Observation]) -> list[Observation]:
-    out: list[Observation] = []
-    for o in observations:
-        if o[0] == "ok":
-            meta = json.loads(o[3])
-            meta.pop("inner_meta", None)
-            o = (o[0], o[1], o[2], json.dumps(meta, sort_keys=True))
-        out.append(o)
-    return out
-
-
-def _has_geometric(spec: Spec) -> bool:
-    return _contains(
-        spec, lambda n: n["type"] == "ProgressiveRatio" and n["params"].get("step") == "geometric"
-    )
-
-
-def _has_trial(spec: Spec) -> bool:
-    return _contains(spec, lambda n: n["type"] in ("MatchingToSample", "GoNoGo"))
-
-
-def _python_corrected(spec: Spec, steps: list[Step], keys: frozenset[str]) -> list[Observation]:
-    if "pr-geometric-rounding" in keys:
-        # ``geometric`` calls the builtin ``round`` through the module globals.
-        with mock.patch.object(_progressive, "round", _round_half_away, create=True):
-            py = run_python(spec, steps)
-    else:
-        py = run_python(spec, steps)
-    if "trial-inner-meta" in keys:
-        py = _drop_inner_meta(py)
-    return py
-
-
 def _rank_zero_explains(spec: Spec, rs: list[Observation]) -> bool:
     """Rust refused to build only because of a Percentile with rank 0."""
     if rs[:1] != [("build_error", "ScheduleConfigError")]:
@@ -322,54 +288,7 @@ def _rank_zero_explains(spec: Spec, rs: list[Observation]) -> bool:
     return run_rust(_map_specs(spec, _rank_zero_to_one), [])[:1] != rs[:1]
 
 
-def _geometric_to_arithmetic(node: dict[str, Any]) -> dict[str, Any]:
-    if node["type"] == "ProgressiveRatio" and node["params"].get("step") == "geometric":
-        return {"type": "ProgressiveRatio", "params": {"step": "arithmetic"}}
-    return node
-
-
-def _geometric_in_compound(spec: Spec) -> bool:
-    return _contains(spec, lambda n: n["type"] in COMPOUND_TYPES and _has_geometric(n["params"]))
-
-
-def _geometric_in_compound_explains(spec: Spec, py: list[Observation]) -> bool:
-    """The Python classes refused to build only because a compound holds a geometric PR."""
-    if py[:1] != [("build_error", "ScheduleConfigError")] or not _geometric_in_compound(spec):
-        return False
-    return run_python(_map_specs(spec, _geometric_to_arithmetic), [])[:1] != py[:1]
-
-
 KNOWN_DIFFERENCES: tuple[Known, ...] = (
-    Known(
-        key="pr-geometric-in-compound",
-        reason=(
-            "a geometric PR runs only in Python (see pr-geometric-rounding), and a compound "
-            "class takes only components that run on the Rust engine, so the class refuses "
-            "to build it; the Rust engine builds it"
-        ),
-        fix="contingency-rs: round geometric PR requirements half to even, then run it on Rust",
-        applies=lambda spec: False,  # checked by _geometric_in_compound_explains
-        probe=(
-            {
-                "type": "Alternative",
-                "params": {
-                    "first": {"type": "CRF", "params": {}},
-                    "second": {"type": "ProgressiveRatio", "params": {"step": "geometric"}},
-                },
-            },
-            [(1.0, "main", False)],
-        ),
-    ),
-    Known(
-        key="pr-geometric-rounding",
-        reason="geometric PR: Rust rounds .5 away from zero, Python rounds half to even",
-        fix="contingency-rs: round geometric PR requirements half to even",
-        applies=_has_geometric,
-        probe=(
-            {"type": "ProgressiveRatio", "params": {"step": "geometric", "start": 2, "ratio": 1.5}},
-            [(float(i + 1), "main", False) for i in range(40)],
-        ),
-    ),
     Known(
         key="percentile-rank-zero",
         reason=(
@@ -380,29 +299,6 @@ KNOWN_DIFFERENCES: tuple[Known, ...] = (
         probe=(
             {"type": "Percentile", "params": {"target": "irt", "rank": 0, "window": 2}},
             [(1.0, "main", False)],
-        ),
-    ),
-    Known(
-        key="trial-inner-meta",
-        reason=(
-            "MatchingToSample/GoNoGo: Python copies the consequence schedule's meta "
-            "to meta['inner_meta'], the Rust engine drops it (its meta values cannot nest)"
-        ),
-        fix="undecided: nest meta in the Rust engine, or drop inner_meta from Python",
-        applies=_has_trial,
-        probe=(
-            {
-                "type": "MatchingToSample",
-                "params": {
-                    "n_comparisons": 2,
-                    "seed": 0,
-                    "consequence": {
-                        "type": "DiscriminatedAvoidance",
-                        "params": {"warning_duration": 0.5, "iti": 0.5},
-                    },
-                },
-            },
-            [(1.0, "choice_1", False)],
         ),
     ),
 )
@@ -416,13 +312,10 @@ def known_for(
     """The smallest set of known entries that accounts for the whole mismatch, if any."""
     if _rank_zero_explains(spec, rs):
         return (_BY_KEY["percentile-rank-zero"],)
-    if _geometric_in_compound_explains(spec, py):
-        return (_BY_KEY["pr-geometric-in-compound"],)
     applicable = [k for k in KNOWN_DIFFERENCES if k.applies(spec)]
     for size in range(1, len(applicable) + 1):
         for combo in itertools.combinations(applicable, size):
-            keys = frozenset(k.key for k in combo)
-            if first_difference(_python_corrected(spec, steps, keys), rs) is None:
+            if first_difference(run_python(spec, steps), rs) is None:
                 return combo
     return None
 

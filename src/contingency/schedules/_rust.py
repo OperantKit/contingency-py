@@ -10,13 +10,13 @@ report ``state()``; without it the constructor raises
 install it. ``import contingency`` and the DSL parsing do not need it.
 
 The single schedule classes (ratio, interval, time-based,
-differential, Lag, adjusting, interlocking, aversive) and the compound
-schedule classes run only on the Rust engine. A compound takes only
-components that run there (:func:`component_specs`). A few cases still
-run in this package's Python implementation (Percentile on a non-IRT
-target or at rank 0, a custom ProgressiveRatio step function,
-trial-based schedules whose consequence runs in Python). ``engine`` on
-each instance tells which one runs (``"rust"`` or ``"python"``).
+differential, Lag, adjusting, interlocking, aversive), the compound
+schedule classes and the trial-based classes run only on the Rust
+engine. A compound or trial-based schedule takes only components that
+run there (:func:`component_specs`). Two cases still run in this
+package's Python implementation: Percentile on a non-IRT target or at
+rank 0, and a ProgressiveRatio over a custom step function. ``engine``
+on each instance tells which one runs (``"rust"`` or ``"python"``).
 """
 
 from __future__ import annotations
@@ -36,8 +36,6 @@ __all__ = [
     "seed_of",
     "fresh_seed",
     "rust_reset",
-    "spec_of",
-    "specs_of",
     "rust_compound",
     "component_specs",
     "compound_schedule",
@@ -49,9 +47,8 @@ __all__ = [
 _SEEDS = random.Random()
 
 # Tests set this to run the Python implementation that remains in the
-# trial-based, progressive and percentile schedule classes, to compare
-# it with the Rust engine. The single and compound schedule classes
-# ignore it: they have no Python implementation. Not public API.
+# percentile schedule class, to compare it with the Rust engine. The
+# other schedule classes ignore it. Not public API.
 _FORCE_PYTHON = False
 
 _MISSING_CORE = (
@@ -129,8 +126,7 @@ def rust_schedule(spec: dict[str, Any]) -> Any:
     """Return the ``RustSchedule`` for ``spec``; the schedule has no other engine.
 
     Unlike :func:`rust_or_none`, this ignores the test switch that runs
-    the Python implementations of the trial-based, progressive and
-    percentile schedules.
+    the Python implementation of the percentile schedule.
 
     Raises
     ------
@@ -226,37 +222,6 @@ def rust_reset(rust: Any, seed: int | None) -> Any:
         return rust
     spec = rust._spec
     return rust_schedule({"type": spec["type"], "params": {**spec["params"], "seed": fresh_seed()}})
-
-
-def spec_of(schedule: Any) -> dict[str, Any] | None:
-    """The spec a schedule of this package runs on Rust with, else ``None``.
-
-    ``None`` for a schedule that runs in Python, including any object
-    outside this package that implements the ``Schedule`` protocol.
-    ``None`` too for a schedule already stepped since its last reset:
-    its spec describes the schedule as built, not where it stands now.
-    """
-    rust = getattr(schedule, "_rust", None)
-    if rust is None or getattr(rust, "_history", None):
-        return None
-    spec = getattr(rust, "_spec", None)
-    return spec if isinstance(spec, dict) else None
-
-
-def specs_of(schedules: Any) -> list[dict[str, Any]] | None:
-    """The specs of ``schedules``, or ``None`` when any runs in Python.
-
-    ``None`` also when the same object appears twice: the Rust engine
-    would run two independent copies of it, where Python steps the one
-    object twice.
-    """
-    schedules = list(schedules)
-    if len({id(s) for s in schedules}) != len(schedules):
-        return None
-    specs = [spec_of(s) for s in schedules]
-    if any(s is None for s in specs):
-        return None
-    return specs  # type: ignore[return-value]
 
 
 def component_specs(kind: str, schedules: Any) -> list[dict[str, Any]]:

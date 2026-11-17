@@ -7,7 +7,7 @@ import random
 
 import pytest
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
+from contingency.entities import Outcome, ResponseEvent
 from contingency.errors import ScheduleConfigError, ScheduleStateError
 from contingency.schedules import FT, GoNoGo, MatchingToSample
 from contingency.schedules.ratio import FR
@@ -392,20 +392,6 @@ AB = {"A1": "B1", "A2": "B2", "A3": "B3"}
 BA = {"B1": "A1", "B2": "A2", "B3": "A3"}
 
 
-class _SpySchedule:
-    """Records every ``step`` call and always delivers a reinforcer."""
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[float, ResponseEvent | None]] = []
-
-    def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        self.calls.append((now, event))
-        return Outcome(reinforced=True, reinforcer=Reinforcer(time=now))
-
-    def reset(self) -> None:
-        self.calls.clear()
-
-
 def _operandum_for(mts: MatchingToSample, name: str) -> str:
     return f"choice_{mts.current_comparisons.index(name)}"
 
@@ -522,15 +508,17 @@ class TestMTSTrialTypes:
         assert timeout.meta["choice"] is None
 
     def test_probe_trials_are_not_consequated(self) -> None:
-        consequence = _SpySchedule()
-        incorrect = _SpySchedule()
+        # FR(2) on both sides: the n-th baseline trial answered one way
+        # reinforces when n is even. A probe trial that stepped either
+        # schedule would shift that parity for the next baseline trial.
         mts = self._mts(
             trial_types=trial_types_from_relations(AB),
             probe_trial_types=trial_types_from_relations(BA),
-            consequence=consequence,
-            incorrect=incorrect,
+            consequence=FR(2),
+            incorrect=FR(2),
         )
         probes = {"correct": 0, "incorrect": 0}
+        baseline = {"correct": 0, "incorrect": 0}
         for t in range(12):
             mts.step(float(t))
             tt = mts.current_trial_type
@@ -539,7 +527,6 @@ class TestMTSTrialTypes:
             name = tt.correct if choose_correct else next(
                 c for c in tt.comparisons if c != tt.correct
             )
-            n_before = len(consequence.calls) + len(incorrect.calls)
             o = mts.step(
                 float(t), ResponseEvent(time=float(t), operandum=_operandum_for(mts, name))
             )
@@ -549,38 +536,45 @@ class TestMTSTrialTypes:
                 assert tt.sample.startswith("B")
                 assert not o.reinforced
                 assert o.reinforcer is None
-                assert len(consequence.calls) + len(incorrect.calls) == n_before
                 probes[str(o.meta["trial_outcome"])] += 1
             else:
                 assert tt.sample.startswith("A")
-                assert len(consequence.calls) + len(incorrect.calls) == n_before + 1
+                label = str(o.meta["trial_outcome"])
+                baseline[label] += 1
+                assert o.reinforced == (baseline[label] % 2 == 0)
         assert probes["correct"] > 0 and probes["incorrect"] > 0
+        assert baseline["correct"] >= 2 and baseline["incorrect"] >= 2
 
     def test_probe_timeout_does_not_fire_incorrect(self) -> None:
-        incorrect = _SpySchedule()
+        # FT(0.1) as the incorrect schedule: its first step anchors it, and
+        # every later baseline timeout (two time units on) is reinforced.
+        # A probe timeout is never reinforced; a probe that stepped the
+        # schedule before the first baseline timeout would make that one
+        # reinforce.
         mts = self._mts(
             trial_types=[TrialType("A1", "B1", ("B1", "B2", "B3"))],
             probe_trial_types=[TrialType("B1", "A1", ("A1", "A2", "A3"))],
-            incorrect=incorrect,
+            incorrect=FT(0.1),
             choice_timeout=1.0,
         )
         t = 0.0
         seen_probe_timeout = False
-        for _ in range(6):
+        baseline: list[bool] = []
+        for _ in range(8):
             mts.step(t)
             probe = mts.is_probe_trial
-            n_before = len(incorrect.calls)
             o = mts.step(t + 1.5)  # times the choice out
             assert o.meta["trial_outcome"] == "incorrect"
             assert o.meta["choice"] is None
             if probe:
                 seen_probe_timeout = True
                 assert not o.reinforced
-                assert len(incorrect.calls) == n_before
             else:
-                assert len(incorrect.calls) == n_before + 1
+                baseline.append(o.reinforced)
             t += 2.0  # timeout boundary at t+1, ITI ends (next trial) at t+2
         assert seen_probe_timeout
+        assert len(baseline) >= 2
+        assert baseline == [False] + [True] * (len(baseline) - 1)
 
     def test_reset_reproduces_sample_sequence(self) -> None:
         mts = self._mts(probe_trial_types=trial_types_from_relations(BA))

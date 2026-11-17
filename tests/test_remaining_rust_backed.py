@@ -1,19 +1,16 @@
 """The aversive, adjusting, interlocking, percentile and trial-based
 schedule classes run on the Rust engine.
 
-The aversive, adjusting, interlocking and percentile classes have no
-Python implementation of their own: their trajectories are checked
-against traces recorded from the Python implementation they used to
-have (``fixtures/single_schedule_traces/remaining.json``). The
-trial-based classes are still built twice from the same arguments, once
-with the Rust engine and once with the Python implementation, and both
-must give the same outcomes, the same meta and the same public state on
-the same trajectory.
+Their trajectories (outcomes, meta and public state) are checked against
+traces recorded from the Python implementation they used to have, when
+it agreed with the Rust engine step for step
+(``fixtures/single_schedule_traces/remaining.json``).
 """
 
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -22,7 +19,6 @@ from typing import Any
 import pytest
 
 import contingency.engine as engine
-import contingency.schedules._rust as _rust
 from contingency import ResponseEvent
 from contingency.engine import rust_engine_available
 from contingency.errors import ScheduleConfigError
@@ -141,14 +137,7 @@ _RECORDED: dict[str, list[Any]] = json.loads(
         encoding="utf-8"
     )
 )
-RECORDED_CASES = [c for c in CASES if c[0] in _RECORDED]
-PYTHON_CASES = [c for c in CASES if c[0] not in _RECORDED]
 
-
-def _python(factory: Factory, monkeypatch: pytest.MonkeyPatch) -> Any:
-    with monkeypatch.context() as m:
-        m.setattr(_rust, "_FORCE_PYTHON", True)
-        return factory()
 
 
 def _trace(schedule: Any, operanda: tuple[str, ...], attrs: tuple[str, ...]) -> list[Any]:
@@ -178,6 +167,12 @@ def test_schedule_runs_on_rust(
     assert factory().engine == "rust", name
 
 
+def _json_default(value: Any) -> Any:
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return dataclasses.asdict(value)  # a TrialType
+    raise TypeError(f"not JSON serialisable: {type(value).__name__}")
+
+
 def _as_recorded(trace: list[Any]) -> list[Any]:
     """``trace`` in the JSON shape of the recorded traces."""
     return json.loads(
@@ -185,41 +180,23 @@ def _as_recorded(trace: list[Any]) -> list[Any]:
             [
                 [reinforced, None if r is None else list(r), meta, list(state)]
                 for reinforced, r, meta, state in trace
-            ]
+            ],
+            default=_json_default,
         )
     )
 
 
-def test_every_recorded_trace_has_a_case() -> None:
-    assert sorted(_RECORDED) == sorted(c[0] for c in RECORDED_CASES)
+def test_every_case_has_a_recorded_trace() -> None:
+    assert sorted(_RECORDED) == sorted(IDS)
 
 
-@pytest.mark.parametrize(
-    ("name", "factory", "operanda", "attrs"), RECORDED_CASES, ids=[c[0] for c in RECORDED_CASES]
-)
+@pytest.mark.parametrize(("name", "factory", "operanda", "attrs"), CASES, ids=IDS)
 def test_matches_the_recorded_trace(
     name: str, factory: Factory, operanda: tuple[str, ...], attrs: tuple[str, ...]
 ) -> None:
     trace = _trace(factory(), operanda, attrs)
     assert any(step[0] for step in trace), name
     assert _as_recorded(trace) == _RECORDED[name], name
-
-
-@pytest.mark.parametrize(
-    ("name", "factory", "operanda", "attrs"), PYTHON_CASES, ids=[c[0] for c in PYTHON_CASES]
-)
-def test_rust_and_python_agree(
-    name: str,
-    factory: Factory,
-    operanda: tuple[str, ...],
-    attrs: tuple[str, ...],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    python = _python(factory, monkeypatch)
-    assert python.engine == "python"
-    rust_trace = _trace(factory(), operanda, attrs)
-    assert any(step[0] for step in rust_trace), name
-    assert rust_trace == _trace(python, operanda, attrs), name
 
 
 @pytest.mark.parametrize(("name", "factory", "operanda", "attrs"), CASES, ids=IDS)
@@ -260,7 +237,7 @@ def test_non_irt_percentile_stays_in_python() -> None:
     assert Percentile("latency", 50, 3).engine == "python"
 
 
-def test_a_python_consequence_keeps_the_trial_schedule_in_python() -> None:
+def test_a_python_consequence_is_rejected() -> None:
     class Custom:
         def step(self, now: float, event: ResponseEvent | None = None) -> Any:
             return FR(1).step(now, event)
@@ -268,8 +245,31 @@ def test_a_python_consequence_keeps_the_trial_schedule_in_python() -> None:
         def reset(self) -> None:
             pass
 
-    assert MatchingToSample(3, consequence=Custom(), seed=1).engine == "python"  # type: ignore[arg-type]
-    assert GoNoGo(false_alarm=Custom(), seed=1).engine == "python"  # type: ignore[arg-type]
+    with pytest.raises(ScheduleConfigError, match="run on the Rust engine"):
+        MatchingToSample(3, consequence=Custom(), seed=1)  # type: ignore[arg-type]
+    with pytest.raises(ScheduleConfigError, match="run on the Rust engine"):
+        GoNoGo(false_alarm=Custom(), seed=1)  # type: ignore[arg-type]
+
+
+def test_a_stepped_or_shared_consequence_is_rejected() -> None:
+    stepped = FR(2)
+    stepped.step(1.0, ResponseEvent(time=1.0))
+    with pytest.raises(ScheduleConfigError, match="reset"):
+        MatchingToSample(3, consequence=stepped, seed=1)
+    shared = FR(1)
+    with pytest.raises(ScheduleConfigError, match="same FR object twice"):
+        GoNoGo(correct_go_schedule=shared, false_alarm=shared, seed=1)
+    stepped.reset()
+    assert MatchingToSample(3, consequence=stepped, seed=1).engine == "rust"
+
+
+def test_the_consequence_object_is_not_stepped() -> None:
+    consequence = FR(2)
+    mts = MatchingToSample(2, consequence=consequence, iti=0.0, seed=1)
+    for t in range(1, 6):
+        mts.step(float(t), ResponseEvent(time=float(t), operandum=mts.correct_operandum))
+    assert consequence.engine == "rust"
+    assert not consequence._rust._history
 
 
 def test_without_the_extension_they_raise(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -318,13 +318,10 @@ def test_an_extension_whose_state_lacks_the_keys_raises(
             build()
 
 
-def test_mts_without_a_sample_phase_starts_in_choice(monkeypatch: pytest.MonkeyPatch) -> None:
-    # As after reset, and as on the Rust engine.
-    python = _python(lambda: MatchingToSample(3, seed=1), monkeypatch)
-    assert python.phase == "choice"
-    python.reset()
-    assert python.phase == "choice"
-    assert MatchingToSample(3, seed=1).phase == "choice"
-    assert _python(lambda: MatchingToSample(3, sample_duration=1.0, seed=1), monkeypatch).phase == (
-        "sample"
-    )
+def test_mts_without_a_sample_phase_starts_in_choice() -> None:
+    # As after reset.
+    schedule = MatchingToSample(3, seed=1)
+    assert schedule.phase == "choice"
+    schedule.reset()
+    assert schedule.phase == "choice"
+    assert MatchingToSample(3, sample_duration=1.0, seed=1).phase == "sample"

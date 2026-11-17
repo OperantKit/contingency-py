@@ -19,18 +19,24 @@ unit-agnostic; the caller declares the monotonic clock unit.
 
 Design notes
 ------------
+* Both classes run on the Rust engine (``contingency_core``); they keep
+  their arguments and read their public state (``phase``,
+  ``trial_index`` and the like) from the engine's ``state()``.
 * The state machines are driven by two kinds of input: ticks (calls to
   ``step`` with ``event=None``) that advance the internal clock, and
   response events that are evaluated during response-eligible phases.
 * During inter-trial intervals (ITI) and sample presentation, responses
   are ignored but ticks drive phase transitions.
-* Consequence delivery is delegated to a nested ``Schedule`` object; a
-  correct choice fires a synthetic response event into the consequence
+* Consequence delivery is delegated to a nested schedule: a correct
+  choice fires a synthetic response event into the consequence
   schedule, returning whatever outcome it yields (typically an immediate
-  reinforcer when the consequence is ``FR(1)``/CRF).
+  reinforcer when the consequence is ``FR(1)``/CRF). A nested schedule
+  must be a schedule of this package that runs on the Rust engine; the
+  engine runs its own copy, built from the nested schedule's spec, so
+  the object passed in is not stepped.
 * The ``meta`` payload on the returned ``Outcome`` always reports the
   current phase, trial index, and (when applicable) the outcome label of
-  the completed trial.
+  the completed trial. The meta of the nested schedule is not copied.
 
 References
 ----------
@@ -51,43 +57,22 @@ Psychophysics. *Journal of the Experimental Analysis of Behavior*,
 
 from __future__ import annotations
 
-import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
 from contingency.schedules._rust import (
+    component_specs,
+    compound_schedule,
     core_too_old,
-    engine_name,
     fresh_seed,
-    rust_compound,
-    rust_or_none,
-    specs_of,
+    rust_schedule,
 )
 
 __all__ = ["MatchingToSample", "GoNoGo", "TrialType", "trial_types_from_relations"]
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    """Raise :class:`ScheduleStateError` if ``now`` moves backwards."""
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    """Raise :class:`ScheduleStateError` if ``event.time`` disagrees with ``now``."""
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
-
 
 def _require_nonnegative(name: str, value: float) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -179,12 +164,12 @@ def _validate_trial_types(
 
 
 def _python_meta(outcome: Outcome) -> Outcome:
-    """Give a Rust-run outcome the meta shape of the Python classes.
+    """Give an outcome of the Rust engine the meta shape of these classes.
 
     The Rust engine leaves ``trial_outcome`` out when there is none,
     leaves ``choice`` out when a trial with trial types ends without a
     named comparison (a timeout or an unknown operandum), and returns
-    ``comparisons`` as a list. The Python classes always set
+    ``comparisons`` as a list. These classes always set
     ``trial_outcome`` (``None`` when no trial ended), set ``choice`` to
     ``None`` in those cases, and use a tuple.
     """
@@ -233,17 +218,24 @@ def _trial_types_spec(types: Sequence[TrialType]) -> list[dict[str, Any]]:
     ]
 
 
-def _optional_specs(params: dict[str, Any], named: dict[str, Any]) -> bool:
+def _optional_specs(kind: str, params: dict[str, Any], named: dict[str, Any]) -> None:
     """Put the specs of the non-``None`` schedules in ``named`` into ``params``.
 
-    ``False`` when any of them runs in Python (then so does the owner).
+    Raises :class:`ScheduleConfigError` (see
+    :func:`~contingency.schedules._rust.component_specs`) when one of
+    them does not run on the Rust engine, has been stepped since its
+    last reset, or is the same object as another.
     """
     present = {k: v for k, v in named.items() if v is not None}
-    specs = specs_of(list(present.values()))
-    if specs is None:
-        return False
-    params.update(zip(present, specs, strict=True))
-    return True
+    params.update(zip(present, component_specs(kind, present.values()), strict=True))
+
+
+def _trial_schedule(spec: dict[str, Any]) -> Any:
+    """The ``RustSchedule`` of a trial-based spec, checked to report ``phase``."""
+    rust = compound_schedule(spec, needs_state=True)
+    if "phase" not in rust.state():
+        raise core_too_old(f"the state() of {spec['type']} has no 'phase'")
+    return rust
 
 
 class MatchingToSample:
@@ -330,23 +322,9 @@ class MatchingToSample:
         "_incorrect",
         "_iti",
         "_seed",
-        "_rng",
-        "_phase",
-        "_phase_started",
-        "_trial_index",
-        "_correct_operandum",
-        "_last_now",
-        "_pending_outcome_label",
         "_trial_types",
         "_n_baseline_types",
-        "_block_order",
-        "_block_pos",
-        "_current_type_index",
-        "_current_positions",
         "_correction",
-        "_repeats_done",
-        "_repeat_next",
-        "_on_correction_trial",
     )
 
     def __init__(
@@ -392,28 +370,12 @@ class MatchingToSample:
             )
             self._trial_types = baseline + probes
             self._n_baseline_types = len(baseline)
-        self._block_order: list[int] = []
-        self._block_pos: int = 0
-        self._current_type_index: int | None = None
-        self._current_positions: tuple[str, ...] = ()
         self._seed: int | None = seed
-        self._rng: random.Random = random.Random(seed)
-        self._phase: Literal["sample", "choice", "iti"] = (
-            "sample" if self._sample_duration > 0 else "choice"
-        )
-        self._phase_started: float | None = None
-        self._trial_index: int = 0
-        self._correct_operandum: str = self._pick_correct_operandum()
-        self._last_now: float | None = None
-        self._pending_outcome_label: str | None = None
         self._correction: bool | int = _check_correction(correction)
-        self._repeats_done: int = 0
-        self._repeat_next: bool = False
-        self._on_correction_trial: bool = False
         self._rust: Any = self._build_rust()
 
     def _build_rust(self) -> Any:
-        """The Rust engine for this schedule, or ``None`` to run in Python.
+        """The Rust engine for this schedule.
 
         A ``contingency_core`` that predates correction trials reads
         past the unknown ``correction`` key and would run the schedule
@@ -422,16 +384,15 @@ class MatchingToSample:
         :class:`ScheduleConfigError`.
         """
         spec = self._rust_spec()
-        rust = rust_compound(spec, state_key="phase")
-        if rust is None or self._correction is False:
+        rust = _trial_schedule(spec)
+        if self._correction is False:
             return rust
-        assert spec is not None
-        probe = rust_or_none(spec)
+        probe = rust_schedule(spec)
         if "correction_trial" not in probe.step(0.0, None).meta:
             raise core_too_old("MatchingToSample runs without correction trials")
         return rust
 
-    def _rust_spec(self) -> dict[str, Any] | None:
+    def _rust_spec(self) -> dict[str, Any]:
         params: dict[str, Any] = {
             "n_comparisons": self._n_comparisons,
             "sample_duration": self._sample_duration,
@@ -439,10 +400,11 @@ class MatchingToSample:
             "iti": self._iti,
             "seed": self._seed if self._seed is not None else fresh_seed(),
         }
-        if not _optional_specs(
-            params, {"consequence": self._consequence, "incorrect": self._incorrect}
-        ):
-            return None
+        _optional_specs(
+            "MatchingToSample",
+            params,
+            {"consequence": self._consequence, "incorrect": self._incorrect},
+        )
         if self._trial_types is not None:
             n = self._n_baseline_types
             params["trial_types"] = _trial_types_spec(self._trial_types[:n])
@@ -454,15 +416,13 @@ class MatchingToSample:
         return {"type": "MatchingToSample", "params": params}
 
     def _type_index_now(self) -> int | None:
-        if self._rust is None:
-            return self._current_type_index
         index = self._rust.state().get("current_type_index")
         return None if index is None else int(index)
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     # -- introspection ------------------------------------------------------
 
@@ -472,21 +432,15 @@ class MatchingToSample:
 
     @property
     def trial_index(self) -> int:
-        if self._rust is not None:
-            return int(self._rust.state()["trial_index"])
-        return self._trial_index
+        return int(self._rust.state()["trial_index"])
 
     @property
     def phase(self) -> str:
-        if self._rust is not None:
-            return str(self._rust.state()["phase"])
-        return self._phase
+        return str(self._rust.state()["phase"])
 
     @property
     def correct_operandum(self) -> str:
-        if self._rust is not None:
-            return str(self._rust.state()["correct_operandum"])
-        return self._correct_operandum
+        return str(self._rust.state()["correct_operandum"])
 
     @property
     def iti(self) -> float:
@@ -517,248 +471,23 @@ class MatchingToSample:
     @property
     def current_comparisons(self) -> tuple[str, ...]:
         """Comparisons of the current trial in position order (``choice_0`` first)."""
-        if self._rust is not None:
-            return tuple(self._rust.state()["current_positions"])
-        return self._current_positions
+        return tuple(self._rust.state()["current_positions"])
 
     @property
     def is_probe_trial(self) -> bool:
         index = self._type_index_now()
         return index is not None and index >= self._n_baseline_types
 
-    # -- state helpers ------------------------------------------------------
-
-    def _pick_correct_operandum(self) -> str:
-        if self._trial_types is None:
-            idx = self._rng.randrange(self._n_comparisons)
-            return f"choice_{idx}"
-        if self._block_pos >= len(self._block_order):
-            order = list(range(len(self._trial_types)))
-            self._rng.shuffle(order)
-            self._block_order = order
-            self._block_pos = 0
-        type_index = self._block_order[self._block_pos]
-        self._block_pos += 1
-        tt = self._trial_types[type_index]
-        positions = list(tt.comparisons)
-        self._rng.shuffle(positions)
-        self._current_type_index = type_index
-        self._current_positions = tuple(positions)
-        return f"choice_{positions.index(tt.correct)}"
-
-    def _choice_name(self, operandum: str) -> str | None:
-        suffix = operandum.removeprefix("choice_")
-        if suffix == operandum or not suffix.isdigit():
-            return None
-        idx = int(suffix)
-        if idx >= len(self._current_positions):
-            return None
-        return self._current_positions[idx]
-
-    def _meta(self, trial_outcome: str | None) -> dict[str, object]:
-        meta: dict[str, object] = {
-            "phase": self._phase,
-            "trial_index": self._trial_index,
-            "trial_outcome": trial_outcome,
-        }
-        tt = self.current_trial_type
-        if tt is not None:
-            meta["sample"] = tt.sample
-            meta["comparisons"] = self._current_positions
-            meta["correct"] = tt.correct
-            meta["probe"] = self.is_probe_trial
-        if self._correction is not False:
-            meta["correction_trial"] = self._on_correction_trial
-        return meta
-
-    def _settle_correction(self, outcome_label: str) -> None:
-        """Decide, when a trial ends, whether the next trial repeats it."""
-        wants_repeat = outcome_label == "incorrect" and not self.is_probe_trial
-        if self._correction is False:
-            allowed = False
-        elif self._correction is True:
-            allowed = True
-        else:
-            allowed = self._repeats_done < self._correction
-        if wants_repeat and allowed:
-            self._repeat_next = True
-            self._repeats_done += 1
-        else:
-            self._repeat_next = False
-            self._repeats_done = 0
-
-    def _begin_trial(self, now: float) -> None:
-        self._phase = "sample" if self._sample_duration > 0 else "choice"
-        self._phase_started = now
-        self._on_correction_trial = self._repeat_next
-        self._repeat_next = False
-        if not self._on_correction_trial:
-            # A correction trial keeps the correct operandum, trial type
-            # and comparison positions of the trial it repeats.
-            self._correct_operandum = self._pick_correct_operandum()
-
-    def _enter_choice(self, now: float) -> None:
-        self._phase = "choice"
-        self._phase_started = now
-
-    def _enter_iti(self, now: float, outcome_label: str) -> None:
-        self._phase = "iti"
-        self._phase_started = now
-        self._pending_outcome_label = outcome_label
-        self._settle_correction(outcome_label)
-
-    def _finish_iti(self, now: float) -> None:
-        self._trial_index += 1
-        self._begin_trial(now)
-
     # -- core step ----------------------------------------------------------
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return _python_meta(self._rust.step(now, event))
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        # First step ever: anchor phase start at the first observed time.
-        if self._phase_started is None:
-            self._phase_started = now
-
-        # Consume any phase transitions that should have already happened
-        # by ``now`` before evaluating the current event. We iterate
-        # because, e.g., a long tick might cross both the sample->choice
-        # and choice->iti boundaries.
-        while True:
-            progressed = False
-            if self._phase == "sample":
-                assert self._phase_started is not None
-                if now - self._phase_started >= self._sample_duration - _TIME_TOL:
-                    self._enter_choice(self._phase_started + self._sample_duration)
-                    progressed = True
-            elif self._phase == "choice":
-                assert self._phase_started is not None
-                # Choice phase ends (as incorrect) only on timeout. The
-                # timeout check is performed inline below so that a
-                # response event at exactly the boundary still counts.
-                if now - self._phase_started > self._choice_timeout + _TIME_TOL:
-                    # Choice timed out without any response.
-                    self._enter_iti(
-                        self._phase_started + self._choice_timeout,
-                        outcome_label="incorrect",
-                    )
-                    return self._incorrect_outcome(now)
-            elif self._phase == "iti":
-                assert self._phase_started is not None
-                if now - self._phase_started >= self._iti - _TIME_TOL:
-                    self._finish_iti(self._phase_started + self._iti)
-                    progressed = True
-            if not progressed:
-                break
-
-        # Evaluate response event according to the (possibly updated) phase.
-        if event is None:
-            return self._phase_only_outcome()
-
-        if self._phase == "choice":
-            return self._handle_choice(now, event)
-
-        # During sample / ITI, responses are ignored but still return
-        # phase metadata.
-        return self._phase_only_outcome()
-
-    # -- outcome helpers ----------------------------------------------------
-
-    def _phase_only_outcome(self) -> Outcome:
-        meta = self._meta(self._pending_outcome_label)
-        # The pending label only reports once per transition.
-        self._pending_outcome_label = None
-        return Outcome(meta=meta)
-
-    def _handle_choice(self, now: float, event: ResponseEvent) -> Outcome:
-        op = event.operandum
-        correct = op == self._correct_operandum
-        label = "correct" if correct else "incorrect"
-        # Move to ITI immediately after the choice resolves. The label
-        # is reported in this outcome directly, so clear the pending
-        # label to avoid a duplicate report on the next tick.
-        self._enter_iti(now, outcome_label=label)
-        self._pending_outcome_label = None
-        meta = self._meta(label)
-        if self._trial_types is not None:
-            meta["choice"] = self._choice_name(op)
-            if self.is_probe_trial:
-                # Probe trials are scored but never consequated.
-                return Outcome(meta=meta)
-        # Deliver consequence through the nested schedule (or default CRF).
-        consequence_schedule = (
-            self._consequence if correct else self._incorrect
-        )
-        if correct and consequence_schedule is None:
-            reinforcer = Reinforcer(time=now)
-            return Outcome(reinforced=True, reinforcer=reinforcer, meta=meta)
-        if consequence_schedule is None:
-            return Outcome(meta=meta)
-        sub_outcome = consequence_schedule.step(now, event)
-        # Preserve nested meta non-destructively under a reserved key.
-        if sub_outcome.meta:
-            meta["inner_meta"] = dict(sub_outcome.meta)
-        return Outcome(
-            reinforced=sub_outcome.reinforced,
-            reinforcer=sub_outcome.reinforcer,
-            meta=meta,
-        )
-
-    def _incorrect_outcome(self, now: float) -> Outcome:
-        # Timed-out choice: fire the ``incorrect`` consequence (if any)
-        # with no response event — the subject did not emit one.
-        if self._trial_types is not None:
-            self._pending_outcome_label = None
-            meta = self._meta("incorrect")
-            meta["choice"] = None
-            if self.is_probe_trial or self._incorrect is None:
-                return Outcome(meta=meta)
-        elif self._incorrect is None:
-            return self._phase_only_outcome()
-        else:
-            meta = self._meta("incorrect")
-        sub_outcome = self._incorrect.step(now, None)
-        self._pending_outcome_label = None
-        if sub_outcome.meta:
-            meta["inner_meta"] = dict(sub_outcome.meta)
-        return Outcome(
-            reinforced=sub_outcome.reinforced,
-            reinforcer=sub_outcome.reinforcer,
-            meta=meta,
-        )
-
-    # -- reset --------------------------------------------------------------
+        return _python_meta(self._rust.step(now, event))
 
     def reset(self) -> None:
-        if self._rust is not None:
-            for component in (self._consequence, self._incorrect):
-                if component is not None:
-                    component.reset()
-            self._rust = self._build_rust()
-            if self._rust is not None:
-                return
-        self._rng = random.Random(self._seed)
-        self._phase = "sample" if self._sample_duration > 0 else "choice"
-        self._phase_started = None
-        self._trial_index = 0
-        self._block_order = []
-        self._block_pos = 0
-        self._current_type_index = None
-        self._current_positions = ()
-        self._correct_operandum = self._pick_correct_operandum()
-        self._last_now = None
-        self._pending_outcome_label = None
-        self._repeats_done = 0
-        self._repeat_next = False
-        self._on_correction_trial = False
-        if self._consequence is not None:
-            self._consequence.reset()
-        if self._incorrect is not None:
-            self._incorrect.reset()
+        for component in (self._consequence, self._incorrect):
+            if component is not None:
+                component.reset()
+        self._rust = self._build_rust()
 
 
 class GoNoGo:
@@ -820,14 +549,6 @@ class GoNoGo:
         "_correct_nogo_schedule",
         "_false_alarm",
         "_seed",
-        "_rng",
-        "_phase",
-        "_phase_started",
-        "_trial_index",
-        "_current_is_go",
-        "_responded_this_trial",
-        "_last_now",
-        "_pending_outcome_label",
     )
 
     def __init__(
@@ -860,60 +581,44 @@ class GoNoGo:
         self._correct_nogo_schedule: Schedule | None = correct_nogo_schedule
         self._false_alarm: Schedule | None = false_alarm
         self._seed: int | None = seed
-        self._rng: random.Random = random.Random(seed)
-        self._phase: Literal["go", "nogo", "iti"] = "go"
-        self._phase_started: float | None = None
-        self._trial_index: int = 0
-        self._current_is_go: bool = self._draw_trial_type()
-        self._phase = "go" if self._current_is_go else "nogo"
-        self._responded_this_trial: bool = False
-        self._last_now: float | None = None
-        self._pending_outcome_label: str | None = None
-        self._rust: Any = rust_compound(self._rust_spec(), state_key="phase")
+        self._rust: Any = _trial_schedule(self._rust_spec())
 
-
-    def _rust_spec(self) -> dict[str, Any] | None:
+    def _rust_spec(self) -> dict[str, Any]:
         params: dict[str, Any] = {
             "go_probability": self._go_probability,
             "response_window": self._response_window,
             "iti": self._iti,
             "seed": self._seed if self._seed is not None else fresh_seed(),
         }
-        if not _optional_specs(
+        _optional_specs(
+            "GoNoGo",
             params,
             {
                 "correct_go_schedule": self._correct_go_schedule,
                 "correct_nogo_schedule": self._correct_nogo_schedule,
                 "false_alarm": self._false_alarm,
             },
-        ):
-            return None
+        )
         return {"type": "GoNoGo", "params": params}
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     # -- introspection ------------------------------------------------------
 
     @property
     def trial_index(self) -> int:
-        if self._rust is not None:
-            return int(self._rust.state()["trial_index"])
-        return self._trial_index
+        return int(self._rust.state()["trial_index"])
 
     @property
     def phase(self) -> str:
-        if self._rust is not None:
-            return str(self._rust.state()["phase"])
-        return self._phase
+        return str(self._rust.state()["phase"])
 
     @property
     def current_is_go(self) -> bool:
-        if self._rust is not None:
-            return bool(self._rust.state()["current_is_go"])
-        return self._current_is_go
+        return bool(self._rust.state()["current_is_go"])
 
     @property
     def response_window(self) -> float:
@@ -927,179 +632,17 @@ class GoNoGo:
     def go_probability(self) -> float:
         return self._go_probability
 
-    # -- state helpers ------------------------------------------------------
-
-    def _draw_trial_type(self) -> bool:
-        return self._rng.random() < self._go_probability
-
-    def _begin_trial(self, now: float) -> None:
-        self._current_is_go = self._draw_trial_type()
-        self._phase = "go" if self._current_is_go else "nogo"
-        self._phase_started = now
-        self._responded_this_trial = False
-
-    def _enter_iti(self, now: float, outcome_label: str) -> None:
-        self._phase = "iti"
-        self._phase_started = now
-        self._pending_outcome_label = outcome_label
-
-    def _finish_iti(self, now: float) -> None:
-        self._trial_index += 1
-        self._begin_trial(now)
-
     # -- core step ----------------------------------------------------------
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return _python_meta(self._rust.step(now, event))
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        if self._phase_started is None:
-            self._phase_started = now
-
-        # Handle response-window timeout(s) first. A long tick may cross
-        # multiple phase boundaries (response_window and subsequent ITI).
-        resolution_outcome: Outcome | None = None
-        while True:
-            progressed = False
-            if self._phase in ("go", "nogo"):
-                assert self._phase_started is not None
-                if now - self._phase_started >= self._response_window - _TIME_TOL:
-                    # Window closed without a response in this trial.
-                    boundary = self._phase_started + self._response_window
-                    if self._current_is_go:
-                        # Go + no response = miss, no reinforcement.
-                        self._enter_iti(boundary, outcome_label="incorrect")
-                    else:
-                        # NoGo + withhold = correct_withhold.
-                        if self._correct_nogo_schedule is not None:
-                            # Fire a synthetic "withhold" event.
-                            sub = self._correct_nogo_schedule.step(boundary, None)
-                            resolution_outcome = Outcome(
-                                reinforced=sub.reinforced,
-                                reinforcer=sub.reinforcer,
-                                meta={
-                                    "phase": "nogo",
-                                    "trial_index": self._trial_index,
-                                    "trial_outcome": "correct_withhold",
-                                    **(
-                                        {"inner_meta": dict(sub.meta)}
-                                        if sub.meta
-                                        else {}
-                                    ),
-                                },
-                            )
-                        self._enter_iti(
-                            boundary, outcome_label="correct_withhold"
-                        )
-                    progressed = True
-            elif self._phase == "iti":
-                assert self._phase_started is not None
-                if now - self._phase_started >= self._iti - _TIME_TOL:
-                    self._finish_iti(self._phase_started + self._iti)
-                    progressed = True
-            if not progressed:
-                break
-
-        if resolution_outcome is not None and event is None:
-            # The outcome label has already been included in
-            # ``resolution_outcome``; drop the pending duplicate.
-            self._pending_outcome_label = None
-            return resolution_outcome
-
-        if event is None:
-            return self._phase_only_outcome()
-
-        if self._phase in ("go", "nogo"):
-            return self._handle_response(now, event)
-
-        # Response during ITI — ignored.
-        return self._phase_only_outcome()
-
-    # -- outcome helpers ----------------------------------------------------
-
-    def _phase_only_outcome(self) -> Outcome:
-        meta: dict[str, object] = {
-            "phase": self._phase,
-            "trial_index": self._trial_index,
-            "trial_outcome": self._pending_outcome_label,
-        }
-        self._pending_outcome_label = None
-        return Outcome(meta=meta)
-
-    def _handle_response(self, now: float, event: ResponseEvent) -> Outcome:
-        self._responded_this_trial = True
-        is_go = self._current_is_go
-        label = "correct" if is_go else "false_alarm"
-        target_schedule = (
-            self._correct_go_schedule if is_go else self._false_alarm
-        )
-        # Close the trial: enter ITI starting now. The outcome label is
-        # reported in this outcome directly; clear the pending label so
-        # it is not re-reported on the next tick.
-        self._enter_iti(now, outcome_label=label)
-        self._pending_outcome_label = None
-        if is_go and target_schedule is None:
-            # Default CRF on correct Go.
-            return Outcome(
-                reinforced=True,
-                reinforcer=Reinforcer(time=now),
-                meta={
-                    "phase": self._phase,
-                    "trial_index": self._trial_index,
-                    "trial_outcome": label,
-                },
-            )
-        if target_schedule is None:
-            return Outcome(
-                meta={
-                    "phase": self._phase,
-                    "trial_index": self._trial_index,
-                    "trial_outcome": label,
-                }
-            )
-        sub = target_schedule.step(now, event)
-        meta: dict[str, object] = {
-            "phase": self._phase,
-            "trial_index": self._trial_index,
-            "trial_outcome": label,
-        }
-        if sub.meta:
-            meta["inner_meta"] = dict(sub.meta)
-        return Outcome(
-            reinforced=sub.reinforced,
-            reinforcer=sub.reinforcer,
-            meta=meta,
-        )
-
-    # -- reset --------------------------------------------------------------
+        return _python_meta(self._rust.step(now, event))
 
     def reset(self) -> None:
-        if self._rust is not None:
-            for component in (
-                self._correct_go_schedule,
-                self._correct_nogo_schedule,
-                self._false_alarm,
-            ):
-                if component is not None:
-                    component.reset()
-            self._rust = rust_compound(self._rust_spec(), state_key="phase")
-            if self._rust is not None:
-                return
-        self._rng = random.Random(self._seed)
-        self._phase_started = None
-        self._trial_index = 0
-        self._current_is_go = self._draw_trial_type()
-        self._phase = "go" if self._current_is_go else "nogo"
-        self._responded_this_trial = False
-        self._last_now = None
-        self._pending_outcome_label = None
-        for sched in (
+        for component in (
             self._correct_go_schedule,
             self._correct_nogo_schedule,
             self._false_alarm,
         ):
-            if sched is not None:
-                sched.reset()
+            if component is not None:
+                component.reset()
+        self._rust = _trial_schedule(self._rust_spec())
