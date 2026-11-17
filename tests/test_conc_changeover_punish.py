@@ -10,12 +10,13 @@ target=changeover)`` runs the same as ``Conc(..., PUNISH(changeover)=P)``.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 from contingency_dsl import parse
 
-import contingency.schedules._rust as _rust
 from contingency import ResponseEvent
 from contingency.bridge import from_dsl, to_spec
 from contingency.engine import from_spec, rust_engine_available
@@ -49,21 +50,13 @@ def _punished(rows: list[tuple[Any, ...]]) -> list[bool]:
     return [dict(meta).get("punisher_fired") is True for _, _, meta in rows]
 
 
-def _conc(monkeypatch: pytest.MonkeyPatch, *, python: bool, **kwargs: Any) -> Concurrent:
-    def build() -> Concurrent:
-        comps = {"c0": EXT(), "c1": EXT()}
-        return Concurrent(comps, cod=2.0, **kwargs)
-
-    if python:
-        with monkeypatch.context() as m:
-            m.setattr(_rust, "_FORCE_PYTHON", True)
-            conc = build()
-        assert conc.engine == "python"
-        return conc
-    return build()
+def _conc(**kwargs: Any) -> Concurrent:
+    conc = Concurrent({"c0": EXT(), "c1": EXT()}, cod=2.0, **kwargs)
+    assert conc.engine == "rust"
+    return conc
 
 
-# --- the class, both engines ---------------------------------------------
+# --- the class --------------------------------------------------------------
 
 
 _CASES: list[tuple[str, dict[str, Any], list[str], list[bool]]] = [
@@ -103,22 +96,16 @@ def _materialise(kwargs: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+@requires_rust
 @pytest.mark.unit
-@pytest.mark.parametrize("python", [True, False])
 @pytest.mark.parametrize(("name", "kwargs", "ops", "expected"), _CASES)
 def test_changeover_punishment(
-    monkeypatch: pytest.MonkeyPatch,
-    python: bool,
     name: str,
     kwargs: dict[str, Any],
     ops: list[str],
     expected: list[bool],
 ) -> None:
-    if not python and not rust_engine_available():
-        pytest.skip("contingency_core is not installed")
-    conc = _conc(monkeypatch, python=python, **_materialise(kwargs))
-    if not python:
-        assert conc.engine == "rust"
+    conc = _conc(**_materialise(kwargs))
     rows = _drive(conc, ops)
     assert _punished(rows) == expected, name
     for (_, rf, meta), hit in zip(rows, expected, strict=True):
@@ -127,16 +114,10 @@ def test_changeover_punishment(
             assert dict(meta)["changeover_punished"] is True
 
 
+@requires_rust
 @pytest.mark.unit
-@pytest.mark.parametrize("python", [True, False])
-def test_component_and_directional_punishers_add_up(
-    monkeypatch: pytest.MonkeyPatch, python: bool
-) -> None:
-    if not python and not rust_engine_available():
-        pytest.skip("contingency_core is not installed")
+def test_component_and_directional_punishers_add_up() -> None:
     conc = _conc(
-        monkeypatch,
-        python=python,
         punish={"c1": FR(1)},
         punish_directional={("c0", "c1"): FR(1)},
     )
@@ -147,32 +128,39 @@ def test_component_and_directional_punishers_add_up(
     assert "changeover_punished" not in dict(rows[2][2])
 
 
+@requires_rust
 @pytest.mark.unit
-@pytest.mark.parametrize("python", [True, False])
-def test_reset_clears_changeover_punishers(monkeypatch: pytest.MonkeyPatch, python: bool) -> None:
-    if not python and not rust_engine_available():
-        pytest.skip("contingency_core is not installed")
-    conc = _conc(monkeypatch, python=python, punish_changeover=FR(2))
+def test_reset_clears_changeover_punishers() -> None:
+    conc = _conc(punish_changeover=FR(2))
     _drive(conc, ["c0", "c1"])
     conc.reset()
     assert _punished(_drive(conc, ["c0", "c1", "c0"])) == [False, False, True]
 
 
+_RECORDED: dict[str, Any] = json.loads(
+    (Path(__file__).parent / "fixtures" / "compound_traces" / "conc_changeover.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+
+def test_every_recorded_trace_has_a_case() -> None:
+    assert sorted(_RECORDED) == sorted(c[0] for c in _CASES)
+
+
 @requires_rust
 @pytest.mark.unit
 @pytest.mark.parametrize(("name", "kwargs", "ops", "expected"), _CASES)
-def test_python_and_rust_agree(
-    monkeypatch: pytest.MonkeyPatch,
+def test_matches_the_recorded_trace(
     name: str,
     kwargs: dict[str, Any],
     ops: list[str],
     expected: list[bool],
 ) -> None:
-    py = _conc(monkeypatch, python=True, **_materialise(kwargs))
-    rs = _conc(monkeypatch, python=False, **_materialise(kwargs))
-    assert rs.engine == "rust"
-    script = ops * 4
-    assert _drive(rs, script) == _drive(py, script), name
+    # Recorded from the Python implementation the class used to have
+    # (the Rust engine gave the same rows then).
+    rows = _drive(_conc(**_materialise(kwargs)), ops * 4)
+    assert json.loads(json.dumps(rows)) == _RECORDED[name], name
 
 
 @pytest.mark.unit

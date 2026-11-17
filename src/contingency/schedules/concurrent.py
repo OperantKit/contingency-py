@@ -66,63 +66,14 @@ https://doi.org/10.1901/jeab.1961.4-267
 
 from __future__ import annotations
 
-import copy
 from typing import Any
 
-import contingency.schedules._rust as _rust
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
-from contingency.schedules._rust import (
-    core_too_old,
-    engine_name,
-    require_core,
-    rust_compound,
-    specs_of,
-)
-from contingency.schedules.interval import FI, RI, VI
-from contingency.schedules.ratio import FR, RR, VR
+from contingency.schedules._rust import component_specs, compound_schedule, core_too_old
 
 __all__ = ["Concurrent"]
-
-_TIME_TOL = 1e-9
-
-# Components whose reinforcer can be held *inside* the component: a
-# time tick never reinforces them and responses matter only through
-# the reinforcing one, so withholding that response keeps the
-# reinforcer set up and delays the next interval or ratio.
-_HOLD_IN_COMPONENT: tuple[type, ...] = (FR, VR, RR, FI, VI, RI)
-
-
-def _would_reinforce(component: Schedule, now: float, event: ResponseEvent) -> bool:
-    """Whether ``event`` would reinforce ``component``, leaving it unchanged.
-
-    A component run by the Rust engine answers through its probe; any
-    other component is tried on a copy.
-    """
-    rust = getattr(component, "_rust", None)
-    if rust is not None:
-        probed = rust.probe_response(now, event)
-        if probed is not None:
-            return bool(probed)
-    return bool(copy.deepcopy(component).step(now, event).reinforced)
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    """Raise :class:`ScheduleStateError` if ``now`` moves backwards."""
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    """Raise :class:`ScheduleStateError` if ``event.time`` disagrees with ``now``."""
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
-
 
 class Concurrent:
     """Concurrent schedule with changeover gating.
@@ -174,6 +125,16 @@ class Concurrent:
       response, and the reinforcer it produces is kept by
       :class:`Concurrent` until delivery. The component's own next
       cycle starts at once.
+
+    The compound runs on the Rust engine. Its components must be
+    schedules of this package that run there, not yet stepped, and
+    distinct objects; otherwise the constructor raises
+    :class:`ScheduleConfigError`.
+    Components and punishment schedules count alike: each object may
+    appear only once among them. When two components deliver a
+    reinforcer on the same tick, the one whose key comes first in
+    sorted order wins: the Rust engine reads the components in sorted
+    key order, whatever the insertion order of ``components``.
     """
 
     __slots__ = (
@@ -184,13 +145,6 @@ class Concurrent:
         "_punish",
         "_punish_changeover",
         "_punish_directional",
-        "_last_operandum",
-        "_last_confirmed_operandum",
-        "_switch_time",
-        "_active_cod",
-        "_consecutive_new_count",
-        "_last_now",
-        "_pending",
         "_rust",
     )
 
@@ -308,19 +262,7 @@ class Concurrent:
             self._components, punish_changeover, punish_directional
         )
 
-        self._last_operandum: str | None = None
-        # Previously confirmed operandum, captured at the moment a new
-        # changeover is confirmed. Used to resolve directional COD.
-        self._last_confirmed_operandum: str | None = None
-        self._switch_time: float | None = None
-        # Currently armed COD duration (resolved directional or base).
-        self._active_cod: float = float(cod)
-        self._consecutive_new_count: int = 0
-        self._last_now: float | None = None
-        # Reinforcers held by the compound (components outside
-        # ``_HOLD_IN_COMPONENT``), per operandum, oldest first.
-        self._pending: dict[str, list[Reinforcer]] = {}
-        self._rust: Any = rust_compound(self._rust_spec())
+        self._rust: Any = compound_schedule(self._rust_spec())
 
     @property
     def components(self) -> dict[str, Schedule]:
@@ -371,203 +313,26 @@ class Concurrent:
             out.extend(self._punish_directional.values())
         return out
 
-    def _resolve_cod(self, from_op: str | None, to_op: str) -> float:
-        """Return the COD to arm for a switch ``from_op -> to_op``.
-
-        Uses the directional override when present; otherwise falls
-        back to the base ``cod``. ``from_op=None`` (no prior operandum)
-        never arms directional COD.
-        """
-        if (
-            self._cod_directional is not None
-            and from_op is not None
-            and (from_op, to_op) in self._cod_directional
-        ):
-            return self._cod_directional[(from_op, to_op)]
-        return self._cod
-
-    def _step_gated(
-        self, component: Schedule, now: float, event: ResponseEvent
-    ) -> tuple[Outcome, bool]:
-        """Step ``component`` with ``event`` while COD gates its operandum.
-
-        For :data:`_HOLD_IN_COMPONENT` types the response is first tried
-        on a copy. If the copy would reinforce, the real component only
-        receives a time tick, so the reinforcer stays set up (and its
-        next interval or ratio does not start) until the first response
-        after the COD. For any other component the response is applied
-        as usual and a reinforcer it produces is queued in
-        ``_pending[event.operandum]`` for later delivery.
-
-        Returns ``(outcome, held)``.
-        """
-        if isinstance(component, _HOLD_IN_COMPONENT):
-            if _would_reinforce(component, now, event):
-                component.step(now, None)
-                return Outcome(), True
-            return component.step(now, event), False
-        out = component.step(now, event)
-        if out.reinforced and out.reinforcer is not None:
-            self._pending.setdefault(event.operandum, []).append(out.reinforcer)
-            return Outcome(), True
-        return out, False
-
-    def _deliver_pending(
-        self, operandum: str, now: float, outcome: Outcome, from_event: bool
-    ) -> tuple[Outcome, bool]:
-        """Deliver the oldest reinforcer held by :class:`Concurrent` on ``operandum``.
-
-        Called for an ungated response. If the component reinforced on
-        this response too, that reinforcer joins the back of the queue,
-        so each response delivers at most one reinforcer.
-        """
-        queue = self._pending.get(operandum)
-        if not queue:
-            return outcome, from_event
-        if from_event and outcome.reinforced and outcome.reinforcer is not None:
-            queue.append(outcome.reinforcer)
-        held = queue.pop(0)
-        if not queue:
-            del self._pending[operandum]
-        delivered = Reinforcer(time=now, magnitude=held.magnitude, label=held.label)
-        return Outcome(reinforced=True, reinforcer=delivered), True
-
-    def _advance_components(
-        self,
-        now: float,
-        event_operandum: str | None,
-        event: ResponseEvent | None,
-        gated: bool = False,
-    ) -> tuple[Outcome, bool, bool]:
-        """Call step() on every component; only ``event_operandum`` receives ``event``.
-
-        Returns ``(outcome, from_event, held)`` where ``from_event`` is
-        ``True`` iff the returned outcome originated from the
-        event-matched component, and ``held`` is ``True`` iff that
-        component set up a reinforcer which COD is holding back
-        (only possible when ``gated``). Priority order:
-
-        1. The event-matched component's outcome if it reinforced
-           (``from_event=True``).
-        2. Otherwise, the first reinforced tick outcome observed on any
-           other component, in insertion order (``from_event=False``).
-        3. Otherwise, the event-matched component's (un-reinforced)
-           outcome, to preserve its ``meta`` (``from_event=True``).
-        4. Otherwise, an empty :class:`Outcome` (``from_event=False``).
-
-        Rationale: a time-based component (FT/VT/RT) that fires on a
-        step must not be silently dropped just because another operandum
-        also saw a response on the same step. Preferring the event-side
-        outcome when both reinforce matches the single-outcome API; when
-        the event side does not reinforce the tick-side reinforcement is
-        surfaced rather than consumed. If multiple non-event components
-        fire on the same tick, the first one (by insertion order) wins
-        and the others are silently dropped — the caller should step
-        often enough that this does not occur.
-        """
-        outcome_for_event: Outcome | None = None
-        tick_outcome: Outcome | None = None
-        held = False
-        for key, component in self._components.items():
-            if key == event_operandum:
-                if gated and event is not None:
-                    outcome_for_event, held = self._step_gated(component, now, event)
-                else:
-                    outcome_for_event = component.step(now, event)
-            else:
-                out = component.step(now, None)
-                if tick_outcome is None and out.reinforced:
-                    tick_outcome = out
-        if outcome_for_event is not None and outcome_for_event.reinforced:
-            return outcome_for_event, True, held
-        if tick_outcome is not None:
-            return tick_outcome, False, held
-        if outcome_for_event is not None:
-            return outcome_for_event, True, held
-        return Outcome(), False, held
-
-    def _register_event(self, operandum: str, now: float) -> tuple[bool, str | None]:
-        """Update changeover state for a response at ``operandum`` / ``now``.
-
-        Returns ``(changeover_confirmed, from_op)`` where
-        ``changeover_confirmed`` is True iff this response confirms a
-        changeover (for punishment wiring), and ``from_op`` is the
-        previously confirmed operandum at the moment the changeover
-        occurred.
-
-        Implements the ``frco`` semantics: a changeover is confirmed
-        only after ``frco`` consecutive responses on a new operandum.
-        Once confirmed, ``_switch_time`` is anchored at ``now`` so the
-        COD lockout starts from the confirming response.
-        """
-        if self._last_operandum is None:
-            # First response ever: not a changeover.
-            self._last_operandum = operandum
-            self._consecutive_new_count = 0
-            return (False, None)
-
-        if operandum == self._last_operandum:
-            # Staying on the same operandum. Resets the streak counter.
-            self._consecutive_new_count = 0
-            return (False, None)
-
-        # Operandum differs from the last response's operandum.
-        if self._frco == 0:
-            # Immediate changeover: arm COD now and bind to new operandum.
-            from_op = self._last_operandum
-            self._switch_time = now
-            self._active_cod = self._resolve_cod(from_op, operandum)
-            self._last_confirmed_operandum = from_op
-            self._last_operandum = operandum
-            self._consecutive_new_count = 0
-            return (True, from_op)
-
-        # frco > 0: count this response as part of the switching streak.
-        # _last_operandum stays as the previous confirmed operandum
-        # until the streak reaches `frco`.
-        self._consecutive_new_count += 1
-        if self._consecutive_new_count >= self._frco:
-            from_op = self._last_operandum
-            self._switch_time = now
-            self._active_cod = self._resolve_cod(from_op, operandum)
-            self._last_confirmed_operandum = from_op
-            self._last_operandum = operandum
-            self._consecutive_new_count = 0
-            return (True, from_op)
-        return (False, None)
-
-    def _cod_active(self, operandum: str, now: float) -> bool:
-        """Return True iff reinforcement on ``operandum`` is currently gated.
-
-        COD gating applies to the operandum that the subject *has
-        switched to* (i.e. the current ``_last_operandum`` after a
-        confirmed changeover). Responses on other operanda are never
-        gated by this implementation. The armed COD is the directional
-        override in effect (if any) for the most recent switch;
-        otherwise the base ``cod``.
-        """
-        if self._active_cod <= 0.0:
-            return False
-        if self._switch_time is None:
-            return False
-        if operandum != self._last_operandum:
-            return False
-        return (now - self._switch_time) < self._active_cod - _TIME_TOL
-
-    def _rust_spec(self) -> dict[str, Any] | None:
-        nested = [
-            *self._components.values(),
-            *(self._punish or {}).values(),
-            *self._changeover_punishers(),
-        ]
-        if specs_of(nested) is None:
-            return None
+    def _rust_spec(self) -> dict[str, Any]:
         keys = list(self._components)
-        specs = specs_of([self._components[k] for k in keys])
-        if specs is None:
-            return None
+        pkeys = list(self._punish or {})
+        dkeys = list(self._punish_directional or {})
+        changeover = [] if self._punish_changeover is None else [self._punish_changeover]
+        specs = component_specs(
+            "Concurrent",
+            [
+                *(self._components[k] for k in keys),
+                *((self._punish or {})[k] for k in pkeys),
+                *changeover,
+                *((self._punish_directional or {})[k] for k in dkeys),
+            ],
+        )
+        comp_specs = specs[: len(keys)]
+        rest = specs[len(keys) :]
+        punish_specs, rest = rest[: len(pkeys)], rest[len(pkeys) :]
+        changeover_specs, directional_specs = rest[: len(changeover)], rest[len(changeover) :]
         params: dict[str, Any] = {
-            "components": dict(zip(keys, specs, strict=True)),
+            "components": dict(zip(keys, comp_specs, strict=True)),
             "cod": self._cod,
             "frco": self._frco,
         }
@@ -575,231 +340,35 @@ class Concurrent:
             params["cod_directional"] = [
                 {"from": a, "to": b, "cod": cod} for (a, b), cod in self._cod_directional.items()
             ]
-        if self._punish is not None:
-            pkeys = list(self._punish)
-            pspecs = specs_of([self._punish[k] for k in pkeys])
-            if pspecs is None:
-                return None
-            params["punish"] = dict(zip(pkeys, pspecs, strict=True))
-        if self._punish_changeover is not None:
-            cspecs = specs_of([self._punish_changeover])
-            if cspecs is None:
-                return None
-            params["punish_changeover"] = cspecs[0]
-        if self._punish_directional is not None:
-            dkeys = list(self._punish_directional)
-            dspecs = specs_of([self._punish_directional[k] for k in dkeys])
-            if dspecs is None:
-                return None
+        if pkeys:
+            params["punish"] = dict(zip(pkeys, punish_specs, strict=True))
+        if changeover_specs:
+            params["punish_changeover"] = changeover_specs[0]
+        if dkeys:
             params["punish_directional"] = [
                 {"from": a, "to": b, "schedule": spec}
-                for (a, b), spec in zip(dkeys, dspecs, strict=True)
+                for (a, b), spec in zip(dkeys, directional_specs, strict=True)
             ]
-        if (
-            self._punish_changeover is not None or self._punish_directional is not None
-        ) and not _rust_has_changeover_punish():
-            if _rust._FORCE_PYTHON:
-                return None
-            require_core()
+        if (changeover_specs or dkeys) and not _rust_has_changeover_punish():
             raise core_too_old("Concurrent runs without changeover punishment")
         return {"type": "Concurrent", "params": params}
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        if event is None:
-            # Pure tick: advance every component's clock. A time-based
-            # component may fire here; its outcome is returned as-is
-            # because no changeover is involved.
-            outcome, _, _ = self._advance_components(now, None, None)
-            # Ticks also advance punishment components' internal clocks
-            # so time-based punishers keep correct time. A tick cannot
-            # be the event that triggers a punisher fire (no response),
-            # so any outcome from a punisher is discarded here.
-            if self._punish is not None:
-                for p_sched in self._punish.values():
-                    p_sched.step(now, None)
-            for p_sched in self._changeover_punishers():
-                p_sched.step(now, None)
-            return outcome
-
-        operandum = event.operandum
-        if operandum not in self._components:
-            raise ScheduleConfigError(
-                f"Response event references unknown operandum {operandum!r}; "
-                f"known operanda: {sorted(self._components.keys())!r}"
-            )
-
-        # Update changeover bookkeeping. Registration happens *before*
-        # gating so that the response which completes a changeover is
-        # itself covered by the COD window it opens: the changeover
-        # response is the first "on the new operandum" response and
-        # COD starts at that instant (Catania, 1963).
-        changed_over, from_op = self._register_event(operandum, now)
-        gated = self._cod_active(operandum, now)
-
-        # Step all components; only the matched one sees ``event``.
-        # Under COD, a reinforcer the matched component would deliver
-        # is held on that component until the first response after the
-        # COD (Herrnstein, 1961).
-        outcome, from_event, held = self._advance_components(
-            now, operandum, event, gated=gated
-        )
-        if not gated:
-            outcome, from_event = self._deliver_pending(
-                operandum, now, outcome, from_event
-            )
-
-        # Advance punishment schedules for all operanda so their clocks
-        # stay aligned with ``now``. Only the matched operandum's
-        # punisher receives the event; other punishers receive a tick.
-        # A changeover punisher receives the response only when it
-        # confirms a changeover in its direction. Every punisher that
-        # fires on this response adds its magnitude.
-        fired: list[Reinforcer] = []
-        if self._punish is not None:
-            for key, p_sched in self._punish.items():
-                if key == operandum:
-                    p_out = p_sched.step(now, event)
-                    if p_out.reinforced and p_out.reinforcer is not None:
-                        fired.append(p_out.reinforcer)
-                else:
-                    p_sched.step(now, None)
-        changeover_punished = False
-        targets: list[tuple[Schedule, bool]] = []
-        if self._punish_changeover is not None:
-            targets.append((self._punish_changeover, changed_over))
-        if self._punish_directional is not None:
-            for (a, b), p_sched in self._punish_directional.items():
-                targets.append((p_sched, changed_over and a == from_op and b == operandum))
-        for p_sched, hit in targets:
-            if hit:
-                p_out = p_sched.step(now, event)
-                if p_out.reinforced and p_out.reinforcer is not None:
-                    changeover_punished = True
-                    fired.append(p_out.reinforcer)
-            else:
-                p_sched.step(now, None)
-        punish_outcome: Outcome | None = None
-        if fired:
-            punish_outcome = Outcome(
-                reinforced=True,
-                reinforcer=Reinforcer(
-                    time=fired[0].time,
-                    magnitude=sum(r.magnitude for r in fired),
-                    label=fired[0].label,
-                ),
-            )
-
-        cod_suppressed = held
-
-        base_fired = outcome.reinforced and from_event
-        punisher_fired = punish_outcome is not None and punish_outcome.reinforced
-
-        if cod_suppressed and not punisher_fired:
-            # The reinforcer stays set up on the component and is not
-            # delivered on this response. A reinforcer another component
-            # delivered on its tick at this step is still returned, with
-            # ``cod_suppressed`` recording the hold.
-            if outcome.reinforced and not from_event:
-                return Outcome(
-                    reinforced=True,
-                    reinforcer=outcome.reinforcer,
-                    meta={**outcome.meta, "cod_suppressed": True},
-                )
-            return Outcome(
-                reinforced=False,
-                reinforcer=None,
-                meta={"cod_suppressed": True, "operandum": operandum},
-            )
-
-        if base_fired and punisher_fired:
-            # Net-magnitude compound outcome.
-            assert outcome.reinforcer is not None
-            assert punish_outcome is not None and punish_outcome.reinforcer is not None
-            net = outcome.reinforcer.magnitude - punish_outcome.reinforcer.magnitude
-            if net > 0:
-                label = "SR+"
-            elif net < 0:
-                label = "SR-"
-            else:
-                label = "SR0"
-            net_meta: dict[str, object] = {
-                "operandum": operandum,
-                "base_fired": True,
-                "punisher_fired": True,
-                "net_magnitude": net,
-            }
-            if changeover_punished:
-                net_meta["changeover_punished"] = True
-            return Outcome(
-                reinforced=True,
-                reinforcer=Reinforcer(
-                    time=outcome.reinforcer.time,
-                    magnitude=net,
-                    label=label,
-                ),
-                meta=net_meta,
-            )
-
-        if punisher_fired:
-            assert punish_outcome is not None and punish_outcome.reinforcer is not None
-            p = punish_outcome.reinforcer
-            meta: dict[str, object] = {
-                "operandum": operandum,
-                "punisher_fired": True,
-                "base_fired": False,
-            }
-            if cod_suppressed:
-                # The base reinforcer was earned but suppressed; the
-                # punisher still fires. Report the COD suppression too.
-                meta["cod_suppressed"] = True
-            if changeover_punished:
-                meta["changeover_punished"] = True
-            return Outcome(
-                reinforced=True,
-                reinforcer=Reinforcer(
-                    time=p.time, magnitude=-p.magnitude, label="SR-"
-                ),
-                meta=meta,
-            )
-
-        return outcome
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            for component in [
-                *self._components.values(),
-                *(self._punish or {}).values(),
-                *self._changeover_punishers(),
-            ]:
-                component.reset()
-            self._rust = rust_compound(self._rust_spec())
-            if self._rust is not None:
-                return
-        for component in self._components.values():
+        for component in [
+            *self._components.values(),
+            *(self._punish or {}).values(),
+            *self._changeover_punishers(),
+        ]:
             component.reset()
-        if self._punish is not None:
-            for p_sched in self._punish.values():
-                p_sched.reset()
-        for p_sched in self._changeover_punishers():
-            p_sched.reset()
-        self._last_operandum = None
-        self._last_confirmed_operandum = None
-        self._switch_time = None
-        self._active_cod = self._cod
-        self._consecutive_new_count = 0
-        self._last_now = None
-        self._pending = {}
+        self._rust = compound_schedule(self._rust_spec())
 
 
 def _validate_changeover_punish(

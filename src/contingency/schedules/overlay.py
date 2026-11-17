@@ -32,29 +32,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
-from contingency.schedules._rust import engine_name, rust_compound, specs_of
+from contingency.schedules._rust import component_specs, compound_schedule
 
 __all__ = ["Overlay"]
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
-
 
 class Overlay:
     """Punishment overlay — Azrin & Holz (1966).
@@ -86,6 +69,11 @@ class Overlay:
       when both fire on the same step. The surfaced
       :class:`Reinforcer` magnitude equals ``net_magnitude``.
 
+    The compound runs on the Rust engine. Its components must be
+    schedules of this package that run there, not yet stepped, and
+    distinct objects; otherwise the constructor raises
+    :class:`ScheduleConfigError`.
+
     References
     ----------
     Azrin, N. H., & Holz, W. C. (1966). Punishment. In W. K. Honig
@@ -93,7 +81,7 @@ class Overlay:
     (pp. 380-447). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_base", "_punisher", "_last_now", "_rust")
+    __slots__ = ("_base", "_punisher", "_rust")
 
     def __init__(self, base: Schedule, punisher: Schedule) -> None:
         if not isinstance(base, Schedule):
@@ -108,8 +96,7 @@ class Overlay:
             )
         self._base: Schedule = base
         self._punisher: Schedule = punisher
-        self._last_now: float | None = None
-        self._rust: Any = rust_compound(self._rust_spec())
+        self._rust: Any = compound_schedule(self._rust_spec())
 
     @property
     def base(self) -> Schedule:
@@ -121,83 +108,19 @@ class Overlay:
         """The punishment schedule."""
         return self._punisher
 
-    def _rust_spec(self) -> dict[str, Any] | None:
-        specs = specs_of([self._base, self._punisher])
-        if specs is None:
-            return None
-        return {"type": "Overlay", "params": {"base": specs[0], "punisher": specs[1]}}
+    def _rust_spec(self) -> dict[str, Any]:
+        base, punisher = component_specs("Overlay", [self._base, self._punisher])
+        return {"type": "Overlay", "params": {"base": base, "punisher": punisher}}
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        base_outcome = self._base.step(now, event)
-        punisher_outcome = self._punisher.step(now, event)
-
-        base_fired = base_outcome.reinforced
-        punisher_fired = punisher_outcome.reinforced
-
-        if not base_fired and not punisher_fired:
-            return Outcome()
-
-        if base_fired and not punisher_fired:
-            assert base_outcome.reinforcer is not None
-            return Outcome(
-                reinforced=True,
-                reinforcer=base_outcome.reinforcer,
-                meta={"base_fired": True, "punisher_fired": False},
-            )
-
-        if punisher_fired and not base_fired:
-            assert punisher_outcome.reinforcer is not None
-            p = punisher_outcome.reinforcer
-            return Outcome(
-                reinforced=True,
-                reinforcer=Reinforcer(
-                    time=p.time, magnitude=-p.magnitude, label="SR-"
-                ),
-                meta={"base_fired": False, "punisher_fired": True},
-            )
-
-        # Both fired on the same step. Surface a compound outcome.
-        assert base_outcome.reinforcer is not None
-        assert punisher_outcome.reinforcer is not None
-        net = base_outcome.reinforcer.magnitude - punisher_outcome.reinforcer.magnitude
-        if net > 0:
-            label = "SR+"
-        elif net < 0:
-            label = "SR-"
-        else:
-            label = "SR0"
-        return Outcome(
-            reinforced=True,
-            reinforcer=Reinforcer(
-                time=base_outcome.reinforcer.time,
-                magnitude=net,
-                label=label,
-            ),
-            meta={
-                "base_fired": True,
-                "punisher_fired": True,
-                "net_magnitude": net,
-            },
-        )
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            for component in (self._base, self._punisher):
-                component.reset()
-            self._rust = rust_compound(self._rust_spec())
-            if self._rust is not None:
-                return
-        self._base.reset()
-        self._punisher.reset()
-        self._last_now = None
+        for component in (self._base, self._punisher):
+            component.reset()
+        self._rust = compound_schedule(self._rust_spec())

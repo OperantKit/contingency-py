@@ -10,12 +10,13 @@ report ``state()``; without it the constructor raises
 install it. ``import contingency`` and the DSL parsing do not need it.
 
 The single schedule classes (ratio, interval, time-based,
-differential, Lag, adjusting, interlocking, aversive) run only on the
-Rust engine. A few cases still run in this package's Python
-implementation (Percentile on a non-IRT target or at rank 0, a custom
-ProgressiveRatio step function, trial-based schedules and compounds over
-components that run in Python). ``engine`` on each instance tells which
-one runs (``"rust"`` or ``"python"``).
+differential, Lag, adjusting, interlocking, aversive) and the compound
+schedule classes run only on the Rust engine. A compound takes only
+components that run there (:func:`component_specs`). A few cases still
+run in this package's Python implementation (Percentile on a non-IRT
+target or at rank 0, a custom ProgressiveRatio step function,
+trial-based schedules whose consequence runs in Python). ``engine`` on
+each instance tells which one runs (``"rust"`` or ``"python"``).
 """
 
 from __future__ import annotations
@@ -38,6 +39,8 @@ __all__ = [
     "spec_of",
     "specs_of",
     "rust_compound",
+    "component_specs",
+    "compound_schedule",
 ]
 
 
@@ -46,9 +49,9 @@ __all__ = [
 _SEEDS = random.Random()
 
 # Tests set this to run the Python implementation that remains in the
-# compound, trial-based and progressive schedule classes, to compare it
-# with the Rust engine. The single schedule classes ignore it: they have
-# no Python implementation. Not public API.
+# trial-based, progressive and percentile schedule classes, to compare
+# it with the Rust engine. The single and compound schedule classes
+# ignore it: they have no Python implementation. Not public API.
 _FORCE_PYTHON = False
 
 _MISSING_CORE = (
@@ -126,7 +129,8 @@ def rust_schedule(spec: dict[str, Any]) -> Any:
     """Return the ``RustSchedule`` for ``spec``; the schedule has no other engine.
 
     Unlike :func:`rust_or_none`, this ignores the test switch that runs
-    the Python implementations of compound schedules.
+    the Python implementations of the trial-based, progressive and
+    percentile schedules.
 
     Raises
     ------
@@ -253,6 +257,63 @@ def specs_of(schedules: Any) -> list[dict[str, Any]] | None:
     if any(s is None for s in specs):
         return None
     return specs  # type: ignore[return-value]
+
+
+def component_specs(kind: str, schedules: Any) -> list[dict[str, Any]]:
+    """The specs of the components of a compound that runs only on Rust.
+
+    Raises
+    ------
+    ScheduleConfigError
+        Without a recent enough ``contingency_core``; when a component
+        does not run on the Rust engine (a ``Schedule`` written in
+        Python, or a schedule of this package that still runs in
+        Python); when a component has been stepped since its last
+        reset; and when the same object appears twice.
+    """
+    _require_core_now()
+    schedules = list(schedules)
+    seen: set[int] = set()
+    specs: list[dict[str, Any]] = []
+    for schedule in schedules:
+        if id(schedule) in seen:
+            raise ScheduleConfigError(
+                f"{kind} got the same {type(schedule).__name__} object twice; "
+                f"build a separate object for each place it is used"
+            )
+        seen.add(id(schedule))
+        rust = getattr(schedule, "_rust", None)
+        spec = getattr(rust, "_spec", None)
+        if rust is None or not isinstance(spec, dict):
+            raise ScheduleConfigError(
+                f"{kind} takes only components that run on the Rust engine; "
+                f"{type(schedule).__name__} does not (a Schedule written in Python "
+                f"cannot be a component of a compound schedule)"
+            )
+        if getattr(rust, "_history", None):
+            raise ScheduleConfigError(
+                f"{kind} got a {type(schedule).__name__} that has already been "
+                f"stepped; call its reset() before wrapping it"
+            )
+        specs.append(spec)
+    return specs
+
+
+def compound_schedule(
+    spec: dict[str, Any],
+    *,
+    needs_state: bool = False,
+) -> Any:
+    """The ``RustSchedule`` of a compound that has no other engine.
+
+    With ``needs_state`` the compound reads its position (``active_index``
+    and the like) from ``state()``; a ``contingency_core`` without it
+    raises :class:`ScheduleConfigError`, as does a missing one.
+    """
+    rust = rust_schedule(spec)
+    if needs_state and not rust.has_state():
+        raise core_too_old("its schedules do not report state()")
+    return rust
 
 
 def rust_compound(

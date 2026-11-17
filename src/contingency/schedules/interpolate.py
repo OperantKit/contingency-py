@@ -29,28 +29,11 @@ from __future__ import annotations
 from typing import Any
 
 from contingency.entities import Outcome, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
-from contingency.schedules._rust import engine_name, rust_compound, specs_of
+from contingency.schedules._rust import component_specs, compound_schedule
 
 __all__ = ["Interpolate"]
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
-
 
 class Interpolate:
     """Interpolate compound schedule — mid-session probe.
@@ -87,6 +70,11 @@ class Interpolate:
     step. When the active component reinforces, its own ``meta`` is
     preserved and ``in_probe`` is merged in.
 
+    The compound runs on the Rust engine. Its components must be
+    schedules of this package that run there, not yet stepped, and
+    distinct objects; otherwise the constructor raises
+    :class:`ScheduleConfigError`.
+
     References
     ----------
     Catania, A. C., & Reynolds, G. S. (1968). A quantitative analysis
@@ -101,8 +89,6 @@ class Interpolate:
         "_interval",
         "_probe_duration",
         "_first_probe_at",
-        "_anchor",
-        "_last_now",
         "_rust",
     )
 
@@ -168,9 +154,7 @@ class Interpolate:
         self._interval: float = float(interval)
         self._probe_duration: float = float(probe_duration)
         self._first_probe_at: float = float(first_probe_at)
-        self._anchor: float | None = None
-        self._last_now: float | None = None
-        self._rust: Any = rust_compound(self._rust_spec())
+        self._rust: Any = compound_schedule(self._rust_spec())
 
     @property
     def base(self) -> Schedule:
@@ -192,26 +176,13 @@ class Interpolate:
     def first_probe_at(self) -> float:
         return self._first_probe_at
 
-    def _in_probe_window(self, now: float) -> bool:
-        """Return True iff ``now`` falls inside a probe window."""
-        if self._anchor is None:
-            return False
-        t = now - self._anchor - self._first_probe_at
-        if t < -_TIME_TOL:
-            return False
-        # Within the current interval, the window spans [0, probe_duration).
-        frac = t - (int(t // self._interval)) * self._interval
-        return frac < self._probe_duration - _TIME_TOL
-
-    def _rust_spec(self) -> dict[str, Any] | None:
-        specs = specs_of([self._base, self._probe])
-        if specs is None:
-            return None
+    def _rust_spec(self) -> dict[str, Any]:
+        base, probe = component_specs("Interpolate", [self._base, self._probe])
         return {
             "type": "Interpolate",
             "params": {
-                "base": specs[0],
-                "probe": specs[1],
+                "base": base,
+                "probe": probe,
                 "interval": self._interval,
                 "probe_duration": self._probe_duration,
                 "first_probe_at": self._first_probe_at,
@@ -220,38 +191,13 @@ class Interpolate:
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        if self._anchor is None:
-            self._anchor = now
-        self._last_now = now
-
-        in_probe = self._in_probe_window(now)
-        active = self._probe if in_probe else self._base
-
-        inner = active.step(now, event)
-        meta = dict(inner.meta)
-        meta["in_probe"] = in_probe
-        return Outcome(
-            reinforced=inner.reinforced,
-            reinforcer=inner.reinforcer,
-            meta=meta,
-        )
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            for component in (self._base, self._probe):
-                component.reset()
-            self._rust = rust_compound(self._rust_spec())
-            if self._rust is not None:
-                return
-        self._base.reset()
-        self._probe.reset()
-        self._anchor = None
-        self._last_now = None
+        for component in (self._base, self._probe):
+            component.reset()
+        self._rust = compound_schedule(self._rust_spec())

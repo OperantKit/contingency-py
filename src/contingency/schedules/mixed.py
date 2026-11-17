@@ -39,31 +39,11 @@ from collections.abc import Sequence
 from typing import Any
 
 from contingency.entities import Outcome, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
-from contingency.schedules._rust import engine_name, rust_compound, specs_of
-from contingency.schedules.sequence import _ComponentClocks
+from contingency.schedules._rust import component_specs, compound_schedule
 
 __all__ = ["Mixed"]
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    """Raise :class:`ScheduleStateError` if ``now`` moves backwards."""
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    """Raise :class:`ScheduleStateError` if ``event.time`` disagrees with ``now``."""
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
-
 
 def _validate_components(components: Sequence[Schedule]) -> list[Schedule]:
     if not isinstance(components, Sequence) or isinstance(components, (str, bytes)):
@@ -109,20 +89,22 @@ class Mixed:
     every step; this is the key difference from :class:`Multiple`,
     which reports a string stimulus name.
 
+    The compound runs on the Rust engine. Its components must be
+    schedules of this package that run there, not yet stepped, and
+    distinct objects; otherwise the constructor raises
+    :class:`ScheduleConfigError`.
+
     References
     ----------
     Ferster, C. B., & Skinner, B. F. (1957). *Schedules of
     reinforcement* (pp. 623-626). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_components", "_active", "_last_now", "_clocks", "_rust")
+    __slots__ = ("_components", "_rust")
 
     def __init__(self, components: Sequence[Schedule]) -> None:
         self._components: list[Schedule] = _validate_components(components)
-        self._active: int = 0
-        self._last_now: float | None = None
-        self._clocks = _ComponentClocks(len(self._components))
-        self._rust: Any = rust_compound(self._rust_spec(), needs_state=True)
+        self._rust: Any = compound_schedule(self._rust_spec(), needs_state=True)
 
     @property
     def n_components(self) -> int:
@@ -132,57 +114,21 @@ class Mixed:
     @property
     def active_index(self) -> int:
         """Index of the currently active component."""
-        if self._rust is not None:
-            return int(self._rust.state()["active_index"])
-        return self._active
+        return int(self._rust.state()["active_index"])
 
-    def _rust_spec(self) -> dict[str, Any] | None:
-        specs = specs_of(self._components)
-        if specs is None:
-            return None
-        params: dict[str, Any] = {"components": specs}
-        return {"type": "Mixed", "params": params}
+    def _rust_spec(self) -> dict[str, Any]:
+        specs = component_specs("Mixed", self._components)
+        return {"type": "Mixed", "params": {"components": specs}}
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        inner = self._clocks.step(
-            self._active, self._components[self._active], now, event
-        )
-        current = self._active
-
-        if inner.reinforced:
-            nxt = (self._active + 1) % len(self._components)
-            self._clocks.switch(self._active, nxt, now)
-            self._active = nxt
-            meta: dict[str, object] = dict(inner.meta)
-            meta["current_component"] = current
-            return Outcome(
-                reinforced=True, reinforcer=inner.reinforcer, meta=meta
-            )
-
-        meta = dict(inner.meta)
-        meta["current_component"] = current
-        return Outcome(meta=meta)
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            for component in self._components:
-                component.reset()
-            self._rust = rust_compound(self._rust_spec(), needs_state=True)
-            if self._rust is not None:
-                return
-        self._active = 0
-        self._last_now = None
-        self._clocks.reset()
-        for c in self._components:
-            c.reset()
+        for component in self._components:
+            component.reset()
+        self._rust = compound_schedule(self._rust_spec(), needs_state=True)

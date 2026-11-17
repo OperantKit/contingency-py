@@ -352,26 +352,42 @@ class AversiveScheduleEnv(ScheduleEnv):
         return info
 
 
-class _Magnitude:
-    """Wrap a schedule and give its reinforcers a fixed ``magnitude``.
+class _PunisherMagnitude:
+    """Give the punisher of an :class:`~contingency.schedules.Overlay` a fixed size.
 
-    Sets the size of a punisher built from a schedule that has no
-    magnitude parameter (:class:`~contingency.schedules.FR`).
+    The punisher is a schedule without a magnitude parameter
+    (:class:`~contingency.schedules.FR`), so each punisher has magnitude
+    1. This wraps the outcome of the whole Overlay (which runs on the
+    Rust engine) and replaces that 1 with ``magnitude``: a step where
+    only the punisher fires gives ``-magnitude``, a step where both fire
+    gives the base magnitude minus ``magnitude``, labelled by its sign as
+    the Overlay labels it.
     """
 
-    def __init__(self, inner: Schedule, magnitude: float) -> None:
-        self._inner = inner
+    def __init__(self, overlay: Overlay, magnitude: float) -> None:
+        self._overlay = overlay
         self._magnitude = float(magnitude)
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        outcome = self._inner.step(now, event)
-        if outcome.reinforcer is None:
+        outcome = self._overlay.step(now, event)
+        r = outcome.reinforcer
+        if r is None or outcome.meta.get("punisher_fired") is not True:
             return outcome
-        reinforcer = dataclasses.replace(outcome.reinforcer, magnitude=self._magnitude)
-        return dataclasses.replace(outcome, reinforcer=reinforcer)
+        if outcome.meta.get("base_fired") is not True:
+            return dataclasses.replace(
+                outcome, reinforcer=dataclasses.replace(r, magnitude=-self._magnitude)
+            )
+        # Both fired: the Overlay's net is base - 1.
+        net = (r.magnitude + 1.0) - self._magnitude
+        label = "SR+" if net > 0 else "SR-" if net < 0 else "SR0"
+        return dataclasses.replace(
+            outcome,
+            reinforcer=dataclasses.replace(r, magnitude=net, label=label),
+            meta={**outcome.meta, "net_magnitude": net},
+        )
 
     def reset(self) -> None:
-        self._inner.reset()
+        self._overlay.reset()
 
 
 def make_sidman_env(
@@ -439,7 +455,7 @@ def make_punished_vi_env(
         vi = VI(mean, seed=seed)
         if p == 0:
             return vi
-        return Overlay(vi, _Magnitude(FR(n), p))
+        return _PunisherMagnitude(Overlay(vi, FR(n)), p)
 
     # Build once so that bad parameters fail here, not at the first reset().
     factory(0)

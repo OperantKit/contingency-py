@@ -41,29 +41,13 @@ from __future__ import annotations
 from typing import Any
 
 from contingency.entities import Outcome, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
-from contingency.schedules._rust import engine_name, rust_compound, specs_of
+from contingency.schedules._rust import component_specs, compound_schedule
 
 __all__ = ["SecondOrder"]
 
-_TIME_TOL = 1e-9
-
 UNIT_COMPLETION_OPERANDUM = "__unit_completion__"
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
 
 
 class SecondOrder:
@@ -96,6 +80,11 @@ class SecondOrder:
     the unit completion both as the gating response *and* as the
     time-progression tick.
 
+    The compound runs on the Rust engine. Its components must be
+    schedules of this package that run there, not yet stepped, and
+    distinct objects; otherwise the constructor raises
+    :class:`ScheduleConfigError`.
+
     References
     ----------
     Kelleher, R. T. (1966). Chaining and conditioned reinforcement.
@@ -106,8 +95,6 @@ class SecondOrder:
     __slots__ = (
         "_overall",
         "_unit",
-        "_last_now",
-        "_unit_completions",
         "_rust",
     )
 
@@ -129,9 +116,7 @@ class SecondOrder:
             )
         self._overall: Schedule = overall
         self._unit: Schedule = unit
-        self._last_now: float | None = None
-        self._unit_completions: int = 0
-        self._rust: Any = rust_compound(self._rust_spec(), needs_state=True)
+        self._rust: Any = compound_schedule(self._rust_spec(), needs_state=True)
 
     # --- Properties -------------------------------------------------------
 
@@ -148,73 +133,23 @@ class SecondOrder:
     @property
     def unit_completions(self) -> int:
         """Cumulative unit completions since construction or last :meth:`reset`."""
-        if self._rust is not None:
-            return int(self._rust.state()["unit_completions"])
-        return self._unit_completions
+        return int(self._rust.state()["unit_completions"])
 
     # --- Schedule protocol -----------------------------------------------
 
-    def _rust_spec(self) -> dict[str, Any] | None:
-        specs = specs_of([self._overall, self._unit])
-        if specs is None:
-            return None
-        return {"type": "SecondOrder", "params": {"overall": specs[0], "unit": specs[1]}}
+    def _rust_spec(self) -> dict[str, Any]:
+        overall, unit = component_specs("SecondOrder", [self._overall, self._unit])
+        return {"type": "SecondOrder", "params": {"overall": overall, "unit": unit}}
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        # Step the unit schedule with the caller's event.
-        unit_outcome = self._unit.step(now, event)
-
-        # Decide what to feed the overall schedule on this tick.
-        if unit_outcome.reinforced:
-            # Unit completion: swallow its reinforcer, reset the unit,
-            # and synthesise an internal event for the overall.
-            self._unit.reset()
-            self._unit_completions += 1
-            synth_event: ResponseEvent | None = ResponseEvent(
-                time=now, operandum=UNIT_COMPLETION_OPERANDUM
-            )
-        else:
-            # No unit completion: still tick the overall so time-based
-            # overalls advance their clocks, but with no event.
-            synth_event = None
-
-        overall_outcome = self._overall.step(now, synth_event)
-        if overall_outcome.reinforced:
-            # Preserve the overall's Reinforcer and enrich meta.
-            new_meta: dict[str, object] = dict(overall_outcome.meta)
-            new_meta["second_order"] = True
-            return Outcome(
-                reinforced=True,
-                reinforcer=overall_outcome.reinforcer,
-                meta=new_meta,
-            )
-
-        # No subject-visible reinforcement on this step; surface a
-        # plain Outcome, but flag a unit completion in meta when one
-        # occurred so downstream tooling can log it.
-        if unit_outcome.reinforced:
-            return Outcome(meta={"unit_completed": True})
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            for component in (self._overall, self._unit):
-                component.reset()
-            self._rust = rust_compound(self._rust_spec(), needs_state=True)
-            if self._rust is not None:
-                return
-        self._overall.reset()
-        self._unit.reset()
-        self._last_now = None
-        self._unit_completions = 0
+        for component in (self._overall, self._unit):
+            component.reset()
+        self._rust = compound_schedule(self._rust_spec(), needs_state=True)

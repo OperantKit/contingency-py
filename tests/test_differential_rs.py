@@ -2,10 +2,10 @@
 
 Hypothesis draws a spec (``tests/strategies_spec.py``) and a response
 sequence, builds the schedule twice — once with the Python classes
-(``_rust._FORCE_PYTHON = True`` around
-:func:`contingency.conformance.spec.build_schedule_from_spec`) and once
-with :func:`contingency.engine.from_spec` — steps both through the same
-sequence and compares every step without rounding:
+(:func:`contingency.conformance.spec.build_schedule_from_spec`, with
+``_rust._FORCE_PYTHON = True`` while it builds a node outside every
+compound) and once with :func:`contingency.engine.from_spec` — steps both
+through the same sequence and compares every step without rounding:
 
 * ``reinforced``, the reinforcer's ``time``/``magnitude`` (as
   ``float.hex()``) and ``label``;
@@ -17,14 +17,17 @@ sequence and compares every step without rounding:
 Known differences are listed in :data:`KNOWN_DIFFERENCES`; a listed entry
 that no longer produces a mismatch fails, so the list cannot go stale.
 
-The single schedule classes (ratio, interval, time-based, differential,
-Lag, adjusting, interlocking, aversive) have no Python implementation and
-ignore ``_FORCE_PYTHON``: a spec built only from them runs on the Rust
-engine on both sides, so it always agrees. The comparison checks the
-classes that still have a Python implementation (compounds over them,
-trial-based schedules, ProgressiveRatio and Percentile). Their former
-Python trajectories are pinned by the recorded traces under
-``tests/fixtures/single_schedule_traces/`` instead.
+The single and compound schedule classes (ratio, interval, time-based,
+differential, Lag, adjusting, interlocking, aversive, and every compound)
+have no Python implementation and ignore ``_FORCE_PYTHON``: a spec built
+only from them runs on the Rust engine on both sides, so it always
+agrees. A compound takes only components that run on the Rust engine, so
+every node inside a compound is built without the flag. The comparison
+checks the classes that still have a Python implementation (trial-based
+schedules, ProgressiveRatio and Percentile) where they are not inside a
+compound. The former Python trajectories of the other classes are pinned
+by the recorded traces under ``tests/fixtures/single_schedule_traces/``
+and ``tests/fixtures/compound_traces/`` instead.
 
 The test runs once per outermost type (every type in
 ``contingency_core.SPEC_TYPES``) with ``DIFFERENTIAL_EXAMPLES / 37``
@@ -51,7 +54,7 @@ pytest.importorskip("contingency_core")
 import contingency_core  # type: ignore[import-untyped]  # noqa: E402
 from hypothesis import HealthCheck, event, given, settings  # noqa: E402
 
-from contingency.conformance.spec import build_schedule_from_spec  # noqa: E402
+import contingency.conformance.spec as _spec_module  # noqa: E402
 from contingency.engine import from_spec  # noqa: E402
 from contingency.entities import ResponseEvent  # noqa: E402
 from contingency.schedules import _rust  # noqa: E402
@@ -123,14 +126,55 @@ def run_side(make: Callable[[], Any], steps: list[Step]) -> list[Observation]:
     return out
 
 
+# Types whose class runs only on the Rust engine and takes only components
+# that run there.
+COMPOUND_TYPES = frozenset(
+    {
+        "Alternative",
+        "Chained",
+        "Concurrent",
+        "Conjunctive",
+        "Interpolate",
+        "LimitedHold",
+        "Mixed",
+        "Multiple",
+        "Overlay",
+        "ResponseCost",
+        "SecondOrder",
+        "Tandem",
+        "Timeout",
+    }
+)
+
+_BUILD = _spec_module.build_schedule_from_spec
+
+
+def build_python(spec: Spec) -> Any:
+    """Build ``spec`` with the Python implementations where they still run.
+
+    ``_FORCE_PYTHON`` is set while a node outside every compound is built
+    and cleared inside a compound, whose components must run on the Rust
+    engine. The flag only matters while building.
+    """
+    in_compound = False
+
+    def build(node: Spec) -> Any:
+        nonlocal in_compound
+        outer, previous = in_compound, _rust._FORCE_PYTHON
+        in_compound = in_compound or node.get("type") in COMPOUND_TYPES
+        _rust._FORCE_PYTHON = not in_compound
+        try:
+            return _BUILD(node)
+        finally:
+            in_compound, _rust._FORCE_PYTHON = outer, previous
+
+    with mock.patch.object(_spec_module, "build_schedule_from_spec", build):
+        return build(spec)
+
+
 def run_python(spec: Spec, steps: list[Step]) -> list[Observation]:
-    """Steps the Python classes. The flag only matters while building."""
-    previous = _rust._FORCE_PYTHON
-    _rust._FORCE_PYTHON = True
-    try:
-        return run_side(lambda: build_schedule_from_spec(spec), steps)
-    finally:
-        _rust._FORCE_PYTHON = previous
+    """Steps the Python classes where they still run (see :func:`build_python`)."""
+    return run_side(lambda: build_python(spec), steps)
 
 
 def run_rust(spec: Spec, steps: list[Step]) -> list[Observation]:
@@ -226,16 +270,6 @@ def _map_specs(node: Any, fn: Callable[[dict[str, Any]], dict[str, Any]]) -> Any
     return node
 
 
-def _sort_concurrent(node: dict[str, Any]) -> dict[str, Any]:
-    comps = node["params"].get("components")
-    if node["type"] != "Concurrent" or not isinstance(comps, dict):
-        return node
-    return {
-        **node,
-        "params": {**node["params"], "components": {k: comps[k] for k in sorted(comps)}},
-    }
-
-
 def _rank_zero_to_one(node: dict[str, Any]) -> dict[str, Any]:
     if node["type"] == "Percentile" and node["params"].get("rank") == 0:
         return {**node, "params": {**node["params"], "rank": 1}}
@@ -263,17 +297,11 @@ def _has_geometric(spec: Spec) -> bool:
     )
 
 
-def _keys_unsorted(spec: Spec) -> bool:
-    return json.dumps(_map_specs(spec, _sort_concurrent)) != json.dumps(spec)
-
-
 def _has_trial(spec: Spec) -> bool:
     return _contains(spec, lambda n: n["type"] in ("MatchingToSample", "GoNoGo"))
 
 
 def _python_corrected(spec: Spec, steps: list[Step], keys: frozenset[str]) -> list[Observation]:
-    if "concurrent-key-order" in keys:
-        spec = _map_specs(spec, _sort_concurrent)
     if "pr-geometric-rounding" in keys:
         # ``geometric`` calls the builtin ``round`` through the module globals.
         with mock.patch.object(_progressive, "round", _round_half_away, create=True):
@@ -294,7 +322,44 @@ def _rank_zero_explains(spec: Spec, rs: list[Observation]) -> bool:
     return run_rust(_map_specs(spec, _rank_zero_to_one), [])[:1] != rs[:1]
 
 
+def _geometric_to_arithmetic(node: dict[str, Any]) -> dict[str, Any]:
+    if node["type"] == "ProgressiveRatio" and node["params"].get("step") == "geometric":
+        return {"type": "ProgressiveRatio", "params": {"step": "arithmetic"}}
+    return node
+
+
+def _geometric_in_compound(spec: Spec) -> bool:
+    return _contains(spec, lambda n: n["type"] in COMPOUND_TYPES and _has_geometric(n["params"]))
+
+
+def _geometric_in_compound_explains(spec: Spec, py: list[Observation]) -> bool:
+    """The Python classes refused to build only because a compound holds a geometric PR."""
+    if py[:1] != [("build_error", "ScheduleConfigError")] or not _geometric_in_compound(spec):
+        return False
+    return run_python(_map_specs(spec, _geometric_to_arithmetic), [])[:1] != py[:1]
+
+
 KNOWN_DIFFERENCES: tuple[Known, ...] = (
+    Known(
+        key="pr-geometric-in-compound",
+        reason=(
+            "a geometric PR runs only in Python (see pr-geometric-rounding), and a compound "
+            "class takes only components that run on the Rust engine, so the class refuses "
+            "to build it; the Rust engine builds it"
+        ),
+        fix="contingency-rs: round geometric PR requirements half to even, then run it on Rust",
+        applies=lambda spec: False,  # checked by _geometric_in_compound_explains
+        probe=(
+            {
+                "type": "Alternative",
+                "params": {
+                    "first": {"type": "CRF", "params": {}},
+                    "second": {"type": "ProgressiveRatio", "params": {"step": "geometric"}},
+                },
+            },
+            [(1.0, "main", False)],
+        ),
+    ),
     Known(
         key="pr-geometric-rounding",
         reason="geometric PR: Rust rounds .5 away from zero, Python rounds half to even",
@@ -315,31 +380,6 @@ KNOWN_DIFFERENCES: tuple[Known, ...] = (
         probe=(
             {"type": "Percentile", "params": {"target": "irt", "rank": 0, "window": 2}},
             [(1.0, "main", False)],
-        ),
-    ),
-    Known(
-        key="concurrent-key-order",
-        reason=(
-            "Concurrent: the Rust engine's from_spec visits components in sorted key order "
-            "(its JSON object does not keep insertion order), so when two components fire on the "
-            "same tick a different one wins; Python and the Rust docs say insertion order"
-        ),
-        fix="contingency-rs: keep the key order of Concurrent components in from_spec",
-        applies=_keys_unsorted,
-        probe=(
-            {
-                "type": "Concurrent",
-                "params": {
-                    "components": {
-                        "right": {"type": "FT", "params": {"interval": 0.5}},
-                        "center": {
-                            "type": "Sidman",
-                            "params": {"shock_shock_interval": 0.5, "response_shock_interval": 0.5},
-                        },
-                    }
-                },
-            },
-            [(0.5, None, False), (1.0, None, False)],
         ),
     ),
     Known(
@@ -376,6 +416,8 @@ def known_for(
     """The smallest set of known entries that accounts for the whole mismatch, if any."""
     if _rank_zero_explains(spec, rs):
         return (_BY_KEY["percentile-rank-zero"],)
+    if _geometric_in_compound_explains(spec, py):
+        return (_BY_KEY["pr-geometric-in-compound"],)
     applicable = [k for k in KNOWN_DIFFERENCES if k.applies(spec)]
     for size in range(1, len(applicable) + 1):
         for combo in itertools.combinations(applicable, size):

@@ -55,31 +55,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from contingency.entities import Outcome, Reinforcer, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.entities import Outcome, ResponseEvent
+from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
-from contingency.schedules._rust import engine_name, rust_compound, specs_of
+from contingency.schedules._rust import component_specs, compound_schedule
 
 __all__ = ["Conjunctive"]
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    """Raise :class:`ScheduleStateError` if ``now`` moves backwards."""
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    """Raise :class:`ScheduleStateError` if ``event.time`` disagrees with ``now``."""
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
-
 
 class Conjunctive:
     """Conjunctive (AND) compound schedule of two components.
@@ -99,13 +80,18 @@ class Conjunctive:
     together after a joint win. See the module docstring for the
     simultaneity semantics and their practical limits.
 
+    The compound runs on the Rust engine. Its components must be
+    schedules of this package that run there, not yet stepped, and
+    distinct objects; otherwise the constructor raises
+    :class:`ScheduleConfigError`.
+
     References
     ----------
     Ferster, C. B., & Skinner, B. F. (1957). *Schedules of
     reinforcement* (pp. 508-509). Appleton-Century-Crofts.
     """
 
-    __slots__ = ("_first", "_second", "_last_now", "_rust")
+    __slots__ = ("_first", "_second", "_rust")
 
     def __init__(self, first: Schedule, second: Schedule) -> None:
         if not isinstance(first, Schedule):
@@ -120,8 +106,7 @@ class Conjunctive:
             )
         self._first: Schedule = first
         self._second: Schedule = second
-        self._last_now: float | None = None
-        self._rust: Any = rust_compound(self._rust_spec())
+        self._rust: Any = compound_schedule(self._rust_spec())
 
     @property
     def first(self) -> Schedule:
@@ -133,44 +118,19 @@ class Conjunctive:
         """The second component schedule."""
         return self._second
 
-    def _rust_spec(self) -> dict[str, Any] | None:
-        specs = specs_of([self._first, self._second])
-        if specs is None:
-            return None
-        return {"type": "Conjunctive", "params": {"first": specs[0], "second": specs[1]}}
+    def _rust_spec(self) -> dict[str, Any]:
+        first, second = component_specs("Conjunctive", [self._first, self._second])
+        return {"type": "Conjunctive", "params": {"first": first, "second": second}}
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        first_outcome = self._first.step(now, event)
-        second_outcome = self._second.step(now, event)
-
-        if first_outcome.reinforced and second_outcome.reinforced:
-            self._first.reset()
-            self._second.reset()
-            return Outcome(
-                reinforced=True,
-                reinforcer=Reinforcer(time=now),
-                meta={"conjunctive": True},
-            )
-        return Outcome()
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            for component in (self._first, self._second):
-                component.reset()
-            self._rust = rust_compound(self._rust_spec())
-            if self._rust is not None:
-                return
-        self._first.reset()
-        self._second.reset()
-        self._last_now = None
+        for component in (self._first, self._second):
+            component.reset()
+        self._rust = compound_schedule(self._rust_spec())

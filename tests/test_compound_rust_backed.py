@@ -1,21 +1,24 @@
-"""The compound schedule classes run on the Rust engine when it is installed.
+"""The compound schedule classes run only on the Rust engine.
 
-Each compound is built twice from the same arguments: once with the Rust
-engine and once with the extension hidden (the Python implementation).
-Both must give the same outcomes and the same public state on the same
-trajectory.
+They have no Python implementation of their own: their trajectories are
+checked against traces recorded from the Python implementation they used
+to have (``fixtures/compound_traces/compound.json``; when it was
+recorded, the Python implementation and the Rust engine gave the same
+traces). A component that cannot run on the Rust engine, one already
+stepped, and one object used twice are rejected at construction.
 """
 
 from __future__ import annotations
 
 import copy
+import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 import contingency.engine as engine
-import contingency.schedules._rust as _rust
 from contingency import ResponseEvent
 from contingency.engine import rust_engine_available
 from contingency.errors import ScheduleConfigError
@@ -120,10 +123,11 @@ CASES: list[tuple[str, Factory, tuple[str, ...], tuple[str, ...]]] = [
 IDS = [c[0] for c in CASES]
 
 
-def _python(factory: Factory, monkeypatch: pytest.MonkeyPatch) -> Any:
-    with monkeypatch.context() as m:
-        m.setattr(_rust, "_FORCE_PYTHON", True)
-        return factory()
+_RECORDED: dict[str, Any] = json.loads(
+    (Path(__file__).parent / "fixtures" / "compound_traces" / "compound.json").read_text(
+        encoding="utf-8"
+    )
+)
 
 
 def _trace(schedule: Any, operanda: tuple[str, ...], attrs: tuple[str, ...]) -> list[Any]:
@@ -139,10 +143,23 @@ def _trace(schedule: Any, operanda: tuple[str, ...], attrs: tuple[str, ...]) -> 
             (
                 o.reinforced,
                 None if r is None else (r.time, round(r.magnitude, 9), r.label),
+                dict(o.meta),
                 tuple(getattr(schedule, a) for a in attrs),
             )
         )
     return out
+
+
+def _as_recorded(trace: list[Any]) -> list[Any]:
+    """``trace`` in the JSON shape of the recorded traces."""
+    return json.loads(
+        json.dumps(
+            [
+                [reinforced, None if r is None else list(r), meta, list(state)]
+                for reinforced, r, meta, state in trace
+            ]
+        )
+    )
 
 
 @pytest.mark.parametrize(("name", "factory", "operanda", "attrs"), CASES, ids=IDS)
@@ -152,17 +169,17 @@ def test_compound_runs_on_rust(
     assert factory().engine == "rust", name
 
 
+def test_every_recorded_trace_has_a_case() -> None:
+    assert sorted(_RECORDED) == sorted(IDS)
+
+
 @pytest.mark.parametrize(("name", "factory", "operanda", "attrs"), CASES, ids=IDS)
-def test_rust_and_python_agree(
-    name: str,
-    factory: Factory,
-    operanda: tuple[str, ...],
-    attrs: tuple[str, ...],
-    monkeypatch: pytest.MonkeyPatch,
+def test_matches_the_recorded_trace(
+    name: str, factory: Factory, operanda: tuple[str, ...], attrs: tuple[str, ...]
 ) -> None:
-    python = _python(factory, monkeypatch)
-    assert python.engine == "python"
-    assert _trace(factory(), operanda, attrs) == _trace(python, operanda, attrs), name
+    trace = _trace(factory(), operanda, attrs)
+    assert any(step[0] for step in trace), name
+    assert _as_recorded(trace) == _RECORDED[name], name
 
 
 @pytest.mark.parametrize(("name", "factory", "operanda", "attrs"), CASES, ids=IDS)
@@ -188,16 +205,32 @@ def test_deepcopy_continues_from_the_same_point(
         assert schedule.step(now, event) == clone.step(now, event), name
 
 
-def test_a_python_component_keeps_the_compound_in_python() -> None:
-    class Custom:
-        def step(self, now: float, event: ResponseEvent | None = None) -> Any:
-            return FR(1).step(now, event)
+class _Custom:
+    """A Schedule written in Python."""
 
-        def reset(self) -> None:
-            pass
+    def step(self, now: float, event: ResponseEvent | None = None) -> Any:
+        return FR(1).step(now, event)
 
-    assert Alternative(Custom(), FR(2)).engine == "python"  # type: ignore[arg-type]
-    assert Multiple([FR(2), Custom()]).engine == "python"  # type: ignore[list-item]
+    def reset(self) -> None:
+        pass
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda c: Alternative(c, FR(2)),
+        lambda c: Multiple([FR(2), c]),
+        lambda c: Timeout(c, 1.0),
+        lambda c: Concurrent({"a": FR(1), "b": FR(2)}, punish={"a": c}),
+        lambda c: Concurrent({"a": FR(1), "b": FR(2)}, punish_changeover=c),
+        lambda c: Multiple([FR(2), Tandem([FR(1), c])]),
+    ],
+    ids=["Alternative", "Multiple", "Timeout", "Concurrent-punish", "Concurrent-changeover",
+         "nested"],
+)
+def test_a_component_written_in_python_is_rejected(build: Callable[[Any], Any]) -> None:
+    with pytest.raises(ScheduleConfigError, match="run on the Rust engine"):
+        build(_Custom())
 
 
 def test_without_the_extension_compounds_raise(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -232,27 +265,42 @@ def test_reset_of_a_seedless_component_draws_a_new_sequence() -> None:
     assert first != second
 
 
-def test_a_component_already_stepped_keeps_the_compound_in_python() -> None:
+def test_a_component_already_stepped_is_rejected() -> None:
     # The spec of a component describes it as built; a component stepped
-    # before it is wrapped has moved on, so the compound runs in Python.
+    # before it is wrapped has moved on from there.
     fr = FR(3)
     fr.step(1.0, ResponseEvent(time=1.0))
     fr.step(2.0, ResponseEvent(time=2.0))
-    alt = Alternative(fr, EXT())
-    assert alt.engine == "python"
-    assert alt.step(3.0, ResponseEvent(time=3.0)).reinforced
+    with pytest.raises(ScheduleConfigError, match="reset"):
+        Alternative(fr, EXT())
 
 
-def test_a_component_reset_after_stepping_runs_on_rust_again() -> None:
+def test_a_component_reset_after_stepping_is_accepted() -> None:
     fr = FR(3)
     fr.step(1.0, ResponseEvent(time=1.0))
     fr.reset()
     assert Alternative(fr, EXT()).engine == "rust"
 
 
-def test_the_same_object_twice_in_one_compound_keeps_it_in_python() -> None:
-    x = FR(2)
-    assert Tandem([x, x]).engine == "python"
-    assert Alternative(x, x).engine == "python"
-    y = FR(3)
-    assert Concurrent({"a": x, "b": y}, punish={"a": y}).engine == "python"
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda x, y: Tandem([x, x]),
+        lambda x, y: Alternative(x, x),
+        lambda x, y: Concurrent({"a": x, "b": y}, punish={"a": y}),
+        lambda x, y: Concurrent({"a": x, "b": y}, punish_changeover=x),
+    ],
+    ids=["Tandem", "Alternative", "Concurrent-punish", "Concurrent-changeover"],
+)
+def test_the_same_object_twice_is_rejected(build: Callable[[Any, Any], Any]) -> None:
+    with pytest.raises(ScheduleConfigError, match="separate object"):
+        build(FR(2), FR(3))
+
+
+def test_stepping_a_component_after_wrapping_does_not_affect_the_compound() -> None:
+    # The engine runs its own copy of each component.
+    fr = FR(2)
+    alt = Alternative(fr, EXT())
+    fr.step(1.0, ResponseEvent(time=1.0))
+    assert not alt.step(1.0, ResponseEvent(time=1.0)).reinforced
+    assert alt.step(2.0, ResponseEvent(time=2.0)).reinforced

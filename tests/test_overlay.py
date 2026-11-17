@@ -10,30 +10,6 @@ from contingency.interfaces import Schedule
 from contingency.schedules import EXT, FR, Overlay
 
 
-class _OneShotSchedule:
-    """Minimal Schedule that fires exactly once at a configured time."""
-
-    def __init__(self, fire_at: float, magnitude: float = 1.0, label: str = "SR+") -> None:
-        self._fire_at = fire_at
-        self._magnitude = magnitude
-        self._label = label
-        self._fired = False
-
-    def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if not self._fired and abs(now - self._fire_at) <= 1e-9:
-            self._fired = True
-            return Outcome(
-                reinforced=True,
-                reinforcer=Reinforcer(
-                    time=now, magnitude=self._magnitude, label=self._label
-                ),
-            )
-        return Outcome()
-
-    def reset(self) -> None:
-        self._fired = False
-
-
 @pytest.mark.unit
 class TestOverlayConfig:
     def test_rejects_non_schedule_base(self) -> None:
@@ -81,33 +57,29 @@ class TestOverlayStep:
         assert out.meta.get("base_fired") is False
 
     def test_both_fire_compound_meta_and_net_magnitude(self) -> None:
-        # base FR1 delivers +1.0; punisher via fake schedule delivers 0.3.
-        # Net magnitude = 1.0 - 0.3 = 0.7, label SR+.
-        ov = Overlay(FR(1), _OneShotSchedule(0.0, magnitude=0.3))
+        # The schedules of this package deliver magnitude 1, so base and
+        # punisher firing together net 0 (label SR0). Nets of other
+        # sizes are tested in the Rust engine, whose Overlay this runs.
+        ov = Overlay(FR(1), FR(1))
         out = ov.step(0.0, ResponseEvent(0.0))
         assert out.reinforced
         assert out.meta.get("base_fired") is True
         assert out.meta.get("punisher_fired") is True
-        assert out.meta.get("net_magnitude") == pytest.approx(0.7)
-        assert out.reinforcer is not None
-        assert out.reinforcer.magnitude == pytest.approx(0.7)
-        assert out.reinforcer.label == "SR+"
-
-    def test_both_fire_negative_net_labels_sr_minus(self) -> None:
-        ov = Overlay(FR(1), _OneShotSchedule(0.0, magnitude=5.0))
-        out = ov.step(0.0, ResponseEvent(0.0))
-        assert out.reinforced
-        assert out.reinforcer is not None
-        assert out.reinforcer.magnitude == pytest.approx(-4.0)
-        assert out.reinforcer.label == "SR-"
-
-    def test_both_fire_zero_net_labels_sr0(self) -> None:
-        ov = Overlay(FR(1), _OneShotSchedule(0.0, magnitude=1.0))
-        out = ov.step(0.0, ResponseEvent(0.0))
-        assert out.reinforced
+        assert out.meta.get("net_magnitude") == pytest.approx(0.0)
         assert out.reinforcer is not None
         assert out.reinforcer.magnitude == pytest.approx(0.0)
         assert out.reinforcer.label == "SR0"
+
+    def test_a_punisher_written_in_python_is_rejected(self) -> None:
+        class OneShot:
+            def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
+                return Outcome(reinforced=True, reinforcer=Reinforcer(time=now, magnitude=0.3))
+
+            def reset(self) -> None:
+                pass
+
+        with pytest.raises(ScheduleConfigError, match="Rust engine"):
+            Overlay(FR(1), OneShot())
 
     def test_tick_without_event_returns_no_reinforcement_for_ratio(self) -> None:
         ov = Overlay(FR(2), FR(3))

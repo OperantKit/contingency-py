@@ -35,28 +35,11 @@ from __future__ import annotations
 from typing import Any
 
 from contingency.entities import Outcome, ResponseEvent
-from contingency.errors import ScheduleConfigError, ScheduleStateError
+from contingency.errors import ScheduleConfigError
 from contingency.interfaces import Schedule
-from contingency.schedules._rust import engine_name, rust_compound, specs_of
+from contingency.schedules._rust import component_specs, compound_schedule
 
 __all__ = ["ResponseCost"]
-
-
-_TIME_TOL = 1e-9
-
-
-def _check_time(last_now: float | None, now: float) -> None:
-    if last_now is not None and now < last_now - _TIME_TOL:
-        raise ScheduleStateError(
-            f"Non-monotonic time: new now={now!r} precedes previous now={last_now!r}"
-        )
-
-
-def _check_event(now: float, event: ResponseEvent | None) -> None:
-    if event is not None and abs(event.time - now) > _TIME_TOL:
-        raise ScheduleStateError(
-            f"event.time ({event.time!r}) must equal now ({now!r}) within {_TIME_TOL}"
-        )
 
 
 class ResponseCost:
@@ -83,6 +66,13 @@ class ResponseCost:
         Starting balance; ``None`` means unlimited (cost is purely
         nominal).
 
+    Notes
+    -----
+    The compound runs on the Rust engine. Its components must be
+    schedules of this package that run there, not yet stepped, and
+    distinct objects; otherwise the constructor raises
+    :class:`ScheduleConfigError`.
+
     References
     ----------
     Hackenberg, T. D. (2009). Token reinforcement: A review and
@@ -99,8 +89,6 @@ class ResponseCost:
         "_amount",
         "_unit",
         "_initial_balance",
-        "_balance",
-        "_last_now",
         "_rust",
     )
 
@@ -138,9 +126,7 @@ class ResponseCost:
         self._initial_balance: float | None = (
             float(initial_balance) if initial_balance is not None else None
         )
-        self._balance: float | None = self._initial_balance
-        self._last_now: float | None = None
-        self._rust: Any = rust_compound(self._rust_spec(), needs_state=True)
+        self._rust: Any = compound_schedule(self._rust_spec(), needs_state=True)
 
     @property
     def amount(self) -> float:
@@ -152,55 +138,24 @@ class ResponseCost:
 
     @property
     def balance(self) -> float | None:
-        if self._rust is not None:
-            balance = self._rust.state().get("balance")
-            return None if balance is None else float(balance)
-        return self._balance
+        balance = self._rust.state().get("balance")
+        return None if balance is None else float(balance)
 
-    def _rust_spec(self) -> dict[str, Any] | None:
-        specs = specs_of([self._inner])
-        if specs is None:
-            return None
-        params: dict[str, Any] = {"inner": specs[0], "amount": self._amount, "unit": self._unit}
+    def _rust_spec(self) -> dict[str, Any]:
+        (inner,) = component_specs("ResponseCost", [self._inner])
+        params: dict[str, Any] = {"inner": inner, "amount": self._amount, "unit": self._unit}
         if self._initial_balance is not None:
             params["initial_balance"] = self._initial_balance
         return {"type": "ResponseCost", "params": params}
 
     @property
     def engine(self) -> str:
-        """``"rust"`` when the Rust engine runs this schedule, else ``"python"``."""
-        return engine_name(self._rust)
+        """Always ``"rust"``: the Rust engine runs this schedule."""
+        return "rust"
 
     def step(self, now: float, event: ResponseEvent | None = None) -> Outcome:
-        if self._rust is not None:
-            return self._rust.step(now, event)  # type: ignore[no-any-return]
-        _check_time(self._last_now, now)
-        _check_event(now, event)
-        self._last_now = now
-
-        if event is None:
-            # No response: propagate a pure tick to the inner schedule.
-            return self._inner.step(now, None)
-
-        # A response was emitted; check balance before stepping inner.
-        if self._balance is not None and self._balance < self._amount:
-            return Outcome(meta={"cost_insufficient": True, "unit": self._unit})
-
-        if self._balance is not None:
-            self._balance -= self._amount
-
-        # Reinforcement from the inner schedule is passed through
-        # unchanged; cost accounting is visible via the ``balance``
-        # property rather than through the outcome's metadata.
-        return self._inner.step(now, event)
+        return self._rust.step(now, event)  # type: ignore[no-any-return]
 
     def reset(self) -> None:
-        if self._rust is not None:
-            for component in (self._inner,):
-                component.reset()
-            self._rust = rust_compound(self._rust_spec(), needs_state=True)
-            if self._rust is not None:
-                return
         self._inner.reset()
-        self._balance = self._initial_balance
-        self._last_now = None
+        self._rust = compound_schedule(self._rust_spec(), needs_state=True)
