@@ -1,0 +1,51 @@
+{
+  "name": "pair_simultaneous",
+  "element": "Pair.Simultaneous",
+  "description": "R3. CS onset coincides with US onset (Rescorla, 1980).",
+  "spec": {
+    "type": "PairSimultaneous",
+    "cs": "light",
+    "us": "airpuff"
+  },
+  "options": {
+    "trials": 2
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "light"
+        ],
+        "us": "airpuff",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": 0.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "light"
+        ],
+        "us": "airpuff",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": 0.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}

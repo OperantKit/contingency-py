@@ -1,0 +1,56 @@
+{
+  "name": "compound",
+  "element": "Compound",
+  "description": "R11. Tone and light presented together without a US.",
+  "spec": {
+    "type": "Compound",
+    "cs_list": [
+      "tone",
+      "light"
+    ],
+    "mode": "Simultaneous"
+  },
+  "options": {
+    "trials": 2
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "light",
+          "tone"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "light",
+          "tone"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}

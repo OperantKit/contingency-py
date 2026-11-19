@@ -1,0 +1,95 @@
+{
+  "name": "explicitly_unpaired",
+  "element": "ExplicitlyUnpaired",
+  "description": "R10. CS-alone trials alternate with US-alone periods; every US is at least 30 s from every CS (Ayres, Benedict, & Witcher, 1975).",
+  "spec": {
+    "type": "ExplicitlyUnpaired",
+    "cs": "tone",
+    "us": "shock",
+    "min_separation": {
+      "value": 30.0,
+      "unit": "s"
+    }
+  },
+  "options": {
+    "trials": 2
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": 0.0,
+          "us_off": null,
+          "gap": {
+            "from": "any_cs",
+            "to": "us_on",
+            "s": 30.0,
+            "at_least": true
+          }
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": 0.0,
+          "us_off": null,
+          "gap": {
+            "from": "any_cs",
+            "to": "us_on",
+            "s": 30.0,
+            "at_least": true
+          }
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}

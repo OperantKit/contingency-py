@@ -1,0 +1,86 @@
+{
+  "name": "differential",
+  "element": "Differential",
+  "description": "R14. CS+ with the US alternates with CS- without it (Pavlov, 1927).",
+  "spec": {
+    "type": "Differential",
+    "cs_positive": "tone_plus",
+    "cs_negative": "tone_minus",
+    "us": "shock"
+  },
+  "options": {
+    "trials": 2
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "tone_plus"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone_minus"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone_plus"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone_minus"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}

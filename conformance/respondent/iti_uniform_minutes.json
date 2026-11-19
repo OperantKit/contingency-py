@@ -1,0 +1,66 @@
+{
+  "name": "iti_uniform_minutes",
+  "element": "ITI",
+  "description": "R13. Uniform intervals on [0, 2 x mean] with the mean given in minutes.",
+  "spec": {
+    "type": "ITI",
+    "distribution": "uniform",
+    "mean": {
+      "value": 2.0,
+      "unit": "min"
+    }
+  },
+  "options": {
+    "trials": 3,
+    "seed": 5
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": 149.49640677352846
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": 178.02887742257505
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": 190.8464557357672
+      }
+    ]
+  }
+}

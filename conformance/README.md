@@ -62,6 +62,11 @@ conformance/
     └── gonogo_p05_seed1.json
 ```
 
+`respondent/` holds a separate corpus: the trial lists that Tier A respondent
+(Pavlovian) expressions expand to. Its files have a different shape and the
+schedule runner skips them; see
+[docs/en/respondent-contract.md](../docs/en/respondent-contract.md).
+
 ## Fixture schema
 
 Each JSON file follows this shape:

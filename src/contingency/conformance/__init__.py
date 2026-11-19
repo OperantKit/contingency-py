@@ -51,6 +51,9 @@ __all__ = [
 ENV_VAR = "CONTINGENCY_CONFORMANCE_DIR"
 FLOAT_TOL = 1e-9
 INDEX_NAME = "index.json"
+#: Top-level directory of the respondent trial-list corpus. Its files are
+#: not schedule fixtures, so the schedule runner skips them.
+RESPONDENT_DIR = "respondent"
 #: Band for ``--stochastic count``: observed reinforcer count must lie in
 #: ``[LOW, HIGH] × expected``. Same band as the contingency-rs harness.
 COUNT_BAND = (0.5, 1.5)
@@ -73,7 +76,8 @@ class CorpusError(ValueError):
 
 def _has_fixtures(path: Path) -> bool:
     return path.is_dir() and any(
-        p.name != INDEX_NAME for p in path.rglob("*.json")
+        p.name != INDEX_NAME and p.relative_to(path).parts[0] != RESPONDENT_DIR
+        for p in path.rglob("*.json")
     )
 
 
@@ -150,6 +154,8 @@ def iter_fixtures(directory: str | os.PathLike[str] | None = None) -> Iterator[F
     root = fixtures_dir(directory)
     for path in sorted(root.rglob("*.json")):
         if path.name == INDEX_NAME and path.parent == root:
+            continue
+        if path.relative_to(root).parts[0] == RESPONDENT_DIR:
             continue
         rel = path.relative_to(root).as_posix()
         try:

@@ -21,7 +21,13 @@ from contingency.entities import ResponseEvent
 CONFORMANCE_DIR = Path(__file__).resolve().parents[1] / "conformance"
 FLOAT_TOL = 1e-9
 
-FIXTURES = sorted(CONFORMANCE_DIR.rglob("*.json"))
+# ``respondent/`` holds the respondent trial-list corpus, which has its own
+# shape (see docs/en/respondent-contract.md) and is not replayed here.
+FIXTURES = sorted(
+    p
+    for p in CONFORMANCE_DIR.rglob("*.json")
+    if p.relative_to(CONFORMANCE_DIR).parts[0] != "respondent"
+)
 
 
 def _fixture_id(path: Path) -> str:

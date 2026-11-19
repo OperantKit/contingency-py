@@ -1,0 +1,65 @@
+{
+  "name": "iti_fixed",
+  "element": "ITI",
+  "description": "R13. Fixed 30-s intervals (Gibbon & Balsam, 1981).",
+  "spec": {
+    "type": "ITI",
+    "distribution": "fixed",
+    "mean": {
+      "value": 30.0,
+      "unit": "s"
+    }
+  },
+  "options": {
+    "trials": 3
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": 30.0
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": 30.0
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": 30.0
+      }
+    ]
+  }
+}

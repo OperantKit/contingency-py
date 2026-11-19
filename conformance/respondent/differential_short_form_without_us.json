@@ -1,0 +1,17 @@
+{
+  "name": "differential_short_form_without_us",
+  "element": "Differential",
+  "description": "R14 short form with no US from the program: expansion must fail.",
+  "spec": {
+    "type": "Differential",
+    "cs_positive": "tone_plus",
+    "cs_negative": "tone_minus"
+  },
+  "options": {
+    "trials": 2
+  },
+  "expected": {
+    "error": "unresolved",
+    "missing": "labels.us"
+  }
+}

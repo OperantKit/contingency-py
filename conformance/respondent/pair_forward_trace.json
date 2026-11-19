@@ -1,0 +1,65 @@
+{
+  "name": "pair_forward_trace",
+  "element": "Pair.ForwardTrace",
+  "description": "R2. CS offset is followed by an empty 5-s trace before the US; the CS duration is left to the apparatus, so CS offset and US onset stay unresolved (Ellison, 1964).",
+  "spec": {
+    "type": "PairForwardTrace",
+    "cs": "tone",
+    "us": "food",
+    "trace_interval": {
+      "value": 5.0,
+      "unit": "s"
+    }
+  },
+  "options": {
+    "trials": 2
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "food",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": {
+            "from": "cs_off",
+            "to": "us_on",
+            "s": 5.0,
+            "at_least": false
+          }
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "food",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": {
+            "from": "cs_off",
+            "to": "us_on",
+            "s": 5.0,
+            "at_least": false
+          }
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}
