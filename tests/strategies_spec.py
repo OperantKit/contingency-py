@@ -77,7 +77,7 @@ def _percentile() -> st.SearchStrategy[Spec]:
         window = draw(st.integers(1, 10))
         params: dict[str, Any] = {
             "target": "irt",
-            "rank": draw(st.integers(1, 100)),  # 0: see the known list
+            "rank": draw(st.integers(0, 100)),
             "window": window,
         }
         direction = draw(st.sampled_from([None, "above", "below"]))

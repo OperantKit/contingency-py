@@ -237,6 +237,17 @@ def test_non_irt_percentile_stays_in_python() -> None:
     assert Percentile("latency", 50, 3).engine == "python"
 
 
+def test_rank_zero_percentile_runs_on_rust_and_inside_a_compound() -> None:
+    from contingency.schedules.overlay import Overlay
+
+    s = Percentile("IRT", 0, 2)
+    assert s.engine == "rust"
+    outcomes = [s.step(t, ResponseEvent(time=t)) for t in (0.0, 1.0, 3.0, 3.5, 5.5, 5.9)]
+    assert [o.reinforced for o in outcomes] == [False, False, False, False, True, False]
+    assert outcomes[4].meta["percentile_threshold"] == 0.5
+    Overlay(Percentile("IRT", 0, 2), FR(2))  # a Rust-run component: no error
+
+
 def test_a_python_consequence_is_rejected() -> None:
     class Custom:
         def step(self, now: float, event: ResponseEvent | None = None) -> Any:

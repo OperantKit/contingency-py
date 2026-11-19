@@ -4,7 +4,9 @@ Runs each fixture's event sequence against the Python runtime and
 captures the produced Outcomes as the authoritative expectation.
 Re-running this script must produce byte-identical JSON, so:
 
-- Use ``json.dump(..., indent=2, sort_keys=True)``.
+- Use ``json.dump(..., indent=2)`` with every object's keys sorted, except
+  the keys of a ``components`` object, which keep the order they are
+  written in (it decides which ``Concurrent`` component wins a tie).
 - Round floats to a fixed number of digits when writing to JSON so
   platform float formatting does not cause diffs.
 - Use only JSON-primitive meta values (bool/int/str).
@@ -142,10 +144,20 @@ def _run_fixture(fx: FixtureSpec) -> dict[str, Any]:
     return payload
 
 
+def _sort_keys(value: Any, *, keep_order: bool = False) -> Any:
+    """Sort every object's keys except a ``components`` object's own keys."""
+    if isinstance(value, dict):
+        keys = list(value) if keep_order else sorted(value)
+        return {k: _sort_keys(value[k], keep_order=k == "components") for k in keys}
+    if isinstance(value, list):
+        return [_sort_keys(v) for v in value]
+    return value
+
+
 def _write(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        json.dumps(_sort_keys(payload), indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -527,6 +539,43 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
     conc_punish.add(now=11.0, event={"time": 11.0, "operandum": "left"})
     fixtures.append(
         (CONFORMANCE_DIR / "compound" / "concurrent_punish.json", conc_punish)
+    )
+
+    conc_tie = FixtureSpec(
+        name="concurrent-tick-tie-insertion-order",
+        description=(
+            "Concurrent with the components written right (FT 0.5) before "
+            "center (Sidman SSI 0.5, RSI 0.5); the keys are deliberately not "
+            "in ascending order. At t=0.5 only the Sidman shock is due. From "
+            "t=1.0 both components deliver on the same tick, and the first "
+            "component in the order the spec lists them wins, so the FT's "
+            "SR+ is the outcome, not the Sidman shock that would win if the "
+            "keys were read in ascending order. Runners must keep the "
+            "object's key order when they read this fixture."
+        ),
+        schedule={
+            "type": "Concurrent",
+            "params": {
+                "components": {
+                    "right": {"type": "FT", "params": {"interval": 0.5}},
+                    "center": {
+                        "type": "Sidman",
+                        "params": {
+                            "shock_shock_interval": 0.5,
+                            "response_shock_interval": 0.5,
+                        },
+                    },
+                },
+            },
+        },
+    )
+    for t in [0.5, 1.0, 1.5]:
+        conc_tie.add(now=t, event=None)
+    fixtures.append(
+        (
+            CONFORMANCE_DIR / "compound" / "concurrent_tick_tie_insertion_order.json",
+            conc_tie,
+        )
     )
 
     conc_punish_co = FixtureSpec(
@@ -1013,6 +1062,35 @@ def define_fixtures() -> list[tuple[Path, FixtureSpec]]:
         pctl.add(now=t, event={"time": t, "operandum": "main"})
     fixtures.append(
         (CONFORMANCE_DIR / "differential" / "percentile_irt_r75_w3.json", pctl)
+    )
+
+    pctl0 = FixtureSpec(
+        name="percentile-irt-r0-w2-above",
+        description=(
+            "Percentile(target=irt, rank=0, window=2, direction=above): rank 0 "
+            "is a valid rank (the 0th percentile is the smallest IRT in the "
+            "window). The response at t=0 anchors the IRT clock; IRTs 1 and 2 "
+            "fill the window and never reinforce. t=3.5 IRT 0.5 < 1 (minimum "
+            "of 1, 2) no; a tick changes nothing; t=5.5 IRT 2 >= 0.5 (minimum "
+            "of 2, 0.5) reinforced; t=5.9 IRT 0.4 < 0.5 (minimum of 0.5, 2) no."
+        ),
+        schedule={
+            "type": "Percentile",
+            "params": {
+                "target": "irt",
+                "rank": 0,
+                "window": 2,
+                "direction": "above",
+            },
+        },
+    )
+    for t in [0.0, 1.0, 3.0, 3.5]:
+        pctl0.add(now=t, event={"time": t, "operandum": "main"})
+    pctl0.add(now=4.0, event=None)
+    for t in [5.5, 5.9]:
+        pctl0.add(now=t, event={"time": t, "operandum": "main"})
+    fixtures.append(
+        (CONFORMANCE_DIR / "differential" / "percentile_irt_r0_w2.json", pctl0)
     )
 
     lag = FixtureSpec(

@@ -14,8 +14,8 @@ differential, Lag, adjusting, interlocking, aversive), the compound
 schedule classes and the trial-based classes run only on the Rust
 engine. A compound or trial-based schedule takes only components that
 run there (:func:`component_specs`). Two cases still run in this
-package's Python implementation: Percentile on a non-IRT target or at
-rank 0, and a ProgressiveRatio over a custom step function. ``engine``
+package's Python implementation: Percentile on a non-IRT target, and a
+ProgressiveRatio over a custom step function. ``engine``
 on each instance tells which one runs (``"rust"`` or ``"python"``).
 """
 

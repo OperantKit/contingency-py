@@ -250,68 +250,13 @@ class Known:
     probe: tuple[Spec, list[Step]]
 
 
-def _contains(spec: Spec, pred: Callable[[dict[str, Any]], bool]) -> bool:
-    def walk(node: Any) -> bool:
-        if isinstance(node, dict):
-            if "type" in node and "params" in node and pred(node):
-                return True
-            return any(walk(v) for v in node.values())
-        if isinstance(node, list):
-            return any(walk(v) for v in node)
-        return False
-
-    return walk(spec)
-
-
-def _map_specs(node: Any, fn: Callable[[dict[str, Any]], dict[str, Any]]) -> Any:
-    """Apply ``fn`` to every spec node, innermost first; returns a new structure."""
-    if isinstance(node, dict):
-        out = {k: _map_specs(v, fn) for k, v in node.items()}
-        return fn(out) if "type" in out and "params" in out else out
-    if isinstance(node, list):
-        return [_map_specs(v, fn) for v in node]
-    return node
-
-
-def _rank_zero_to_one(node: dict[str, Any]) -> dict[str, Any]:
-    if node["type"] == "Percentile" and node["params"].get("rank") == 0:
-        return {**node, "params": {**node["params"], "rank": 1}}
-    return node
-
-
-def _rank_zero_explains(spec: Spec, rs: list[Observation]) -> bool:
-    """Rust refused to build only because of a Percentile with rank 0."""
-    if rs[:1] != [("build_error", "ScheduleConfigError")]:
-        return False
-    if not _contains(spec, lambda n: n["type"] == "Percentile" and n["params"].get("rank") == 0):
-        return False
-    return run_rust(_map_specs(spec, _rank_zero_to_one), [])[:1] != rs[:1]
-
-
-KNOWN_DIFFERENCES: tuple[Known, ...] = (
-    Known(
-        key="percentile-rank-zero",
-        reason=(
-            "Percentile rank 0: Python accepts it, the Rust engine rejects it (rank must be 1-100)"
-        ),
-        fix="contingency-rs: accept rank 0 (the DSL allows 0-100)",
-        applies=lambda spec: False,  # checked by _rank_zero_explains (a build refusal)
-        probe=(
-            {"type": "Percentile", "params": {"target": "irt", "rank": 0, "window": 2}},
-            [(1.0, "main", False)],
-        ),
-    ),
-)
-
-_BY_KEY = {k.key: k for k in KNOWN_DIFFERENCES}
+KNOWN_DIFFERENCES: tuple[Known, ...] = ()
 
 
 def known_for(
     spec: Spec, steps: list[Step], py: list[Observation], rs: list[Observation]
 ) -> tuple[Known, ...] | None:
     """The smallest set of known entries that accounts for the whole mismatch, if any."""
-    if _rank_zero_explains(spec, rs):
-        return (_BY_KEY["percentile-rank-zero"],)
     applicable = [k for k in KNOWN_DIFFERENCES if k.applies(spec)]
     for size in range(1, len(applicable) + 1):
         for combo in itertools.combinations(applicable, size):

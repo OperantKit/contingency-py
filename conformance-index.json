@@ -170,6 +170,13 @@
     },
     {
       "kind": "deterministic",
+      "path": "compound/concurrent_tick_tie_insertion_order.json",
+      "sha256": "d2911f31be66544cd0197a36e49ed71d0619b345e82a5e0d8de950039f4bec3c",
+      "steps": 3,
+      "type": "Concurrent"
+    },
+    {
+      "kind": "deterministic",
       "path": "compound/conjunctive_fr3_fi5.json",
       "sha256": "214fcbf0329d3e04863c994b588eaf94dc783479ec6c060faaed20b2c3f96f44",
       "steps": 10,
@@ -251,6 +258,13 @@
       "sha256": "db2f821c0f6c1522c54b233386519c5c1ff48eafb2ffa0649e91338b98361db5",
       "steps": 11,
       "type": "Lag"
+    },
+    {
+      "kind": "deterministic",
+      "path": "differential/percentile_irt_r0_w2.json",
+      "sha256": "2b21418621435f61718d443fb63c0cc6f6821d56e78f49dc3870e9230cbd6c47",
+      "steps": 7,
+      "type": "Percentile"
     },
     {
       "kind": "deterministic",

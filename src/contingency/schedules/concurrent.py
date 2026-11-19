@@ -132,9 +132,8 @@ class Concurrent:
     :class:`ScheduleConfigError`.
     Components and punishment schedules count alike: each object may
     appear only once among them. When two components deliver a
-    reinforcer on the same tick, the one whose key comes first in
-    sorted order wins: the Rust engine reads the components in sorted
-    key order, whatever the insertion order of ``components``.
+    reinforcer on the same tick, the first one in the insertion order
+    of ``components`` wins (the Rust engine keeps that order).
     """
 
     __slots__ = (

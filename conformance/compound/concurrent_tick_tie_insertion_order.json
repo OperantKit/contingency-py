@@ -1,0 +1,65 @@
+{
+  "description": "Concurrent with the components written right (FT 0.5) before center (Sidman SSI 0.5, RSI 0.5); the keys are deliberately not in ascending order. At t=0.5 only the Sidman shock is due. From t=1.0 both components deliver on the same tick, and the first component in the order the spec lists them wins, so the FT's SR+ is the outcome, not the Sidman shock that would win if the keys were read in ascending order. Runners must keep the object's key order when they read this fixture.",
+  "name": "concurrent-tick-tie-insertion-order",
+  "schedule": {
+    "params": {
+      "components": {
+        "right": {
+          "params": {
+            "interval": 0.5
+          },
+          "type": "FT"
+        },
+        "center": {
+          "params": {
+            "response_shock_interval": 0.5,
+            "shock_shock_interval": 0.5
+          },
+          "type": "Sidman"
+        }
+      }
+    },
+    "type": "Concurrent"
+  },
+  "steps": [
+    {
+      "event": null,
+      "expect": {
+        "meta": {
+          "aversive_event": "shock"
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR-",
+          "magnitude": -1.0,
+          "time": 0.5
+        }
+      },
+      "now": 0.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 1.0
+        }
+      },
+      "now": 1.0
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 1.5
+        }
+      },
+      "now": 1.5
+    }
+  ]
+}

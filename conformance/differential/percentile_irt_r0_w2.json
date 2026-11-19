@@ -1,0 +1,93 @@
+{
+  "description": "Percentile(target=irt, rank=0, window=2, direction=above): rank 0 is a valid rank (the 0th percentile is the smallest IRT in the window). The response at t=0 anchors the IRT clock; IRTs 1 and 2 fill the window and never reinforce. t=3.5 IRT 0.5 < 1 (minimum of 1, 2) no; a tick changes nothing; t=5.5 IRT 2 >= 0.5 (minimum of 2, 0.5) reinforced; t=5.9 IRT 0.4 < 0.5 (minimum of 0.5, 2) no.",
+  "name": "percentile-irt-r0-w2-above",
+  "schedule": {
+    "params": {
+      "direction": "above",
+      "rank": 0,
+      "target": "irt",
+      "window": 2
+    },
+    "type": "Percentile"
+  },
+  "steps": [
+    {
+      "event": {
+        "operandum": "main",
+        "time": 0.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 0.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 1.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 1.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.0
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 3.5
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 3.5
+    },
+    {
+      "event": null,
+      "expect": {
+        "reinforced": false
+      },
+      "now": 4.0
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.5
+      },
+      "expect": {
+        "meta": {
+          "percentile_direction": "above",
+          "percentile_irt": 2.0,
+          "percentile_rank": 0,
+          "percentile_threshold": 0.5
+        },
+        "reinforced": true,
+        "reinforcer": {
+          "label": "SR+",
+          "magnitude": 1.0,
+          "time": 5.5
+        }
+      },
+      "now": 5.5
+    },
+    {
+      "event": {
+        "operandum": "main",
+        "time": 5.9
+      },
+      "expect": {
+        "reinforced": false
+      },
+      "now": 5.9
+    }
+  ]
+}

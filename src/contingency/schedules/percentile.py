@@ -240,11 +240,10 @@ class Percentile:
     def _rust_spec(self) -> dict[str, Any] | None:
         """The spec for the Rust engine, or ``None`` to run in Python.
 
-        The Rust engine takes only the IRT target and ranks from 1: a
-        target that cannot be executed (it raises on ``step``) and rank
-        0 stay in Python for now.
+        The Rust engine takes only the IRT target: a target that cannot be
+        executed (it raises on ``step``) stays in Python for now.
         """
-        if self._target not in _EXECUTABLE_TARGETS or self._rank == 0:
+        if self._target not in _EXECUTABLE_TARGETS:
             return None
         return {
             "type": "Percentile",
