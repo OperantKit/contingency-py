@@ -1,10 +1,10 @@
 """Spec-to-schedule builder for the conformance corpus.
 
-``build_schedule_from_spec`` is the authoritative mapping from a
-fixture's ``"schedule"`` object to a runtime :class:`Schedule`. Both the
-fixture generator (``scripts/generate_conformance.py``) and the
-built-in ``replay-python`` adapter use it, so there is one mapping.
-Ports in other languages should reproduce it.
+``build_schedule_from_spec`` maps a fixture's ``"schedule"`` object to
+this package's schedule classes. Both the fixture generator
+(``scripts/generate_conformance.py``) and the built-in ``replay-python``
+adapter use it, so this package has one mapping. On the engine side,
+contingency-rs reads the same object with its ``from_spec``.
 """
 
 from __future__ import annotations

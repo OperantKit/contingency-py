@@ -18,12 +18,17 @@ opportunity. If the subject fails to respond within
 the inner schedule is re-armed at `now` with a fresh interval drawn
 (without a reinforcer being delivered).
 
-Required hooks on the inner schedule (duck-typed):
+The inner schedule is `FI`, `VI` or `RI`. The engine, contingency-rs,
+uses two operations of it, written below as:
 
-- `_arm_time: float` — absolute time at which the current
+- `inner.arm_time` — absolute time at which the current
   opportunity becomes available.
-- `_withdraw_and_rearm(now: float)` — draws a fresh interval and
+- `inner.withdraw_and_rearm(now)` — draws a fresh interval and
   anchors it at `now` without emitting a reinforcer.
+
+The Python class `LimitedHold` builds its own engine copy of the inner
+schedule from the inner schedule's parameters; it does not call methods
+of the inner Python object.
 
 ## State variables
 
@@ -45,13 +50,13 @@ fn step(now, event):
 
     // Expire-if-needed: withdraw the previously-armed opportunity if
     // the hold window has closed.
-    if now > inner._arm_time + hold + TIME_TOL:
-        inner._withdraw_and_rearm(now)
+    if now > inner.arm_time + hold + TIME_TOL:
+        inner.withdraw_and_rearm(now)
 
     if event is None:
         return Outcome::unreinforced()
 
-    arm_time = inner._arm_time
+    arm_time = inner.arm_time
     if now + TIME_TOL >= arm_time and now <= arm_time + hold + TIME_TOL:
         // Delegate to inner so it advances its sequence/cursor/rng.
         return inner.step(now, event)
@@ -67,12 +72,11 @@ fn step(now, event):
 ## Edge cases
 
 - `hold <= 0` raises `Config`.
-- Duck-type check: `Config` raised if `inner` lacks `_arm_time` or
-  `_withdraw_and_rearm`.
+- An inner schedule other than `FI`, `VI` or `RI` raises `Config`.
 - Expiry is checked on **every** step (tick or response), before any
   event is dispatched. If the wrapper is stepped after a long gap, the
   gap correctly closes multiple stale windows — but note that since
-  `_withdraw_and_rearm` anchors the next window at `now`, only the
+  `withdraw_and_rearm` anchors the next window at `now`, only the
   most recent window is actually regenerated, not each of the missed
   windows. The caller is expected to step often enough for this to be
   consistent with the experimenter's intent.

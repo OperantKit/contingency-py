@@ -1,8 +1,10 @@
 """Conformance corpus access and comparison.
 
-The corpus pins the exact outcome sequence of each ``contingency-py``
-schedule for a known event sequence. Any implementation — in any
-language — can be checked against it: produce an *observed* document
+The corpus is the specification of the schedules: it pins the exact
+outcome sequence of each schedule for a known event sequence. The
+engine, contingency-rs, is checked against it, and so are this package's
+classes that wrap it. Any implementation — in any language — can be
+checked the same way: produce an *observed* document
 for a fixture and pass it to :func:`compare`, or drive it through the
 ``contingency-conformance`` command.
 

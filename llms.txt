@@ -1,8 +1,8 @@
 # contingency-py
 
-> Python reinforcement schedule engine: compiles contingency-dsl schedules (FR, VR, FI, VI, FT, VT, CRF, EXT, DRO/DRL/DRH, progressive ratio, concurrent with COD, multiple, chained, tandem, alternative, and more) into deterministic, testable state machines.
+> Python package for the contingency-rs reinforcement schedule engine: builds contingency-dsl schedules (FR, VR, FI, VI, FT, VT, CRF, EXT, DRO/DRL/DRH, progressive ratio, concurrent with COD, multiple, chained, tandem, alternative, and more) as Python classes that run on contingency-rs.
 
-contingency-py is part of OperantKit, a set of Python/Rust packages for designing and running operant and respondent conditioning experiments (reinforcement schedules, session recording, analysis). Use it instead of hand-writing schedule logic: variable schedules use the Fleshler-Hoffman (1962) progression with a controllable seed, concurrent schedules implement the changeover delay, and the conformance fixtures shared with contingency-rs pin the exact outcome of each schedule.
+contingency-py is part of OperantKit, a set of Python/Rust packages for designing and running operant and respondent conditioning experiments (reinforcement schedules, session recording, analysis). Use it instead of hand-writing schedule logic: variable schedules use the Fleshler-Hoffman (1962) progression with a controllable seed, concurrent schedules implement the changeover delay, and the conformance fixtures pin the exact outcome of each schedule; they are the specification that contingency-rs and this package are checked against.
 
 ## Install
 
@@ -29,13 +29,13 @@ A schedule is driven by `schedule.step(now, event)`; `event` is a `ResponseEvent
 
 - [README](https://github.com/OperantKit/contingency-py/blob/main/README.md): scope, example, why not to hand-roll a schedule, public API
 - [AGENTS.md](https://github.com/OperantKit/contingency-py/blob/main/AGENTS.md): when to use this package and what not to do
-- [Conformance corpus](https://github.com/OperantKit/contingency-py/blob/main/conformance/README.md): fixture schema shared with the Rust port
+- [Conformance corpus](https://github.com/OperantKit/contingency-py/blob/main/conformance/README.md): fixture schema; the specification the engine is checked against
 
 ## Related packages
 
 - [contingency-dsl](https://github.com/OperantKit/contingency-dsl): the schedule language specification (grammar, AST schema, conformance cases)
 - [contingency-dsl-py](https://github.com/OperantKit/contingency-dsl-py): Python parser for the DSL
-- [contingency-rs](https://github.com/OperantKit/contingency-rs): Rust port of this engine, checked against the same fixtures
+- [contingency-rs](https://github.com/OperantKit/contingency-rs): the engine these classes run on, checked against the same fixtures
 - [session-runner](https://github.com/OperantKit/session-runner): runs a schedule as a full session against a virtual or hardware apparatus
 - [contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure): DSL to Method-section text
 - [contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl): Method-section text to DSL

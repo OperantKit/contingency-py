@@ -42,7 +42,8 @@ fn step(now, event):
 
 ## Reset semantics
 
-- `rng.setstate(initial_state)`
+- The engine restarts its generator from the seed fixed at construction
+  (`seed`, or one `rng.getrandbits(63)` drawn from a caller's `rng`).
 - `requirement = rng.expovariate(1 / mean)` (fresh initial draw)
 - `anchor = None`
 - `last_now = None`

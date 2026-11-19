@@ -1,10 +1,14 @@
 # Schedule Protocol — 言語非依存の契約
 
-このドキュメントは `contingency-rs` が再現しなければならない権威的な
-表面仕様である。ファミリ内のすべてのスケジュールがこれに準拠し、
-複合スケジュールはこの上に構成される。
+このドキュメントは、エンジン本体の `contingency-rs` と、それを Python の
+クラスで包むこのパッケージが共有するスケジュールのインタフェースを
+書く。ファミリ内のすべてのスケジュールがこれに準拠し、複合スケジュールは
+この上に構成される。スケジュールが何をするかは
+[`conformance/`](../../conformance/README.md) の適合テストの fixture が
+仕様として定め、`contingency-rs` がそれを実行する。このパッケージの
+クラスは `step` / `reset` を `contingency-rs` に渡す。
 
-## Python の真実の源泉
+## Python 側の表面
 
 - [src/contingency/interfaces.py](../../src/contingency/interfaces.py) — 
   `Schedule` Protocol。
@@ -80,8 +84,9 @@ pub trait Schedule {
 - RNG 状態が復元される:
   - シードを所有するスケジュール (VR, VI, VT) は元のシードから再度
     シードする。
-  - `rng: random.Random` を借用するスケジュール (RR, RI, RT) は構築
-    時に RNG 状態をスナップショットし、復元する。
+  - `rng: random.Random` を渡されたスケジュール (RR, RI, RT) は構築
+    時にそこから 63 bit の種を 1 つ引き (`rng.getrandbits(63)`)、その
+    種から始め直す。
 - カウンタはゼロに、シーケンス・カーソルは巻き戻り、シーケンス・
   プールはシード付きならビット同一に再生成される。
 - `last_now` と時間アンカーは `None` (未設定) になる。
@@ -288,8 +293,8 @@ Rust は単一の `const TIME_TOL: f64 = 1e-9;` を公開し、同一に適用
 
 ## スレッディング・モデル
 
-Python 実装はスレッドセーフでは **ない**。呼び出し側はスケジュール
-ごとにアクセスを直列化することが期待される。Rust 移植版は自明に
+Python のクラスはスレッドセーフでは **ない**。呼び出し側はスケジュール
+ごとにアクセスを直列化することが期待される。Rust のエンジンは自明に
 `Send` にできるが、明示的な同期なしでは `Sync` にすべきでない — 
 trait の `&mut self` 規約に従い、借用チェッカに単一スレッドアクセス
 を強制させること。

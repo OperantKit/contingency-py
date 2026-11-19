@@ -17,11 +17,16 @@ https://doi.org/10.1901/jeab.1974.21-389
 撤回される: 内側スケジュールは強化子を送出せずに、新しい間隔が
 引かれて `now` でアーム直しされる。
 
-内側スケジュールに要求されるフック (duck-typed):
+内側スケジュールは `FI`・`VI`・`RI` のどれか。エンジン本体の
+contingency-rs は内側の次の 2 つの操作を使う (下では次のように書く):
 
-- `_arm_time: float` — 現在の機会が利用可能になる絶対時刻。
-- `_withdraw_and_rearm(now: float)` — 新しい間隔を引き、強化子を
+- `inner.arm_time` — 現在の機会が利用可能になる絶対時刻。
+- `inner.withdraw_and_rearm(now)` — 新しい間隔を引き、強化子を
   送出せずに `now` でアンカーする。
+
+Python のクラス `LimitedHold` は、内側スケジュールの引数から内側の
+エンジン上の写しを自分で作る。内側の Python オブジェクトのメソッドは
+呼ばない。
 
 ## 状態変数
 
@@ -42,13 +47,13 @@ fn step(now, event):
     last_now = now
 
     // 必要に応じて失効: hold ウィンドウが閉じたなら以前アームされた機会を撤回
-    if now > inner._arm_time + hold + TIME_TOL:
-        inner._withdraw_and_rearm(now)
+    if now > inner.arm_time + hold + TIME_TOL:
+        inner.withdraw_and_rearm(now)
 
     if event is None:
         return Outcome::unreinforced()
 
-    arm_time = inner._arm_time
+    arm_time = inner.arm_time
     if now + TIME_TOL >= arm_time and now <= arm_time + hold + TIME_TOL:
         // sequence/cursor/rng を進めるため inner に委譲する
         return inner.step(now, event)
@@ -64,12 +69,11 @@ fn step(now, event):
 ## エッジケース
 
 - `hold <= 0` は `Config` を送出。
-- Duck タイプチェック: `inner` が `_arm_time` または
-  `_withdraw_and_rearm` を欠く場合、`Config` を送出。
+- 内側が `FI`・`VI`・`RI` 以外なら `Config` を送出。
 - 失効は **すべて** のステップ (tick でも反応でも) で、イベントが
   ディスパッチされる前にチェックされる。ラッパが長時間のギャップ
   後にステップされた場合、ギャップは正しく複数の失効済みウィンドウ
-  を閉じる — ただし `_withdraw_and_rearm` は次のウィンドウを `now`
+  を閉じる — ただし `withdraw_and_rearm` は次のウィンドウを `now`
   でアンカーするため、実際に再生成されるのは最新のウィンドウのみで
   あり、見逃したウィンドウ各々ではない。呼び出し側は、実験者の意図
   と整合するよう十分な頻度でステップすることが期待される。

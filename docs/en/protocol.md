@@ -1,10 +1,13 @@
 # Schedule Protocol — Language-Neutral Contract
 
-This document is the authoritative surface that `contingency-rs` must
-reproduce. Every schedule in the family conforms to it; compound
-schedules compose over it.
+This document describes the schedule interface shared by the engine,
+`contingency-rs`, and this package, which wraps it in Python classes.
+Every schedule in the family conforms to it; compound schedules compose
+over it. What a schedule does is specified by the conformance fixtures
+in [`conformance/`](../../conformance/README.md); `contingency-rs` runs
+it, and this package's classes hand `step` / `reset` to it.
 
-## Python source of truth
+## Python surface
 
 - [src/contingency/interfaces.py](../../src/contingency/interfaces.py) — the
   `Schedule` Protocol.
@@ -77,8 +80,9 @@ Returns the schedule to the state it had immediately after construction.
 
 - RNG state is restored:
   - Schedules owning a seed re-seed from the original seed (VR, VI, VT).
-  - Schedules borrowing an `rng: random.Random` snapshot the RNG state
-    at construction and restore it (RR, RI, RT).
+  - Schedules given an `rng: random.Random` (RR, RI, RT) take one
+    63-bit seed from it at construction (`rng.getrandbits(63)`) and
+    restart from that seed.
 - Counters are zeroed; sequence cursors rewind; sequence pools are
   regenerated bit-identically if seeded.
 - `last_now` and time anchors become `None` (unset).
@@ -282,8 +286,8 @@ identically. This is load-bearing for the conformance corpus.
 
 ## Threading model
 
-The Python implementation is **not** thread-safe. Callers are expected
-to serialise access per-schedule. Rust port can trivially be `Send` but
+The Python classes are **not** thread-safe. Callers are expected
+to serialise access per-schedule. The Rust engine can trivially be `Send` but
 should not be `Sync` without explicit synchronisation — follow the
 `&mut self` convention of the trait and let the borrow checker enforce
 single-threaded access.

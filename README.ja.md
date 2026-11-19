@@ -2,11 +2,11 @@
 
 :gb: [English README](README.md)
 
-contingency-py は、強化子をいつ提示するかを決める Python のライブラリです。`FR 5`・`VI 60-s`・`Conc(VI 30-s, VI 60-s, COD=2-s)` のような強化スケジュールと、起きた反応を順に渡すと、ステップごとに強化子を提示するかどうかを返します。実験箱の制御プログラム、シミュレーション、授業でのデモ、別の実装を検査するときの基準として使えます。[OperantKit](https://github.com/OperantKit) の Python 版スケジュールエンジンで、セッション全体の実行 (開始・終了の条件、記録) はこの上に載る [session-runner](https://github.com/OperantKit/session-runner) が受け持ちます。
+contingency-py は、強化子をいつ提示するかを決める Python のライブラリです。`FR 5`・`VI 60-s`・`Conc(VI 30-s, VI 60-s, COD=2-s)` のような強化スケジュールと、起きた反応を順に渡すと、ステップごとに強化子を提示するかどうかを返します。実験箱の制御プログラム、シミュレーション、授業でのデモ、別の実装を検査するときの基準として使えます。[OperantKit](https://github.com/OperantKit) のスケジュールエンジンを Python から使うパッケージです。スケジュールはエンジン本体の [contingency-rs](https://github.com/OperantKit/contingency-rs) で動き、このパッケージはそれを Python のクラスで包み、contingency-dsl から組み立てます。セッション全体の実行 (開始・終了の条件、記録) はこの上に載る [session-runner](https://github.com/OperantKit/session-runner) が受け持ちます。
 
 - **変動スケジュールの値は Fleshler–Hoffman (1962) の数列で作ります。** 値の個数と乱数の種を指定できるので、セッションを厳密に再現できます。
 - **並立スケジュールは切り替え遅延 (COD) を扱います。** COD は、オペランダム (レバーやキー) を切り替えた直後に反応を強化しない時間のことです。設定済みの強化子は、そのオペランダムへの次の反応まで保持します。
-- **`conformance/` の適合性 fixture が、各スケジュールの結果を既知の反応系列に対して固定しています。** Rust 版エンジン [contingency-rs](https://github.com/OperantKit/contingency-rs) も同じ fixture を再生します。自作の実装をこれに照らして検算することもできます。
+- **`conformance/` の適合性 fixture が、各スケジュールの結果を既知の反応系列に対して固定しています。** この fixture が仕様で、エンジンの contingency-rs も、それを包むこのパッケージのクラスも、これに照らして検査しています。自作の実装をこれに照らして検算することもできます。
 
 [スケジュールの用語](docs/ja/schedule-terms.md) では、これらの点 (COD、Fleshler–Hoffman の数列、DRL と反応間時間、リセット型 DRO、VI の間隔がいつ始まるか) を数文ずつ説明しています。AI のコーディングエージェント向けの案内 (AI アシスタントが書いたスケジュールのコードとの比較を含む) は [AGENTS.md](AGENTS.md) にあります。
 

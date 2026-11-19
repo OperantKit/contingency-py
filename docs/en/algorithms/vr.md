@@ -75,23 +75,19 @@ fn reload_sequence():
 
 - `mean <= 0` raises `Config`.
 - `n_intervals < 1` raises `Config`.
-- Sub-seed domain is `[0, 2**31 - 1)`; Rust must use the same range to
-  keep bit-identical output with Python's `Random`.
+- Sub-seed domain is `[0, 2**31 - 1)`, drawn with the CPython
+  `random.Random` port in contingency-rs.
 
 ## Determinism
 
-Fully deterministic when `seed` is supplied. The cross-language
-bit-identity requirement only holds if the Rust port reproduces
-`random.Random(seed).randrange(0, 2**31 - 1)` and
-`random.Random(sub_seed).shuffle(...)` — Python's Mersenne Twister.
-For `contingency-rs`, the recommended approach is to treat the
-seeded random stream as an opaque **fixture input**: the conformance
-corpus pins the VR trajectory by seed, but Rust implementations may
-use a different PRNG and instead validate by replaying a fixture whose
-`sequence` field is read from JSON.
-
-(See the `conformance/` corpus: stochastic fixtures include the raw
-`sequence` pool where applicable so Rust can consume it directly.)
+Fully deterministic when `seed` is supplied. contingency-rs
+reproduces `random.Random(seed).randrange(0, 2**31 - 1)` and
+`random.Random(sub_seed).shuffle(...)` (CPython's Mersenne Twister)
+with its own port, so a seeded VR gives the trajectory the
+conformance corpus pins. An implementation in another language with a
+different PRNG can instead replay a fixture whose `sequence` field is
+read from JSON (stochastic fixtures include the raw `sequence` pool
+where applicable).
 
 ## Divergence from Swift original
 

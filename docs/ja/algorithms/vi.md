@@ -68,16 +68,16 @@ fn next_interval() -> float:
 - サブシード定義域: `rng.getrandbits(64)` — 64 ランダムビットを
   Fleshler-Hoffman 生成器にシードとして渡す。
 
-## LimitedHold フック
+## LimitedHold の内側として
 
-- `_arm_time` (read)
-- `_withdraw_and_rearm(now)` — `arm_time = now + next_interval()`
+`LimitedHold` は VI を内側に取れる。ウィンドウが失効すると、エンジンは
+`arm_time = now + next_interval()` にする ([limited-hold.md](limited-hold.md) 参照)。
 
 ## 決定性
 
-VR と同じ論理: Python 内では決定論的。言語横断でのビット同一性は、
-Rust に Python の Mersenne Twister を再現させるのではなく、
-conformance fixture で **sequence** を固定することで追跡する。
+VR と同じ: `seed` を与えれば決定論的。contingency-rs は CPython の
+`random.Random` の移植を持つので、種付きの VI は conformance fixture が
+固定した列を出す。
 
 ## Swift オリジナルとの差異
 

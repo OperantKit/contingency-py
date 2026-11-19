@@ -68,17 +68,17 @@ fn next_interval() -> float:
 - Sub-seed domain: `rng.getrandbits(64)` — 64 random bits, passed as
   the seed to the Fleshler-Hoffman generator.
 
-## LimitedHold hook
+## Inside LimitedHold
 
-- `_arm_time` (read)
-- `_withdraw_and_rearm(now)` — `arm_time = now + next_interval()`
+`LimitedHold` takes VI as its inner schedule. On window expiry the
+engine sets `arm_time = now + next_interval()` (see
+[limited-hold.md](limited-hold.md)).
 
 ## Determinism
 
-Same reasoning as VR: deterministic within Python; cross-language
-bit identity is tracked by pinning the **sequence** in the
-conformance fixture rather than requiring Rust to reproduce Python's
-Mersenne Twister.
+Same as VR: deterministic when `seed` is supplied. contingency-rs
+carries a port of CPython's `random.Random`, so a seeded VI gives the
+sequence the conformance fixture pins.
 
 ## Divergence from Swift original
 

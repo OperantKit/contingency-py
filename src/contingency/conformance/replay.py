@@ -1,4 +1,8 @@
-"""Built-in adapter: replay a fixture against the Python runtime.
+"""Built-in adapter: replay a fixture through this package's classes.
+
+The classes run on contingency-rs (``contingency_core``), so this checks
+the Python wrapper — argument mapping, ``Outcome`` and ``meta`` — against
+the corpus, not a second engine.
 
 Used by ``contingency-conformance replay-python`` and as the reference
 example of a ``run -- CMD`` adapter: read the fixture JSON on stdin,
@@ -43,7 +47,7 @@ def observe(outcome: Outcome) -> dict[str, Any]:
 
 
 def replay(fixture: dict[str, Any]) -> dict[str, Any]:
-    """Run a fixture document through the Python runtime."""
+    """Run a fixture document through this package's schedule classes."""
     schedule = build_schedule_from_spec(fixture["schedule"])
     steps: list[dict[str, Any]] = []
     for step in fixture["steps"]:

@@ -1,6 +1,8 @@
-"""contingency — Python reinforcement schedule engine.
+"""contingency — Python package for the contingency-rs schedule engine.
 
-Bridges contingency-dsl AST nodes into executable Schedule runtime objects.
+The schedule classes check their arguments in Python and run on
+contingency-rs through the ``contingency_core`` extension module. The
+bridge turns contingency-dsl AST nodes into those classes.
 """
 
 from __future__ import annotations

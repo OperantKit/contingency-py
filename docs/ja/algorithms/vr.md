@@ -74,22 +74,18 @@ fn reload_sequence():
 
 - `mean <= 0` は `Config` を送出。
 - `n_intervals < 1` は `Config` を送出。
-- サブシード定義域は `[0, 2**31 - 1)`。Rust は Python の `Random` と
-  のビット同一出力を保つため同じ範囲を使う必要がある。
+- サブシード定義域は `[0, 2**31 - 1)`。contingency-rs の CPython
+  `random.Random` の移植で引く。
 
 ## 決定性
 
-`seed` が供給されれば完全に決定論的。言語横断でのビット同一性は
-Rust 移植が `random.Random(seed).randrange(0, 2**31 - 1)` と
-`random.Random(sub_seed).shuffle(...)` — Python の Mersenne
-Twister — を再現する場合のみ成り立つ。`contingency-rs` で推奨される
-アプローチは、シード付きランダム列を不透明な **fixture 入力** として
-扱うこと: conformance コーパスは VR 軌跡をシードで固定するが、Rust
-実装は異なる PRNG を使用し、代わりに `sequence` フィールドを JSON
-から読み込む fixture をリプレイして検証してよい。
-
-(`conformance/` コーパス参照: 確率的 fixture は該当する場合、生の
-`sequence` プールを含めており、Rust はこれを直接消費できる。)
+`seed` が供給されれば完全に決定論的。contingency-rs は
+`random.Random(seed).randrange(0, 2**31 - 1)` と
+`random.Random(sub_seed).shuffle(...)` (CPython の Mersenne Twister) を
+自前の移植で再現するので、種付きの VR は conformance コーパスが固定した
+軌跡を出す。別の PRNG を使う他言語の実装は、代わりに `sequence`
+フィールドを JSON から読み込む fixture をリプレイして検証してよい
+(確率的 fixture は該当する場合、生の `sequence` プールを含む)。
 
 ## Swift オリジナルとの差異
 

@@ -36,13 +36,14 @@ fn step(now, event):
 
 ## Reset semantics
 
-- `rng.setstate(initial_state)` — restore the Bernoulli stream.
+- The engine restarts its generator from the seed fixed at construction
+  (`seed`, or one `rng.getrandbits(63)` drawn from a caller's `rng`). The Bernoulli
+  stream restarts.
 - `last_now = None`
 
-The initial-state snapshot is taken at construction, not on every
-`reset()`, so a caller who shares a `Random` across schedules sees the
-schedule return to **its** initial draw even if the shared RNG was
-advanced elsewhere.
+The seed is taken at construction, not on every `reset()`, so a
+caller who shares a `Random` across schedules sees the schedule return
+to **its** initial draw even if the shared RNG was advanced elsewhere.
 
 ## Edge cases
 

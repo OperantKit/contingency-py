@@ -14,7 +14,7 @@ For whole sessions (start/stop criteria, logging to a file) use session-runner o
 
 - VI/VR values follow the Fleshler-Hoffman (1962) progression with a controllable `n` and `seed`; ad-hoc random draws produce a different distribution of inter-reinforcement intervals.
 - Concurrent schedules route each response to its own component, hold an arranged reinforcer until the next response on that operandum, and apply the changeover delay (COD), fixed-ratio changeover (`FRCO`), and direction-specific COD.
-- 39 JSON fixtures in `conformance/` pin exact outcome sequences, and the Rust port replays the same fixtures.
+- 39 JSON fixtures in `conformance/` pin exact outcome sequences. They are the specification: the engine, contingency-rs, replays them, and so do this package's classes that run on it.
 - Invalid input fails loudly: non-monotonic time raises `ScheduleStateError`; bad parameters or an unknown operandum raise `ScheduleConfigError`.
 - Replayed against MED-PC session records (`tests/test_apparatus_replay.py`): with the IRT clock started at the onset of the DRL phase and responses in the 4 s after each reinforcer (5.1 s for PR) left out, `DRL` reinforced the same response for 99.30% of 30,578 recorded reinforcers in 928 DRL 10 s sessions and `ProgressiveRatio` for 99.75% of 3,979 in 273 PR sessions; every disagreement is a response at the 10 s or timeout boundary (DRL: 192 within ±70 ms, plus 93 that follow them; PR: 20).
 - Measured on schedule code that Claude Code (claude-opus-5-5) and Codex CLI (gpt-6.1-sol) wrote for 20 requests (one run each): VI intervals used Fleshler-Hoffman in 7 of 14 programs (the rest drew exponential or uniform intervals); all 6 concurrent schedules had a COD, but 2 had a COD error; 16 of 19 interval schedules held the arranged reinforcer and timed the next interval from delivery. The section "Why not a 50-line hand-written schedule?" below lists the errors.
@@ -25,7 +25,7 @@ A short hand-rolled loop usually gets the following wrong, and each one changes 
 
 - **Variable-schedule intervals.** VI/VR values are generated with the Fleshler-Hoffman (1962) progression (the Hantula, 1991, program variant is also available), not ad-hoc `random.uniform` or exponential draws. `n` and `seed` are controllable, so a session can be replayed exactly.
 - **Changeover delay in concurrent schedules.** `Conc` routes each response to its own component, holds an arranged reinforcer until the next response on that operandum, suppresses reinforcement for `COD` time units after a changeover, and supports a fixed-ratio changeover requirement (`FRCO`) and direction-specific COD.
-- **Conformance fixtures.** 39 JSON fixtures under `conformance/` pin the exact outcome sequence of each schedule for a known event sequence. The Rust port [contingency-rs](https://github.com/OperantKit/contingency-rs) replays the same fixtures, so both runtimes are checked against one specification.
+- **Conformance fixtures.** 39 JSON fixtures under `conformance/` pin the exact outcome sequence of each schedule for a known event sequence. The engine [contingency-rs](https://github.com/OperantKit/contingency-rs) replays the same fixtures, and this package's classes, which run on it, are checked against them too.
 - **Round trip with Method sections.** Because the schedule is written in contingency-dsl, [contingency-dsl2procedure](https://github.com/OperantKit/contingency-dsl2procedure) turns it into a Method-section paragraph and [contingency-procedure2dsl](https://github.com/OperantKit/contingency-procedure2dsl) extracts a schedule from published Method text.
 - **Input validation.** Non-monotonic time, malformed parameters, and unknown operanda raise explicit errors instead of silently producing wrong reinforcement times.
 
@@ -55,3 +55,4 @@ Use behavior-analytic terms: *reinforcer* (not "reward"), *discriminative stimul
 - `README.md` (English) is canonical; keep `README.ja.md` in sync in the same commit.
 - Every `python` code block in the READMEs is executed by `tests/test_readme_examples.py`.
 - Regenerate fixtures with `scripts/generate_conformance.py` only when a behavior change is intended.
+- The schedule arithmetic lives in [contingency-rs](https://github.com/OperantKit/contingency-rs); this package's classes check arguments, keep the public attributes and hand `step` / `reset` to it. A behavior change is made there, with the fixtures, not in `src/contingency/schedules/`.

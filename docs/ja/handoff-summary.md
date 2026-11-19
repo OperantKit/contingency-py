@@ -1,8 +1,12 @@
 # `contingency-rs` 引き継ぎサマリ
 
 このドキュメントは、`contingency-py` を `contingency-rs` に移植する
-Rust 実装者のための 1 ページ分オンボーディング資料である。何が存在し、
-何が延期されており、どこから読み始めるべきかをまとめる。
+Rust 実装者のための 1 ページ分オンボーディング資料だった。移植は終わり、
+向きは逆になった: `contingency-rs` がエンジン本体で、
+[`conformance/`](../../conformance/README.md) の適合テストの fixture が
+仕様、このパッケージのスケジュールのクラスはエンジンを包む (README の
+節「Rust のエンジンの wheel」参照)。以下の節は移植の出発点になった
+Python の実装の説明で、今の実行系ではなく背景として読む。
 
 ## `contingency-py` に存在するもの
 
@@ -189,7 +193,7 @@ contingency-rs/
 
 ## どこから読み始めるか
 
-1. [`protocol.md`](protocol.md) — 公開 API 形状の唯一の真実の源泉。
+1. [`protocol.md`](protocol.md) — 両パッケージが共有する公開 API の形。
 2. [`algorithms/`](algorithms/) — スケジュール 1 つにつき 1 ファイル。
    実装決定の 80% がここにある。
 3. [`../conformance/README.md`](../../conformance/README.md) — Rust

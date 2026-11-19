@@ -1,10 +1,11 @@
 # Conformance corpus
 
 This directory contains cross-language fixtures that pin the exact
-output of each `contingency-py` schedule for a known event sequence.
-The Rust port `contingency-rs` is expected to load these fixtures,
-replay them against its own runtime, and assert byte-identical
-observed outcomes.
+output of each schedule for a known event sequence. The fixtures are
+the specification of the schedules. The engine, `contingency-rs`, loads
+them, replays them on its own runtime and asserts the same observed
+outcomes; this package's classes, which run on `contingency-rs`, are
+checked against them too.
 
 ## Layout
 
@@ -102,10 +103,9 @@ Rules:
 Every `"schedule"` object's `"type"` maps to a constructor in
 `contingency.schedules`. See the full mapping in
 [`../src/contingency/conformance/spec.py`](../src/contingency/conformance/spec.py)
-(function `build_schedule_from_spec`) — that function is the
-authoritative spec-to-schedule builder, used by both the generator and
-the `replay-python` adapter, and should be mirrored verbatim in the
-Rust port.
+(function `build_schedule_from_spec`), used by both the generator and
+the `replay-python` adapter. On the engine side, `contingency-rs` reads
+the same objects with `spec::from_spec`.
 
 Supported types:
 
@@ -147,15 +147,19 @@ cd apps/core/contingency-py
 ```
 
 The script uses `json.dump(..., indent=2, sort_keys=True)` so
-re-running it on the same Python runtime yields byte-identical output.
+re-running it with the same `contingency_core` yields byte-identical
+output. The generator runs this package's classes, so the values come
+from `contingency-rs`; a change in the regenerated corpus is a change
+of the specification and needs a stated reason.
 Cross-platform stability is enforced by rounding all observed floats
 to 9 decimal digits.
 
 ## Python-side verification
 
 [`../tests/test_conformance.py`](../tests/test_conformance.py) loads
-every fixture under this directory and replays it against the Python
-runtime to confirm the fixture matches the current implementation.
+every fixture under this directory and replays it through this
+package's classes (on `contingency-rs`) to confirm that the wrapper
+maps arguments, outcomes and meta as the fixtures say.
 Run with:
 
 ```bash
@@ -184,25 +188,25 @@ implementation against the fixtures".
 
 ## Rust-side consumption
 
-The Rust port should implement an equivalent `build_schedule_from_spec`
-function, load each fixture, and assert:
+`contingency-rs` builds each fixture's schedule with `spec::from_spec`
+(`tests/conformance.rs`), loads each fixture, and asserts:
 
 1. `outcome.reinforced == expect.reinforced`.
 2. If reinforced, `outcome.reinforcer` matches `expect.reinforcer`
    field-by-field within a small float tolerance (`1e-9` is the
-   value Python uses internally).
+   value both packages use).
 3. If `expect.meta` is present, every key/value pair matches the
    corresponding entries in `outcome.meta` (extra meta keys in the
    Rust outcome are tolerated; missing keys are a failure).
 
 Stochastic fixtures (seeded VR, VI, VT, RR, RI, RT, MatchingToSample,
-GoNoGo) are pinned by
-the Python runtime's `random.Random(seed)` sequence. Rust ports may
-use a different PRNG — in that case the stochastic fixtures cannot
-be bit-reproduced and should be loaded as **trajectory templates**:
-the Rust port consumes the observed `reinforced` booleans and
-reinforcer timestamps as the oracle, regardless of how the Rust
-runtime's internal sampling arrived at them.
+GoNoGo) are pinned by a `random.Random(seed)` sequence (Mersenne
+Twister, as in CPython). `contingency-rs` carries a port of that
+generator, so it reproduces them bit for bit. An implementation in
+another language that uses a different PRNG cannot, and should load
+them as **trajectory templates**: the observed `reinforced` booleans
+and reinforcer timestamps are the oracle, regardless of how its
+internal sampling arrived at them.
 
 To avoid PRNG mismatch altogether, a follow-up fixture schema
 extension can serialise the observed per-step `requirement` values

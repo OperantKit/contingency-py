@@ -59,12 +59,11 @@ fn step(now, event):
 - 境界等価性: `now == arm_time` の反応は強化される (`TIME_TOL` の
   余裕を伴う包含的比較)。
 
-## LimitedHold フック
+## LimitedHold の内側として
 
-- `_arm_time` (read) — 現在アーム中の失効時刻。
-- `_withdraw_and_rearm(now)` — 強化子を発生させずに
-  `arm_time = now + interval` を設定する。`LimitedHold` がウィンドウ
-  失効時に使用。
+`LimitedHold` は FI を内側に取れる。ウィンドウが失効すると、エンジンは
+強化子を出さずに `arm_time = now + interval` にする
+([limited-hold.md](limited-hold.md) 参照)。
 
 ## 決定性
 

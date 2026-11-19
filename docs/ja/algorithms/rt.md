@@ -42,7 +42,8 @@ fn step(now, event):
 
 ## Reset セマンティクス
 
-- `rng.setstate(initial_state)`
+- エンジンは構築時に決めた種 (`seed`、または渡された `rng` から 1 回
+  引いた `rng.getrandbits(63)`) から乱数生成器を始め直す。
 - `requirement = rng.expovariate(1 / mean)` (新たな初期引き)
 - `anchor = None`
 - `last_now = None`

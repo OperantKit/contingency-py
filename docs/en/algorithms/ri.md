@@ -43,12 +43,13 @@ fn step(now, event):
 
 ## Reset semantics
 
-- `rng.setstate(initial_state)`
+- The engine restarts its generator from the seed fixed at construction
+  (`seed`, or one `rng.getrandbits(63)` drawn from a caller's `rng`).
 - `arm_time = rng.expovariate(1 / mean_interval)` (new initial draw)
 - `last_now = None`
 
-Note: after `reset()`, the very first draw comes from the restored
-RNG state, producing the same initial `arm_time` as after construction.
+Note: after `reset()`, the very first draw comes from the same seed,
+producing the same initial `arm_time` as after construction.
 
 ## Edge cases
 
@@ -57,10 +58,11 @@ RNG state, producing the same initial `arm_time` as after construction.
   legacy source), the present implementation adds exponential sampling
   on top of the interval mechanics.
 
-## LimitedHold hook
+## Inside LimitedHold
 
-- `_arm_time`, `_withdraw_and_rearm(now)` (draws a fresh exponential
-  interval).
+`LimitedHold` takes RI as its inner schedule; withdrawing an expired
+opportunity draws a fresh exponential interval (see
+[limited-hold.md](limited-hold.md)).
 
 ## Determinism
 

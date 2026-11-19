@@ -60,12 +60,11 @@ fn step(now, event):
 - Boundary equality: a response with `now == arm_time` reinforces
   (inclusive comparison with `TIME_TOL` slack).
 
-## LimitedHold hook
+## Inside LimitedHold
 
-- `_arm_time` (read) — the currently armed expiry time.
-- `_withdraw_and_rearm(now)` — sets `arm_time = now + interval`
-  without emitting a reinforcer. Used by `LimitedHold` on window
-  expiry.
+`LimitedHold` takes FI as its inner schedule. On window expiry the
+engine sets `arm_time = now + interval` without emitting a reinforcer
+(see [limited-hold.md](limited-hold.md)).
 
 ## Determinism
 

@@ -1,8 +1,13 @@
 # `contingency-rs` handoff summary
 
-This document is the one-page onboarding for a Rust implementer
-porting `contingency-py` to `contingency-rs`. It summarises what
-exists, what is deferred, and where to start reading.
+This document was the one-page onboarding for a Rust implementer
+porting `contingency-py` to `contingency-rs`. The port is done and the
+direction has turned: `contingency-rs` is the engine, the conformance
+fixtures in [`conformance/`](../../conformance/README.md) are the
+specification, and this package's schedule classes wrap the engine
+(see the README, section "Rust engine wheel"). The sections below
+describe the Python implementation the port started from; read them
+as background, not as the current runtime.
 
 ## What exists in `contingency-py`
 
@@ -190,8 +195,8 @@ Suggested crate features:
 
 ## Where to start reading
 
-1. [`protocol.md`](protocol.md) — the single source of truth for the
-   public API shape.
+1. [`protocol.md`](protocol.md) — the shape of the public API shared
+   by both packages.
 2. [`algorithms/`](algorithms/) — one file per schedule, 80% of the
    implementation decisions.
 3. [`../conformance/README.md`](../../conformance/README.md) — how to

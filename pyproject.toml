@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "contingency-py"
 dynamic = ["version"]
-description = "Python reinforcement schedule engine for operant contingencies. Bridges contingency-dsl AST to runtime Schedule objects."
+description = "Python package for the contingency-rs reinforcement schedule engine. Wraps its schedules in Python classes and builds them from contingency-dsl ASTs."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }

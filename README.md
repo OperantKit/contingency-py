@@ -2,11 +2,11 @@
 
 :jp: [日本語版 README](README.ja.md)
 
-contingency-py is a Python library that decides when a reinforcer is delivered. You give it a reinforcement schedule, such as `FR 5`, `VI 60-s`, or `Conc(VI 30-s, VI 60-s, COD=2-s)`, and the responses as they happen; for each step it tells you whether a reinforcer is delivered. Use it in a chamber program, a simulation, a teaching demo, or as a reference to test another implementation against. It is the Python schedule engine of [OperantKit](https://github.com/OperantKit); running a whole session (start and stop criteria, logging) is done by [session-runner](https://github.com/OperantKit/session-runner) on top of it.
+contingency-py is a Python library that decides when a reinforcer is delivered. You give it a reinforcement schedule, such as `FR 5`, `VI 60-s`, or `Conc(VI 30-s, VI 60-s, COD=2-s)`, and the responses as they happen; for each step it tells you whether a reinforcer is delivered. Use it in a chamber program, a simulation, a teaching demo, or as a reference to test another implementation against. It is the Python package of the [OperantKit](https://github.com/OperantKit) schedule engine: the schedules run on [contingency-rs](https://github.com/OperantKit/contingency-rs), the engine, and this package wraps them in Python classes and builds them from contingency-dsl; running a whole session (start and stop criteria, logging) is done by [session-runner](https://github.com/OperantKit/session-runner) on top of it.
 
 - **Variable schedules use the Fleshler–Hoffman (1962) progression,** with the number of values and the seed under your control, so a session can be replayed exactly.
 - **Concurrent schedules handle the changeover delay (COD)** — the time after a switch between operanda (levers, keys) during which no response is reinforced — and hold an arranged reinforcer until the next response on its operandum.
-- **Conformance fixtures in `conformance/` pin the outcome of each schedule** for a known response sequence. The Rust engine [contingency-rs](https://github.com/OperantKit/contingency-rs) replays them, and you can check your own implementation against them.
+- **Conformance fixtures in `conformance/` pin the outcome of each schedule** for a known response sequence. They are the specification: contingency-rs and this package's classes are both checked against them, and you can check your own implementation against them.
 
 [Schedule terms](docs/en/schedule-terms.md) explains these points (COD, the Fleshler–Hoffman progression, DRL and interresponse time, resetting DRO, when a VI interval starts) in a few sentences each. Notes for AI coding agents, including a comparison with schedule code written by AI assistants, are in [AGENTS.md](AGENTS.md).
 

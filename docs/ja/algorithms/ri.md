@@ -41,11 +41,12 @@ fn step(now, event):
 
 ## Reset セマンティクス
 
-- `rng.setstate(initial_state)`
+- エンジンは構築時に決めた種 (`seed`、または渡された `rng` から 1 回
+  引いた `rng.getrandbits(63)`) から乱数生成器を始め直す。
 - `arm_time = rng.expovariate(1 / mean_interval)` (新たな初期引き)
 - `last_now = None`
 
-注: `reset()` 後の最初の引きは復元された RNG 状態から来るため、
+注: `reset()` 後の最初の引きは同じ種から来るため、
 構築直後と同じ初期 `arm_time` を生成する。
 
 ## エッジケース
@@ -54,9 +55,10 @@ fn step(now, event):
 - legacy ソースの RI の Swift オリジナル (FI 上の no-op ラッパ) と
   同様、現在の実装は間隔機構の上に指数サンプリングを追加している。
 
-## LimitedHold フック
+## LimitedHold の内側として
 
-- `_arm_time`, `_withdraw_and_rearm(now)` (新しい指数間隔を引く)。
+`LimitedHold` は RI を内側に取れる。失効した機会を撤回するときは新しい
+指数間隔を引く ([limited-hold.md](limited-hold.md) 参照)。
 
 ## 決定性
 
