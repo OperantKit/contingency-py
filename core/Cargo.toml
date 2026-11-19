@@ -19,4 +19,4 @@ path = "src/lib.rs"
 # (the schedule classes of contingency need its Schedule.state()).
 # A path dependency is not allowed here: this repository must build on its own
 # after a clone.
-contingency = { git = "https://github.com/OperantKit/contingency-rs", rev = "fb077aae07add9b4e68eb7020fd7491f1dc174d0", default-features = false, features = ["python"] }
+contingency = { git = "https://github.com/OperantKit/contingency-rs", rev = "810389088cf1586cf16fea08c7edfb3856e490cd", default-features = false, features = ["python"] }

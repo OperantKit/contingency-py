@@ -2,7 +2,7 @@
 
 :jp: [日本語版 README](README.ja.md)
 
-contingency-py is a Python library that decides when a reinforcer is delivered. You give it a reinforcement schedule, such as `FR 5`, `VI 60-s`, or `Conc(VI 30-s, VI 60-s, COD=2-s)`, and the responses as they happen; for each step it tells you whether a reinforcer is delivered. Use it in a chamber program, a simulation, a teaching demo, or as a reference to test another implementation against. It is the Python package of the [OperantKit](https://github.com/OperantKit) schedule engine: the schedules run on [contingency-rs](https://github.com/OperantKit/contingency-rs), the engine, and this package wraps them in Python classes and builds them from contingency-dsl; running a whole session (start and stop criteria, logging) is done by [session-runner](https://github.com/OperantKit/session-runner) on top of it.
+contingency-py is a Python library for the contingencies of a behavior experiment: for an operant schedule, such as `FR 5`, `VI 60-s`, or `Conc(VI 30-s, VI 60-s, COD=2-s)`, it decides when a reinforcer is delivered as responses happen; for a respondent (Pavlovian) procedure in the DSL's Tier A, such as `Pair.ForwardDelay(tone, shock, isi=10-s, cs_duration=15-s)`, it lists the trials — which CS, which US, and when. Use it in a chamber program, a simulation, a teaching demo, or as a reference to test another implementation against. It is the Python package of the [OperantKit](https://github.com/OperantKit) schedule engine: the schedules run on [contingency-rs](https://github.com/OperantKit/contingency-rs), the engine, and this package wraps them in Python classes and builds them from contingency-dsl; running a whole session (start and stop criteria, logging) is done by [session-runner](https://github.com/OperantKit/session-runner) on top of it.
 
 - **Variable schedules use the Fleshler–Hoffman (1962) progression,** with the number of values and the seed under your control, so a session can be replayed exactly.
 - **Concurrent schedules handle the changeover delay (COD)** — the time after a switch between operanda (levers, keys) during which no response is reinforced — and hold an arranged reinforcer until the next response on its operandum.
@@ -63,6 +63,7 @@ The components of a concurrent schedule are named `c0`, `c1`, … in the order t
 | Other procedures | Timeout, response cost, Sidman avoidance, discriminated avoidance, escape, matching-to-sample (with correction trials), go/no-go |
 | Value generators | Fleshler–Hoffman (Fleshler & Hoffman, 1962) and the Hantula (1991) variant |
 | Building schedules | `contingency.bridge.from_dsl` (from a contingency-dsl expression; combinator parameters the runtime does not read, such as `BO` greater than zero, raise `ScheduleConfigError` instead of being dropped, as does `Pctl` with a target other than `IRT`; `MTS(..., correction=true)` repeats an incorrect trial after the ITI until it is answered correctly and `correction=N` at most `N` times, with the same sample, comparison positions and correct operandum; `Lag n` and `Lag(n, length=k)` compare units of `k` responses by the operanda they were emitted on, so on a single operandum a `Lag n` with `n >= 1` stops reinforcing from the second unit on; a postfix `LH` on `MTS`, as in `MTS(...) LH10s`, is the choice window, the same as `MTS(..., LH=10s)`), `contingency.builder.ScheduleBuilder` (from Python calls) |
+| Respondent procedures (`contingency.respondent`) | `expand` lists the trials of a Tier A expression of the DSL's respondent layer (pairings, extinction, CS-alone and US-alone, contingency and truly random control, explicitly unpaired, compound and serial CSs, ITI, differential conditioning) on contingency-rs; `RespondentRegistry` adds the Tier B procedures of an extension, per program |
 | Hardware abstraction layer (`contingency.hw`) | An `Apparatus` interface with a virtual backend, a serial backend (needs `pyserial`), and a TCP backend for a hardware-in-the-loop (HIL) test rig |
 | Conformance | JSON fixtures in `conformance/` and the `contingency-conformance` command |
 | Gymnasium | `contingency.envs.ScheduleEnv` and six registered environments (optional) |
@@ -85,6 +86,24 @@ contingency-conformance run --only 'atomic/fr_*' -- python my_adapter.py
 ```
 
 The JSON format, a complete adapter, and how seeded fixtures are judged are in [Checking your own implementation against the fixtures](docs/en/conformance-checker.md).
+
+### Respondent trial lists
+
+`contingency.respondent.expand` takes one Tier A respondent expression as a contingency-dsl AST node and returns its trials, each a dict of `stage`, `cs`, `us`, `context`, `order`, `time` (seconds from the trial start) and `iti_s`. Values the expression does not carry — the number of trials, the seed, the CS and US labels — come from the options; a missing one raises `RespondentUnresolvedError` naming it instead of being filled with a default.
+
+```python
+from contingency.respondent import expand
+
+spec = {
+    "type": "PairForwardDelay", "cs": "tone", "us": "shock",
+    "isi": {"value": 10, "unit": "s"}, "cs_duration": {"value": 15, "unit": "s"},
+}
+trials = expand(spec, {"trials": 3})
+print(len(trials), trials[0]["time"])
+# 3 {'cs_on': 0.0, 'cs_off': 15.0, 'us_on': 10.0, 'us_off': None, 'gap': None}
+```
+
+Procedures built from Tier A across trials or phases (Tier B: blocking, renewal and the rest) are not expanded here. An extension supplies an object with `name`, `types` and `expand(spec, options, expand_nested)`, and the program builds `RespondentRegistry.build(extension, ...)`; `registry.expand` sends Tier A types to contingency-rs and each Tier B type to its owner, which expands its nested expressions through `expand_nested`. An expansion cannot claim a Tier A type, two expansions cannot claim the same type, and a type the registry does not know raises `UnknownRespondentElementError`. What each element expands to, and the corpus in `conformance/respondent/` that pins it, are in the [respondent execution contract](docs/en/respondent-contract.md).
 
 ### Gymnasium environments
 

@@ -140,15 +140,12 @@ fails when a file differs from what it would write. The schedule runner
 (`contingency-conformance`) skips this directory: these files are not
 schedule fixtures.
 
-## Scope sentence for the README
+## Using it from Python
 
-The README currently opens with "a Python library that decides when a
-reinforcer is delivered". Once the Tier A expansion is exposed, the proposed
-wording is:
-
-> contingency-py is a Python library for the contingencies of a behavior
-> experiment: for an operant schedule, such as `FR 5` or `VI 60-s`, it
-> decides when a reinforcer is delivered as responses happen; for a
-> respondent (Pavlovian) procedure in the DSL's Tier A, such as
-> `Pair.ForwardDelay(tone, shock, isi=10-s, cs_duration=15-s)`, it lists the
-> trials — which CS, which US, and when.
+`contingency.respondent.expand(spec, options)` runs a Tier A expression on
+contingency-rs and returns the trial list described above;
+`RespondentUnresolvedError` carries `missing`. `RespondentRegistry.build(...)`
+is the per-program registry of property 2: an expansion declares `name`,
+`types` and `expand(spec, options, expand_nested)`, cannot claim a Tier A type
+or a type another expansion claims, and must return trials with exactly the
+keys above. `tests/test_respondent_expand.py` replays this corpus through it.

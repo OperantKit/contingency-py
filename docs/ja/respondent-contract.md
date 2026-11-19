@@ -101,8 +101,6 @@ Tier A の式 1 つを展開すると、試行の列が返る。各試行は、�
 
 `spec` は contingency-dsl のレスポンデントの schema の Tier A の AST の節点、`expected` は `{"trials": [...]}` か上の `unresolved` の誤りである。Tier A の要素はどれも 1 件以上ある。ファイルは `scripts/generate_respondent_conformance.py` が書き、これがこのページの参照の読み方である。`python scripts/generate_respondent_conformance.py --check` は、書くはずの中身とファイルが違うと失敗する。スケジュールの照合器（`contingency-conformance`）はこのディレクトリを読まない（スケジュールの fixture ではないため）。
 
-## README の範囲の文の案
+## Python から使う
 
-README は今「強化子をいつ提示するかを決める Python のライブラリです」で始まる。Tier A の展開を公開した後の案:
-
-> contingency-py は、行動実験の随伴性を扱う Python のライブラリである。オペラントのスケジュール（`FR 5`・`VI 60-s` など）では、反応が起きるたびに強化子がいつ出るかを決める。DSL の Tier A のレスポンデント（パヴロフ型）の手続き（`Pair.ForwardDelay(tone, shock, isi=10-s, cs_duration=15-s)` など）では、試行の列 — どの CS を、どの US を、いつ — を返す。
+`contingency.respondent.expand(spec, options)` は Tier A の式を contingency-rs で動かし、上に書いた試行の列を返す。足りない値は `missing` を持つ `RespondentUnresolvedError` になる。`RespondentRegistry.build(...)` は性質 2 のプログラムごとの登録表である。拡張は `name`・`types`・`expand(spec, options, expand_nested)` を持ち、Tier A の型やほかの拡張が受け持つ型は受け持てず、上のキーをちょうど持つ試行を返さなければならない。`tests/test_respondent_expand.py` がこの fixture を通して再生する。

@@ -2,7 +2,7 @@
 
 :gb: [English README](README.md)
 
-contingency-py は、強化子をいつ提示するかを決める Python のライブラリです。`FR 5`・`VI 60-s`・`Conc(VI 30-s, VI 60-s, COD=2-s)` のような強化スケジュールと、起きた反応を順に渡すと、ステップごとに強化子を提示するかどうかを返します。実験箱の制御プログラム、シミュレーション、授業でのデモ、別の実装を検査するときの基準として使えます。[OperantKit](https://github.com/OperantKit) のスケジュールエンジンを Python から使うパッケージです。スケジュールはエンジン本体の [contingency-rs](https://github.com/OperantKit/contingency-rs) で動き、このパッケージはそれを Python のクラスで包み、contingency-dsl から組み立てます。セッション全体の実行 (開始・終了の条件、記録) はこの上に載る [session-runner](https://github.com/OperantKit/session-runner) が受け持ちます。
+contingency-py は、行動実験の随伴性を扱う Python のライブラリです。`FR 5`・`VI 60-s`・`Conc(VI 30-s, VI 60-s, COD=2-s)` のようなオペラントのスケジュールでは、反応が起きるたびに強化子をいつ提示するかを決めます。`Pair.ForwardDelay(tone, shock, isi=10-s, cs_duration=15-s)` のような DSL の Tier A のレスポンデント (パヴロフ型) の手続きでは、試行の列 — どの CS を、どの US を、いつ — を返します。実験箱の制御プログラム、シミュレーション、授業でのデモ、別の実装を検査するときの基準として使えます。[OperantKit](https://github.com/OperantKit) のスケジュールエンジンを Python から使うパッケージです。スケジュールはエンジン本体の [contingency-rs](https://github.com/OperantKit/contingency-rs) で動き、このパッケージはそれを Python のクラスで包み、contingency-dsl から組み立てます。セッション全体の実行 (開始・終了の条件、記録) はこの上に載る [session-runner](https://github.com/OperantKit/session-runner) が受け持ちます。
 
 - **変動スケジュールの値は Fleshler–Hoffman (1962) の数列で作ります。** 値の個数と乱数の種を指定できるので、セッションを厳密に再現できます。
 - **並立スケジュールは切り替え遅延 (COD) を扱います。** COD は、オペランダム (レバーやキー) を切り替えた直後に反応を強化しない時間のことです。設定済みの強化子は、そのオペランダムへの次の反応まで保持します。
@@ -63,6 +63,7 @@ print(reinforcers)  # {'c0': 16, 'c1': 9} — 種を固定しているので毎�
 | その他の手続き | タイムアウト、反応コスト、Sidman 型回避、弁別回避、逃避、見本合わせ (修正試行つき)、Go/No-Go |
 | 値の生成 | Fleshler–Hoffman (Fleshler & Hoffman, 1962) と Hantula (1991) の変法 |
 | スケジュールの組み立て | `contingency.bridge.from_dsl` (contingency-dsl の式から。実行側が読まない組み合わせ子の引数 — 0 より大きい `BO` など — は捨てずに `ScheduleConfigError` にする。`IRT` 以外を対象にした `Pctl` も同じ。`MTS(..., correction=true)` は誤答した試行を ITI の後に正答するまで、`correction=N` は最大 `N` 回、同じ見本・比較刺激の並び・正解で繰り返す。`Lag n` と `Lag(n, length=k)` は `k` 個の反応の単位を、反応した operandum の並びで比べるので、operandum が 1 つだけなら `n >= 1` の `Lag n` は 2 つ目の単位から強化しない。`MTS(...) LH10s` のように `MTS` の後ろに書いた `LH` は、`MTS(..., LH=10s)` と同じく選択の制限時間になる)、`contingency.builder.ScheduleBuilder` (Python の呼び出しから) |
+| レスポンデントの手続き (`contingency.respondent`) | `expand` は、DSL のレスポンデント層の Tier A の式 (対提示、消去、CS だけ・US だけの提示、随伴性と真にランダムな統制、明示的な非対提示、複合 CS と系列 CS、ITI、分化条件づけ) の試行の列を contingency-rs で返す。`RespondentRegistry` は拡張の Tier B の手続きをプログラムごとに足す |
 | ハードウェア抽象化層 (`contingency.hw`) | `Apparatus` インタフェースと、仮想の装置、シリアル接続 (`pyserial` が必要)、ハードウェア・イン・ザ・ループ (HIL) 試験装置向けの TCP 接続 |
 | 適合性検査 | `conformance/` の JSON fixture と `contingency-conformance` コマンド |
 | Gymnasium | `contingency.envs.ScheduleEnv` と、登録済みの 6 つの環境 (任意) |
@@ -85,6 +86,24 @@ contingency-conformance run --only 'atomic/fr_*' -- python my_adapter.py
 ```
 
 JSON の形式、動くアダプタの全文、乱数の種を持つ fixture の判定のしかたは [自作の実装を fixture で検算する](docs/ja/conformance-checker.md) にあります。
+
+### レスポンデントの試行の列
+
+`contingency.respondent.expand` は、Tier A のレスポンデントの式を 1 つ contingency-dsl の AST のノードとして受け取り、その試行の列を返します。各試行は `stage`・`cs`・`us`・`context`・`order`・`time` (試行の始めからの秒)・`iti_s` を持つ dict です。式が持たない値 (試行の数、乱数の種、CS と US のラベル) は設定から取ります。足りない値は既定値で埋めず、その名前を示す `RespondentUnresolvedError` になります。
+
+```python
+from contingency.respondent import expand
+
+spec = {
+    "type": "PairForwardDelay", "cs": "tone", "us": "shock",
+    "isi": {"value": 10, "unit": "s"}, "cs_duration": {"value": 15, "unit": "s"},
+}
+trials = expand(spec, {"trials": 3})
+print(len(trials), trials[0]["time"])
+# 3 {'cs_on': 0.0, 'cs_off': 15.0, 'us_on': 10.0, 'us_off': None, 'gap': None}
+```
+
+Tier A を試行や段階をまたいで組み合わせた手続き (Tier B: 阻止、復元など) は、ここでは展開しません。拡張が `name`・`types`・`expand(spec, options, expand_nested)` を持つオブジェクトを用意し、プログラムが `RespondentRegistry.build(extension, ...)` を作ります。`registry.expand` は Tier A の型を contingency-rs に、Tier B の型をそれぞれの持ち主に渡し、持ち主は入れ子の式を `expand_nested` で展開します。拡張は Tier A の型を受け持てず、2 つの拡張が同じ型を受け持つこともできません。登録表が知らない型は `UnknownRespondentElementError` になります。各要素が何に展開されるかと、それを固定する `conformance/respondent/` の fixture は、[レスポンデントの実行の契約](docs/ja/respondent-contract.md) にあります。
 
 ### Gymnasium 環境
 

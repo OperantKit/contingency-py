@@ -7,6 +7,9 @@ __all__ = [
     "ScheduleConfigError",
     "ScheduleStateError",
     "SpecUnrepresentableError",
+    "RespondentSpecError",
+    "RespondentUnresolvedError",
+    "UnknownRespondentElementError",
     "HardwareError",
     "NotConnectedError",
 ]
@@ -27,6 +30,38 @@ class SpecUnrepresentableError(ScheduleConfigError):
     construct that would change the contingency (for example a
     directional COD, ``PUNISH``, ``BO``, or ``Lag``).
     """
+
+
+class RespondentSpecError(ContingencyError, ValueError):
+    """Raised when a respondent expression or its options are malformed."""
+
+
+class UnknownRespondentElementError(RespondentSpecError):
+    """Raised when a respondent ``type`` is neither Tier A nor registered.
+
+    ``type_name`` holds the type. Tier B types are recognised only through
+    the program's :class:`contingency.respondent.RespondentRegistry`.
+    """
+
+    def __init__(self, type_name: str) -> None:
+        super().__init__(
+            f"respondent type '{type_name}' is not Tier A and is not registered "
+            "in this program's RespondentRegistry"
+        )
+        self.type_name = type_name
+
+
+class RespondentUnresolvedError(ContingencyError, ValueError):
+    """Raised when a value a respondent element needs is not supplied.
+
+    ``missing`` names it: an option (``trials``, ``seed``, ``labels.cs``,
+    ``labels.us``) or the element's own argument (such as ``p``). The
+    expansion never fills it with a default.
+    """
+
+    def __init__(self, missing: str) -> None:
+        super().__init__(f"unresolved: {missing}")
+        self.missing = missing
 
 
 class ScheduleStateError(ContingencyError, RuntimeError):
