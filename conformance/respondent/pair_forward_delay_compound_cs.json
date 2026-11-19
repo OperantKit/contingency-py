@@ -1,0 +1,68 @@
+{
+  "name": "pair_forward_delay_compound_cs",
+  "element": "Pair.ForwardDelay",
+  "description": "R1 with R11. A simultaneous compound CS paired with the US: tone and light share onset and offset (Rescorla & Wagner, 1972).",
+  "spec": {
+    "type": "PairForwardDelay",
+    "cs": {
+      "type": "Compound",
+      "cs_list": [
+        "tone",
+        "light"
+      ],
+      "mode": "Simultaneous"
+    },
+    "us": "food",
+    "isi": {
+      "value": 5.0,
+      "unit": "s"
+    },
+    "cs_duration": {
+      "value": 5.0,
+      "unit": "s"
+    }
+  },
+  "options": {
+    "trials": 2
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "light",
+          "tone"
+        ],
+        "us": "food",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": 5.0,
+          "us_on": 5.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "light",
+          "tone"
+        ],
+        "us": "food",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": 5.0,
+          "us_on": 5.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}

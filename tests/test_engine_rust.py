@@ -38,7 +38,13 @@ from contingency.errors import (  # noqa: E402
 from contingency.interfaces import Schedule  # noqa: E402
 
 CONFORMANCE_DIR = Path(__file__).resolve().parents[1] / "conformance"
-FIXTURES = sorted(CONFORMANCE_DIR.rglob("*.json"))
+# ``respondent/`` holds the respondent trial-list corpus (see
+# docs/en/respondent-contract.md); it is not a schedule fixture.
+FIXTURES = sorted(
+    p
+    for p in CONFORMANCE_DIR.rglob("*.json")
+    if p.relative_to(CONFORMANCE_DIR).parts[0] != "respondent"
+)
 FLOAT_TOL = 1e-9
 
 _REGISTRY = ExtensionRegistry.build(TemporalExtension())

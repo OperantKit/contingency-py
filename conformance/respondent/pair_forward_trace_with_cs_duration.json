@@ -1,0 +1,69 @@
+{
+  "name": "pair_forward_trace_with_cs_duration",
+  "element": "Pair.ForwardTrace",
+  "description": "R2 with an explicit 10-s CS: US onset = CS offset + trace = 15 s.",
+  "spec": {
+    "type": "PairForwardTrace",
+    "cs": "tone",
+    "us": "food",
+    "trace_interval": {
+      "value": 5.0,
+      "unit": "s"
+    },
+    "cs_duration": {
+      "value": 10.0,
+      "unit": "s"
+    }
+  },
+  "options": {
+    "trials": 2
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "food",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": 10.0,
+          "us_on": 15.0,
+          "us_off": null,
+          "gap": {
+            "from": "cs_off",
+            "to": "us_on",
+            "s": 5.0,
+            "at_least": false
+          }
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "food",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": 10.0,
+          "us_on": 15.0,
+          "us_off": null,
+          "gap": {
+            "from": "cs_off",
+            "to": "us_on",
+            "s": 5.0,
+            "at_least": false
+          }
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "name": "us_only",
+  "element": "USOnly",
+  "description": "R7. US-alone presentations with no CS (Randich & LoLordo, 1979).",
+  "spec": {
+    "type": "USOnly",
+    "us": "shock",
+    "trials": 3
+  },
+  "options": {
+    "trials": 1
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": 0.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": 0.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": 0.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}

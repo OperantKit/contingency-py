@@ -1,0 +1,85 @@
+{
+  "name": "cs_only",
+  "element": "CSOnly",
+  "description": "R6. CS-alone exposure with its own trial count, e.g. a pre-exposure phase (Lubow & Moore, 1959).",
+  "spec": {
+    "type": "CSOnly",
+    "cs": "tone",
+    "trials": 4
+  },
+  "options": {
+    "trials": 1
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}

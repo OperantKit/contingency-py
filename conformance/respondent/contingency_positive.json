@@ -1,0 +1,182 @@
+{
+  "name": "contingency_positive",
+  "element": "Contingency",
+  "description": "R8. P(US|CS) = 0.9, P(US|no CS) = 0.1 (Rescorla, 1967): CS periods alternate with no-CS periods; one draw per period. Labels come from the program.",
+  "spec": {
+    "type": "Contingency",
+    "p_us_given_cs": 0.9,
+    "p_us_given_no_cs": 0.1
+  },
+  "options": {
+    "trials": 5,
+    "seed": 1,
+    "labels": {
+      "cs": "tone",
+      "us": "shock"
+    }
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "name": "iti_exponential",
+  "element": "ITI",
+  "description": "R13. Exponential intervals with a 60-s mean (Gallistel & Gibbon, 2000).",
+  "spec": {
+    "type": "ITI",
+    "distribution": "exponential",
+    "mean": {
+      "value": 60.0,
+      "unit": "s"
+    }
+  },
+  "options": {
+    "trials": 3,
+    "seed": 11
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": 36.130370873829
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": 49.227802887785785
+      },
+      {
+        "stage": "main",
+        "cs": [],
+        "us": null,
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": null,
+          "cs_off": null,
+          "us_on": null,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": 154.78779762018166
+      }
+    ]
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "name": "pair_forward_delay",
+  "element": "Pair.ForwardDelay",
+  "description": "R1. CS onset precedes US onset and the two overlap: tone on 0-15 s, shock onset at 10 s (Pavlov, 1927).",
+  "spec": {
+    "type": "PairForwardDelay",
+    "cs": "tone",
+    "us": "shock",
+    "isi": {
+      "value": 10.0,
+      "unit": "s"
+    },
+    "cs_duration": {
+      "value": 15.0,
+      "unit": "s"
+    }
+  },
+  "options": {
+    "trials": 3
+  },
+  "expected": {
+    "trials": [
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": 15.0,
+          "us_on": 10.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": 15.0,
+          "us_on": 10.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      },
+      {
+        "stage": "main",
+        "cs": [
+          "tone"
+        ],
+        "us": "shock",
+        "context": null,
+        "order": null,
+        "time": {
+          "cs_on": 0.0,
+          "cs_off": 15.0,
+          "us_on": 10.0,
+          "us_off": null,
+          "gap": null
+        },
+        "iti_s": null
+      }
+    ]
+  }
+}
